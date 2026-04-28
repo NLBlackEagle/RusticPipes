@@ -1,0 +1,131 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version "${forge_gradle_version}"
+    id 'org.spongepowered.mixin' version "${mixin_gradle_version}"
+    id 'wtf.gofancy.fancygradle' version "${fancy_gradle_version}"
+}
+
+version = mod_version
+group = mod_id
+base.archivesName = mod_name
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+
+minecraft {
+    mappings channel: mappings_channel, version: mappings_version
+
+    runs {
+        client {
+            args "--username=InDev"
+
+            jvmArg "-Dfml.coreMods.load=${mixin_loader_class}"
+            jvmArg "-Dmixin.hotSwap=true"
+            jvmArg "-Dmixin.checks.interfaces=true"
+
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+
+        server {
+
+            jvmArg "-Dfml.coreMods.load=${mixin_loader_class}"
+            jvmArg "-Dmixin.hotSwap=true"
+            jvmArg "-Dmixin.checks.interfaces=true"
+
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+    }
+}
+
+repositories {
+    flatDir { dirs 'libs' }
+    maven { url = 'https://www.cursemaven.com' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    compileOnly "org.spongepowered:mixin:${mixin_version}"
+    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
+    compileOnly "io.github.llamalad7:mixinextras-common:${mixin_extras_version}"
+    annotationProcessor "io.github.llamalad7:mixinextras-common:${mixin_extras_version}"
+
+    implementation fg.deobf("curse.maven:fermiumbooter-${fermiumbooter_version}")
+	
+    implementation fg.deobf("curse.maven:jei-${jei_version}")
+}
+
+mixin {
+    add sourceSets.main, "mixins.${mod_id}.refmap.json"
+}
+
+fancyGradle {
+    patches {
+        resources
+        coremods
+        asm
+        mergetool
+    }
+}
+
+processResources {
+    var replaceProperties = [
+            'mod_id': mod_id,
+            'mod_name': mod_name,
+            'version': mod_version,
+            'mcversion': minecraft_version,
+            'mod_description': mod_description,
+            'mod_author': mod_author
+    ]
+
+    inputs.properties replaceProperties
+
+    filesMatching('mcmod.info') {
+        expand replaceProperties
+    }
+}
+
+jar {
+    manifest {
+        def attr = [:]
+        attr['Specification-Title']         = mod_name
+        attr['Specification-Vendor']        = mod_author
+        attr['Specification-Version']       = '1'
+        attr['Implementation-Title']        = mod_name
+        attr['Implementation-Vendor']       = mod_author
+        attr['Implementation-Version']      = mod_version
+        attr['Implementation-Timestamp']    = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        attr['FMLCorePlugin']               = mixin_loader_class
+        attr['FMLCorePluginContainsFMLMod'] = 'true'
+        attr['TweakClass']                  = 'org.spongepowered.asm.launch.MixinTweaker'
+        attr['ForceLoadAsMod'] = "true"
+
+        def currentTasks = gradle.startParameter.taskNames
+        if (currentTasks[0] == 'build' || currentTasks[0] == 'assemble')
+            attr['ForceLoadAsMod'] = "true"
+        attributes(attr)
+    }
+}
+
+//This task is only for copying output.jar into run/mods/ so when running indev fermiumbooter finds the jar to check for @MixinConfig annotations
+tasks.register("copyReobfJar", Copy) {
+    dependsOn("reobfJar")
+
+    from(layout.buildDirectory.file("reobfJar/output.jar"))
+    into(layout.projectDirectory.dir("run/mods"))
+    rename("output.jar", "${mod_name}-${mod_version}.jar")
+}
+
+afterEvaluate {
+    tasks.matching { it.name.startsWith("reobfJar") }.configureEach {
+        finalizedBy("copyReobfJar")
+    }
+}
+
+jar.finalizedBy('reobfJar')
