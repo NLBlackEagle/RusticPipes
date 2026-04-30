@@ -1,4 +1,4 @@
-package replacememodid;
+package rusticpipes;
 
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.Instance;
@@ -7,30 +7,28 @@ import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import replacememodid.capability.CapabilityExampleHandler;
-import replacememodid.handlers.ModRegistry;
-import replacememodid.proxy.CommonProxy;
+import rusticpipes.handlers.ModRegistry;
+import rusticpipes.proxy.CommonProxy;
 
-@Mod(modid = ReplaceMeModName.MODID, version = ReplaceMeModName.VERSION, name = ReplaceMeModName.NAME, dependencies = "required-after:fermiumbooter")
-public class ReplaceMeModName {
-    public static final String MODID = "replacememodid";
+@Mod(modid = RusticPipes.MODID, version = RusticPipes.VERSION, name = RusticPipes.NAME, dependencies = "required-after:fermiumbooter")
+public class RusticPipes {
+    public static final String MODID = "rusticpipes";
     public static final String VERSION = "ReplaceMe.Mod.Version";
-    public static final String NAME = "ReplaceMeModName";
+    public static final String NAME = "RusticPipes";
     public static final Logger LOGGER = LogManager.getLogger();
     public static boolean completedLoading = false;
 	
-    @SidedProxy(clientSide = "replacememodid.proxy.ClientProxy", serverSide = "replacememodid.proxy.CommonProxy")
+    @SidedProxy(clientSide = "rusticpipes.proxy.ClientProxy", serverSide = "rusticpipes.proxy.CommonProxy")
     public static CommonProxy PROXY;
 	
 	@Instance(MODID)
-	public static ReplaceMeModName instance;
+	public static RusticPipes instance;
 	
 	@Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ModRegistry.init();
-        ReplaceMeModName.PROXY.preInit();
+        RusticPipes.PROXY.preInit();
 
-        CapabilityExampleHandler.registerCapability();
     }
 
     @Mod.EventHandler

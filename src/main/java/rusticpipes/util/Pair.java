@@ -1,4 +1,4 @@
-package replacememodid.util;
+package rusticpipes.util;
 
 public class Pair<L,R> {
     private final L left;
