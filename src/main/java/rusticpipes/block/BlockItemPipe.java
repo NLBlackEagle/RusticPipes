@@ -46,10 +46,14 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
     }
 
     @Override
-    public int getMetaFromState(IBlockState state) { return 0; }
+    public int getMetaFromState(IBlockState state) {
+        return state.getValue(FACING).getIndex();
+    }
 
     @Override
-    public IBlockState getStateFromMeta(int meta) { return getDefaultState(); }
+    public IBlockState getStateFromMeta(int meta) {
+        return getDefaultState().withProperty(FACING, EnumFacing.byIndex(meta));
+    }
 
     @Override
     public IBlockState getStateForPlacement(World world, BlockPos pos, EnumFacing facing,

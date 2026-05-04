@@ -9,42 +9,62 @@ import rusticpipes.RusticPipes;
 
 @Config(modid = RusticPipes.MODID)
 public class ForgeConfigHandler {
-	
-	@Config.Comment("Server-Side Options")
-	@Config.Name("Server Options")
-	public static final ServerConfig server = new ServerConfig();
 
-	@Config.Comment("Client-Side Options")
-	@Config.Name("Client Options")
-	public static final ClientConfig client = new ClientConfig();
+    @Config.Comment("Server-Side Options")
+    @Config.Name("Server Options")
+    public static final ServerConfig server = new ServerConfig();
 
+    @Config.Comment("Client-Side Options")
+    @Config.Name("Client Options")
+    public static final ClientConfig client = new ClientConfig();
 
-	public static class ServerConfig {
+    public static class ServerConfig {
 
-        @Config.Comment("How often does the pipe checks/moves it's contents, higher rate = more performant")
-        @Config.RangeInt(min = 1)
-        @Config.Name("Pipe Tick Rate")
-        public int pipeTickRate = 1;
+        @Config.Comment("Slow tier: ticks between network updates. Higher = slower transfer.")
+        @Config.RangeInt(min = 1, max = 200)
+        @Config.Name("Pipe Tick Rate - Slow")
+        public int pipeTickRateSlow = 20;
 
-        @Config.Comment("How much items/volume is transferred per pipeTickRate")
-        @Config.RangeInt(min = 1)
+        @Config.Comment("Normal tier: ticks between network updates.")
+        @Config.RangeInt(min = 1, max = 200)
+        @Config.Name("Pipe Tick Rate - Normal")
+        public int pipeTickRateNormal = 10;
+
+        @Config.Comment("Fast tier: ticks between network updates. Requires RF.")
+        @Config.RangeInt(min = 1, max = 200)
+        @Config.Name("Pipe Tick Rate - Fast")
+        public int pipeTickRateFast = 4;
+
+        @Config.Comment("Turbo tier: ticks between network updates. Requires more RF.")
+        @Config.RangeInt(min = 1, max = 200)
+        @Config.Name("Pipe Tick Rate - Turbo")
+        public int pipeTickRateTurbo = 1;
+
+        @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slower.")
+        @Config.RangeInt(min = 0, max = 20)
+        @Config.Name("Pipe Distance Penalty")
+        public int pipeDistancePenalty = 1;
+
+        @Config.Comment("Max items transferred per network tick.")
+        @Config.RangeInt(min = 1, max = 64)
         @Config.Name("Pipe Transfer Amount")
-        public int pipeTransferSize = 1;
+        public int pipeTransferSize = 4;
+    }
 
-	}
+    public static class ClientConfig {
 
-	public static class ClientConfig {
+        @Config.Comment("Show pipe network debug info when sneaking.")
+        @Config.Name("Show Debug Overlay")
+        public boolean showDebugOverlay = false;
+    }
 
-	}
-
-	@Mod.EventBusSubscriber(modid = RusticPipes.MODID)
-	private static class EventHandler{
-
-		@SubscribeEvent
-		public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
-			if(event.getModID().equals(RusticPipes.MODID)) {
-				ConfigManager.sync(RusticPipes.MODID, Config.Type.INSTANCE);
-			}
-		}
-	}
+    @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
+    private static class EventHandler {
+        @SubscribeEvent
+        public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
+            if (event.getModID().equals(RusticPipes.MODID)) {
+                ConfigManager.sync(RusticPipes.MODID, Config.Type.INSTANCE);
+            }
+        }
+    }
 }
