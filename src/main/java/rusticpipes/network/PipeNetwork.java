@@ -15,28 +15,15 @@ import java.util.*;
 
 public class PipeNetwork {
 
-    // -----------------------------------------------------------------------
-    // Speed tiers
-    // -----------------------------------------------------------------------
     public enum SpeedTier { SLOW, NORMAL, FAST, TURBO }
 
-    // -----------------------------------------------------------------------
-    // Static registry
-    // -----------------------------------------------------------------------
     private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
     private static int globalTick = 0;
 
-    // -----------------------------------------------------------------------
-    // Per-network state
-    // -----------------------------------------------------------------------
     private final Set<BlockPos> members = new HashSet<>();
     private int bucket;
     private SpeedTier speedTier = SpeedTier.SLOW;
     private int rrPointer = 0;
-
-    // -----------------------------------------------------------------------
-    // Static API
-    // -----------------------------------------------------------------------
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) {
         return NETWORKS.get(pos);
@@ -118,19 +105,11 @@ public class PipeNetwork {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Tick scheduling
-    // -----------------------------------------------------------------------
-
     public boolean isMyTick() {
         int rate = getEffectiveTickRate(this);
         return (globalTick % rate) == (bucket % rate);
     }
 
-    /**
-     * Effective tick rate = base tier rate + (member count * distance penalty).
-     * Longer networks are inherently slower.
-     */
     private static int getEffectiveTickRate(PipeNetwork network) {
         int base;
         switch (network.speedTier) {
@@ -143,10 +122,6 @@ public class PipeNetwork {
         return Math.max(1, base + penalty);
     }
 
-    // -----------------------------------------------------------------------
-    // Speed tier cycling (called from shift+right-click)
-    // -----------------------------------------------------------------------
-
     public void cycleSpeedTier() {
         switch (speedTier) {
             case SLOW:   speedTier = SpeedTier.NORMAL; break;
@@ -158,18 +133,11 @@ public class PipeNetwork {
 
     public SpeedTier getSpeedTier() { return speedTier; }
 
-    // -----------------------------------------------------------------------
-    // Network-level item transfer
-    // -----------------------------------------------------------------------
-
-    /**
-     * Called once per network per isMyTick() interval.
-     * Scans all member pipes for input/output endpoints and transfers items
-     * directly between them — no per-pipe buffering needed.
-     */
     public void transferItems(World world) {
-        List<IItemHandler> inputs  = new ArrayList<>();
-        List<IItemHandler> outputs = new ArrayList<>();
+        // Deduplicate by BlockPos — same chest can't appear twice
+        // regardless of how many pipes point at it
+        Set<BlockPos> inputPositions  = new LinkedHashSet<>();
+        Set<BlockPos> outputPositions = new LinkedHashSet<>();
 
         for (BlockPos memberPos : members) {
             IBlockState state = world.getBlockState(memberPos);
@@ -177,49 +145,57 @@ public class PipeNetwork {
 
             EnumFacing facing = state.getValue(BlockItemPipe.FACING);
 
-            // Input endpoint — inventory on the opposite side of FACING
-            EnumFacing inputFace = facing.getOpposite();
-            IItemHandler input = getInventory(world, memberPos.offset(inputFace), inputFace.getOpposite());
-            if (input != null) inputs.add(input);
+            // Input — position on the opposite side of FACING
+            BlockPos inputPos = memberPos.offset(facing.getOpposite());
+            if (!(world.getBlockState(inputPos).getBlock() instanceof BlockItemPipe)) {
+                if (getInventoryAtPos(world, inputPos) != null)
+                    inputPositions.add(inputPos);
+            }
 
-            // Output endpoint — inventory on the FACING side
+            // Output — position on the FACING side
             BlockPos outputPos = memberPos.offset(facing);
-            // Only count as output if it's NOT another pipe
             if (!(world.getBlockState(outputPos).getBlock() instanceof BlockItemPipe)) {
-                IItemHandler output = getInventory(world, outputPos, facing.getOpposite());
-                if (output != null) outputs.add(output);
+                if (getInventoryAtPos(world, outputPos) != null)
+                    outputPositions.add(outputPos);
             }
         }
 
-        if (inputs.isEmpty() || outputs.isEmpty()) return;
+        if (inputPositions.isEmpty() || outputPositions.isEmpty()) return;
 
+        List<BlockPos> inputs  = new ArrayList<>(inputPositions);
+        List<BlockPos> outputs = new ArrayList<>(outputPositions);
         int maxTransfer = ForgeConfigHandler.server.pipeTransferSize;
 
-        for (IItemHandler source : inputs) {
+        for (BlockPos inputPos : inputs) {
+            IItemHandler source = getInventoryAtPos(world, inputPos);
+            if (source == null) continue;
+
             for (int slot = 0; slot < source.getSlots(); slot++) {
                 ItemStack stack = source.extractItem(slot, maxTransfer, true);
                 if (stack.isEmpty()) continue;
 
-                // Round-robin across outputs
-                IItemHandler dest = outputs.get(rrPointer % outputs.size());
+                // Try outputs round-robin, advance pointer on each attempt
+                for (int attempt = 0; attempt < outputs.size(); attempt++) {
+                    BlockPos destPos = outputs.get(rrPointer % outputs.size());
+                    rrPointer++;
 
-                for (int outSlot = 0; outSlot < dest.getSlots(); outSlot++) {
-                    ItemStack remaining = dest.insertItem(outSlot, stack, true);
-                    if (remaining.isEmpty()) {
-                        source.extractItem(slot, stack.getCount(), false);
-                        dest.insertItem(outSlot, stack, false);
-                        rrPointer++;
-                        break;
+                    IItemHandler dest = getInventoryAtPos(world, destPos);
+                    if (dest == null) continue;
+
+                    for (int outSlot = 0; outSlot < dest.getSlots(); outSlot++) {
+                        ItemStack remaining = dest.insertItem(outSlot, stack, true);
+                        if (remaining.isEmpty()) {
+                            source.extractItem(slot, stack.getCount(), false);
+                            dest.insertItem(outSlot, stack, false);
+                            attempt = outputs.size(); // break outer loop
+                            break;
+                        }
                     }
                 }
                 break; // one slot per input per tick
             }
         }
     }
-
-    // -----------------------------------------------------------------------
-    // Network reversal (shift+right-click)
-    // -----------------------------------------------------------------------
 
     public void reverseNetwork(World world) {
         for (BlockPos memberPos : members) {
@@ -230,17 +206,25 @@ public class PipeNetwork {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
-
     @javax.annotation.Nullable
     private static IItemHandler getInventory(World world, BlockPos pos, EnumFacing face) {
         TileEntity te = world.getTileEntity(pos);
         if (te == null) return null;
         if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face))
             return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-        // fallback to null-face (vanilla chests)
+        if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null))
+            return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
+        return null;
+    }
+
+    @javax.annotation.Nullable
+    private static IItemHandler getInventoryAtPos(World world, BlockPos pos) {
+        TileEntity te = world.getTileEntity(pos);
+        if (te == null) return null;
+        for (EnumFacing face : EnumFacing.VALUES) {
+            if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face))
+                return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
+        }
         if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null))
             return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
         return null;
