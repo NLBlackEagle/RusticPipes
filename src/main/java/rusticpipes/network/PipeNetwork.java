@@ -5,6 +5,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import rusticpipes.block.BlockItemPipe;
+import rusticpipes.handlers.ForgeConfigHandler;
 
 import java.util.*;
 
@@ -12,9 +13,20 @@ public class PipeNetwork {
 
     private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
     private final Set<BlockPos> members = new HashSet<>();
+    private static int globalTick = 0;
+    private int bucket;
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) {
         return NETWORKS.get(pos);
+    }
+
+    public static void serverTick() {
+        globalTick++;
+    }
+
+    public boolean isMyTick() {
+        int rate = ForgeConfigHandler.server.pipeTickRate;
+        return (globalTick % rate) == (bucket % rate);
     }
 
     public static void onPipeAdded(World world, BlockPos pos) {
@@ -32,6 +44,7 @@ public class PipeNetwork {
         if (neighbours.isEmpty()) {
 
             PipeNetwork newNetwork = new PipeNetwork();
+            newNetwork.bucket = NETWORKS.size() % Math.max(1, ForgeConfigHandler.server.pipeTickRate);
             newNetwork.members.add(pos);
             NETWORKS.put(pos, newNetwork);
 
@@ -56,14 +69,21 @@ public class PipeNetwork {
     }
 
     public static void onPipeRemoved(World world, BlockPos pos) {
+
+        // gets the saved pipe network through location and if not found returns
         PipeNetwork network = NETWORKS.get(pos);
         if (network == null) return;
 
+        // remove from global position lookup so other pipes can't route through here
         NETWORKS.remove(pos);
+        // remove from this network's member set so flood fill doesn't count it
         network.members.remove(pos);
 
+        // if no members left, network is gone entirely - nothing to split
         if (network.members.isEmpty()) return;
 
+        // flood fill - starting from one seed position, find every
+        // pipe still reachable by stepping through connected neighbours
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new ArrayDeque<>();
         BlockPos seed = network.members.iterator().next();
@@ -84,17 +104,19 @@ public class PipeNetwork {
         // no split - done
         if (visited.size() == network.members.size()) return;
 
-        // update original network to only contain the reachable fragment
+        // calculate remaining FIRST - before touching network.members
+        Set<BlockPos> remaining = new HashSet<>(network.members);
+        remaining.removeAll(visited);
+
+        // THEN update original network to only contain reachable fragment
         network.members.clear();
         network.members.addAll(visited);
         for (BlockPos memberPos : visited) {
             NETWORKS.put(memberPos, network);
         }
 
-        // create a new network for everything that wasn't reachable
-        Set<BlockPos> remaining = new HashSet<>(network.members);
-        remaining.removeAll(visited);
 
+        // create new network for disconnected fragment
         PipeNetwork newNetwork = new PipeNetwork();
         for (BlockPos memberPos : remaining) {
             newNetwork.members.add(memberPos);

@@ -21,6 +21,15 @@ public class ForgeConfigHandler {
 
 	public static class ServerConfig {
 
+        @Config.Comment("How often does the pipe checks/moves it's contents, higher rate = more performant")
+        @Config.RangeInt(min = 1)
+        @Config.Name("Pipe Tick Rate")
+        public int pipeTickRate = 1;
+
+        @Config.Comment("How much items/volume is transferred per pipeTickRate")
+        @Config.RangeInt(min = 1)
+        @Config.Name("Pipe Transfer Amount")
+        public int pipeTransferSize = 1;
 
 	}
 
