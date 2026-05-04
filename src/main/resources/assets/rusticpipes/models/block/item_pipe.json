@@ -1,6 +1,12 @@
 {
-  "parent": "block/cube_all",
+  "parent": "block/cube",
   "textures": {
-    "all": "rusticpipes:blocks/item_pipe"
+    "down":     "rusticpipes:blocks/item_pipe",
+    "up":       "rusticpipes:blocks/item_pipe",
+    "north":    "rusticpipes:blocks/item_pipe",
+    "south":    "rusticpipes:blocks/item_pipe",
+    "west":     "rusticpipes:blocks/item_pipe",
+    "east":     "rusticpipes:blocks/pipe_arrow",
+    "particle": "rusticpipes:blocks/item_pipe"
   }
 }

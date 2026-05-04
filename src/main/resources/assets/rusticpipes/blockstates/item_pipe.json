@@ -1,41 +1,18 @@
 {
   "forge_marker": 1,
   "defaults": {
-    "model": "rusticpipes:item_pipe",
-    "transform": "forge:default-block"
+    "textures": {
+      "all": "rusticpipes:blocks/item_pipe"
+    }
   },
   "variants": {
-    "facing": {
-      "north": {},
-      "south": {},
-      "east": {},
-      "west": {},
-      "up": {},
-      "down": {}
-    },
-    "north": {
-      "true": {},
-      "false": {}
-    },
-    "south": {
-      "true": {},
-      "false": {}
-    },
-    "east": {
-      "true": {},
-      "false": {}
-    },
-    "west": {
-      "true": {},
-      "false": {}
-    },
-    "up": {
-      "true": {},
-      "false": {}
-    },
-    "down": {
-      "true": {},
-      "false": {}
-    }
+    "normal": { "model": "rusticpipes:item_pipe" },
+    "inventory": { "model": "rusticpipes:item_pipe" },
+    "facing=north": { "model": "rusticpipes:item_pipe" },
+    "facing=south": { "model": "rusticpipes:item_pipe", "y": 180, "uvlock": true },
+    "facing=east":  { "model": "rusticpipes:item_pipe", "y": 90, "uvlock": true },
+    "facing=west":  { "model": "rusticpipes:item_pipe", "y": 270, "uvlock": true },
+    "facing=up":    { "model": "rusticpipes:item_pipe", "x": -90, "uvlock": true },
+    "facing=down":  { "model": "rusticpipes:item_pipe", "x": 90, "uvlock": true }
   }
 }
