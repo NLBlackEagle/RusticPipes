@@ -10,6 +10,8 @@ import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.handlers.ForgeConfigHandler;
+import rusticpipes.tileentity.FaceMode;
+import rusticpipes.tileentity.TileEntityItemPipe;
 
 import java.util.*;
 
@@ -134,8 +136,6 @@ public class PipeNetwork {
     public SpeedTier getSpeedTier() { return speedTier; }
 
     public void transferItems(World world) {
-        // Deduplicate by BlockPos — same chest can't appear twice
-        // regardless of how many pipes point at it
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
         Set<BlockPos> outputPositions = new LinkedHashSet<>();
 
@@ -143,20 +143,26 @@ public class PipeNetwork {
             IBlockState state = world.getBlockState(memberPos);
             if (!(state.getBlock() instanceof BlockItemPipe)) continue;
 
-            EnumFacing facing = state.getValue(BlockItemPipe.FACING);
+            TileEntity te = world.getTileEntity(memberPos);
+            if (!(te instanceof TileEntityItemPipe)) continue;
+            TileEntityItemPipe pipe = (TileEntityItemPipe) te;
 
-            // Input — position on the opposite side of FACING
-            BlockPos inputPos = memberPos.offset(facing.getOpposite());
-            if (!(world.getBlockState(inputPos).getBlock() instanceof BlockItemPipe)) {
-                if (getInventoryAtPos(world, inputPos) != null)
-                    inputPositions.add(inputPos);
-            }
+            // Check all 6 faces — use face mode to determine input/output
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos neighbourPos = memberPos.offset(face);
 
-            // Output — position on the FACING side
-            BlockPos outputPos = memberPos.offset(facing);
-            if (!(world.getBlockState(outputPos).getBlock() instanceof BlockItemPipe)) {
-                if (getInventoryAtPos(world, outputPos) != null)
-                    outputPositions.add(outputPos);
+                // Skip pipe-to-pipe connections — just routing
+                if (world.getBlockState(neighbourPos).getBlock() instanceof BlockItemPipe) continue;
+
+                // Only count faces with an actual inventory
+                if (getInventoryAtPos(world, neighbourPos) == null) continue;
+
+                FaceMode mode = pipe.getFaceMode(face);
+                if (mode == FaceMode.INPUT) {
+                    inputPositions.add(neighbourPos);
+                } else {
+                    outputPositions.add(neighbourPos);
+                }
             }
         }
 
@@ -174,7 +180,6 @@ public class PipeNetwork {
                 ItemStack stack = source.extractItem(slot, maxTransfer, true);
                 if (stack.isEmpty()) continue;
 
-                // Try outputs round-robin, advance pointer on each attempt
                 for (int attempt = 0; attempt < outputs.size(); attempt++) {
                     BlockPos destPos = outputs.get(rrPointer % outputs.size());
                     rrPointer++;
@@ -187,7 +192,7 @@ public class PipeNetwork {
                         if (remaining.isEmpty()) {
                             source.extractItem(slot, stack.getCount(), false);
                             dest.insertItem(outSlot, stack, false);
-                            attempt = outputs.size(); // break outer loop
+                            attempt = outputs.size(); // exit attempt loop
                             break;
                         }
                     }
@@ -195,26 +200,6 @@ public class PipeNetwork {
                 break; // one slot per input per tick
             }
         }
-    }
-
-    public void reverseNetwork(World world) {
-        for (BlockPos memberPos : members) {
-            IBlockState state = world.getBlockState(memberPos);
-            EnumFacing current = state.getValue(BlockItemPipe.FACING);
-            world.setBlockState(memberPos,
-                    state.withProperty(BlockItemPipe.FACING, current.getOpposite()));
-        }
-    }
-
-    @javax.annotation.Nullable
-    private static IItemHandler getInventory(World world, BlockPos pos, EnumFacing face) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) return null;
-        if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face))
-            return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-        if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null))
-            return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
-        return null;
     }
 
     @javax.annotation.Nullable
