@@ -25,29 +25,39 @@ public class ForgeConfigHandler {
     public static class ServerConfig {
 
         @Config.Comment("Slow tier: ticks between network updates. Higher = slower transfer.")
-        @Config.RangeInt(min = 1, max = 200)
+        @Config.RangeInt(min = 40, max = 200)
         @Config.Name("Pipe Tick Rate - Slow")
-        public int pipeTickRateSlow = 20;
+        public int pipeTickRateSlow = 100;
 
         @Config.Comment("Normal tier: ticks between network updates.")
-        @Config.RangeInt(min = 1, max = 200)
+        @Config.RangeInt(min = 40, max = 200)
         @Config.Name("Pipe Tick Rate - Normal")
-        public int pipeTickRateNormal = 10;
+        public int pipeTickRateNormal = 60;
 
         @Config.Comment("Fast tier: ticks between network updates.")
-        @Config.RangeInt(min = 1, max = 200)
+        @Config.RangeInt(min = 40, max = 200)
         @Config.Name("Pipe Tick Rate - Fast")
-        public int pipeTickRateFast = 4;
+        public int pipeTickRateFast = 40;
 
         @Config.Comment("Turbo tier: ticks between network updates.")
-        @Config.RangeInt(min = 1, max = 200)
+        @Config.RangeInt(min = 40, max = 200)
         @Config.Name("Pipe Tick Rate - Turbo")
-        public int pipeTickRateTurbo = 1;
+        public int pipeTickRateTurbo = 40;
+
+        @Config.Comment("Hyper tier: ticks between network updates.")
+        @Config.RangeInt(min = 40, max = 200)
+        @Config.Name("Pipe Tick Rate - Hyper")
+        public int pipeTickRateHyper = 40;
+
+        @Config.Comment("Ultra tier: ticks between network updates.")
+        @Config.RangeInt(min = 40, max = 200)
+        @Config.Name("Pipe Tick Rate - Ultra")
+        public int pipeTickRateUltra = 40;
 
         @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slower.")
         @Config.RangeInt(min = 0, max = 20)
         @Config.Name("Pipe Distance Penalty")
-        public int pipeDistancePenalty = 1;
+        public int pipeDistancePenalty = 0;
 
         @Config.Comment("Slow tier: items transferred per network update.")
         @Config.RangeInt(min = 1, max = 64)
@@ -57,17 +67,27 @@ public class ForgeConfigHandler {
         @Config.Comment("Normal tier: items transferred per network update.")
         @Config.RangeInt(min = 1, max = 64)
         @Config.Name("Pipe Transfer Size - Normal")
-        public int pipeTransferSizeNormal = 2;
+        public int pipeTransferSizeNormal = 1;
 
         @Config.Comment("Fast tier: items transferred per network update.")
         @Config.RangeInt(min = 1, max = 64)
         @Config.Name("Pipe Transfer Size - Fast")
-        public int pipeTransferSizeFast = 4;
+        public int pipeTransferSizeFast = 2;
 
         @Config.Comment("Turbo tier: items transferred per network update.")
         @Config.RangeInt(min = 1, max = 64)
         @Config.Name("Pipe Transfer Size - Turbo")
-        public int pipeTransferSizeTurbo = 8;
+        public int pipeTransferSizeTurbo = 4;
+
+        @Config.Comment("Hyper tier: items transferred per network update.")
+        @Config.RangeInt(min = 1, max = 64)
+        @Config.Name("Pipe Transfer Size - Hyper")
+        public int pipeTransferSizeHyper = 8;
+
+        @Config.Comment("Ultra tier: items transferred per network update.")
+        @Config.RangeInt(min = 1, max = 64)
+        @Config.Name("Pipe Transfer Size - Ultra")
+        public int pipeTransferSizeUltra = 16;
     }
 
     public static class ClientConfig {
@@ -116,21 +136,35 @@ public class ForgeConfigHandler {
         @Config.Comment("Minimum FE/tick for FAST tier.")
         @Config.RangeInt(min = 1, max = 100000)
         @Config.Name("FE/tick - Fast threshold")
-        public int fePerTickFast = 100;
+        public int fePerTickFast = 200;
 
         @Config.Comment("Minimum FE/tick for TURBO tier.")
         @Config.RangeInt(min = 1, max = 100000)
         @Config.Name("FE/tick - Turbo threshold")
-        public int fePerTickTurbo = 500;
+        public int fePerTickTurbo = 800;
 
-        @Config.Comment("Maximum FE/tick to extract per face per conduit per tick.")
+        @Config.Comment("Minimum FE/tick for HYPER tier.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("FE/tick - Hyper threshold")
+        public int fePerTickHyper = 2000;
+
+        @Config.Comment("Minimum FE/tick for ULTRA tier.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("FE/tick - Ultra threshold")
+        public int fePerTickUltra = 6000;
+
+        @Config.Comment("Maximum FE/tick to extract per face per tick.")
         @Config.RangeInt(min = 1, max = 100000)
         @Config.Name("Max FE/tick per face")
-        public int maxFePerTickPerFace = 1000;
+        public int maxFePerTickPerFace = 10000;
 
         @Config.Comment("Enable the conduit crafting recipe.")
         @Config.Name("Enable Conduit Recipe")
         public boolean enableConduitRecipe = true;
+
+        @Config.Comment("If enabled, powered conduits exposed to the sky are struck by lightning during rain.")
+        @Config.Name("Enable Rain Lightning Damage")
+        public boolean enableRainDamage = true;
     }
 
     @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
