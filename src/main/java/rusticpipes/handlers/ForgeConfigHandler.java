@@ -102,6 +102,37 @@ public class ForgeConfigHandler {
         public boolean enableInWorldDyeing = true;
     }
 
+    @Config.Comment("Conduit Options")
+    @Config.Name("Conduit Options")
+    public static final ConduitConfig conduit = new ConduitConfig();
+
+    public static class ConduitConfig {
+
+        @Config.Comment("Minimum FE/tick for NORMAL tier.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("FE/tick - Normal threshold")
+        public int fePerTickNormal = 20;
+
+        @Config.Comment("Minimum FE/tick for FAST tier.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("FE/tick - Fast threshold")
+        public int fePerTickFast = 100;
+
+        @Config.Comment("Minimum FE/tick for TURBO tier.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("FE/tick - Turbo threshold")
+        public int fePerTickTurbo = 500;
+
+        @Config.Comment("Maximum FE/tick to extract per face per conduit per tick.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("Max FE/tick per face")
+        public int maxFePerTickPerFace = 1000;
+
+        @Config.Comment("Enable the conduit crafting recipe.")
+        @Config.Name("Enable Conduit Recipe")
+        public boolean enableConduitRecipe = true;
+    }
+
     @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
     private static class EventHandler {
         @SubscribeEvent

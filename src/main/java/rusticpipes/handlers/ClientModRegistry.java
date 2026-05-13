@@ -16,6 +16,8 @@ import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.client.color.PipeBlockColor;
 import rusticpipes.client.color.PipeItemColor;
+import rusticpipes.block.BlockConduit;
+import rusticpipes.client.model.ConduitModelLoader;
 import rusticpipes.client.model.PipeModelLoader;
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
@@ -23,6 +25,7 @@ public class ClientModRegistry {
 
     public static void preInit() {
         ModelLoaderRegistry.registerLoader(PipeModelLoader.INSTANCE);
+        ModelLoaderRegistry.registerLoader(ConduitModelLoader.INSTANCE);
     }
 
     @SubscribeEvent
@@ -47,6 +50,17 @@ public class ClientModRegistry {
             // Item model
             ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(pipe), 0, INVENTORY);
         }
+
+        // Conduit model
+        final ModelResourceLocation CONDUIT_MODEL = new ModelResourceLocation(RusticPipes.MODID + ":conduit", "normal");
+        ModelLoader.setCustomStateMapper(ModRegistry.CONDUIT, new StateMapperBase() {
+            @Override
+            protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+                return CONDUIT_MODEL;
+            }
+        });
+        ModelLoader.setCustomModelResourceLocation(
+                Item.getItemFromBlock(ModRegistry.CONDUIT), 0, CONDUIT_MODEL);
     }
 
     /**

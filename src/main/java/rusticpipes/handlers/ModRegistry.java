@@ -17,6 +17,8 @@ import net.minecraftforge.oredict.ShapelessOreRecipe;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
+import rusticpipes.block.BlockConduit;
+import rusticpipes.tileentity.TileEntityConduit;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 
@@ -45,8 +47,11 @@ public class ModRegistry {
         return PIPES[color.ordinal()];
     }
 
+    public static final BlockConduit CONDUIT = new BlockConduit();
+
     public static void init() {
         GameRegistry.registerTileEntity(TileEntityItemPipe.class, RusticPipes.MODID + ":item_pipe");
+        GameRegistry.registerTileEntity(TileEntityConduit.class,  RusticPipes.MODID + ":conduit");
     }
 
     @SubscribeEvent
@@ -58,6 +63,10 @@ public class ModRegistry {
             pipe.setCreativeTab(CREATIVE_TAB);
             event.getRegistry().register(pipe);
         }
+        CONDUIT.setRegistryName(RusticPipes.MODID, "conduit");
+        CONDUIT.setTranslationKey("conduit");
+        CONDUIT.setCreativeTab(CREATIVE_TAB);
+        event.getRegistry().register(CONDUIT);
     }
 
     @SubscribeEvent
@@ -68,6 +77,9 @@ public class ModRegistry {
             ib.setRegistryName(pipe.getRegistryName());
             event.getRegistry().register(ib);
         }
+        net.minecraft.item.ItemBlock conduitItem = new net.minecraft.item.ItemBlock(CONDUIT);
+        conduitItem.setRegistryName(CONDUIT.getRegistryName());
+        event.getRegistry().register(conduitItem);
     }
 
     @SubscribeEvent
@@ -123,6 +135,25 @@ public class ModRegistry {
                     event.getRegistry().register(dyeRecipe);
                 }
             }
+        }
+        // ── Conduit recipe ──────────────────────────────────────────────────
+        // Shaped: gold ingots on sides, redstone in center, iron ingots on corners
+        //   I G I
+        //   G R G
+        //   I G I
+        if (ForgeConfigHandler.conduit.enableConduitRecipe) {
+            ShapedOreRecipe conduitRecipe = new ShapedOreRecipe(
+                    null,
+                    new ItemStack(CONDUIT, 4),
+                    "IGI",
+                    "GRG",
+                    "IGI",
+                    'I', "ingotIron",
+                    'G', "ingotGold",
+                    'R', "dustRedstone"
+            );
+            conduitRecipe.setRegistryName(RusticPipes.MODID, "conduit");
+            event.getRegistry().register(conduitRecipe);
         }
     }
 }

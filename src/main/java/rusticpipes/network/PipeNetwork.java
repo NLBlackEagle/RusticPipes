@@ -27,15 +27,20 @@ public class PipeNetwork {
     private final Set<BlockPos> members = new HashSet<>();
     private int bucket;
     private SpeedTier speedTier = SpeedTier.SLOW;
+    private SpeedTier conduitTier = SpeedTier.SLOW;
     private int rrPointer = 0;
     private int lastTransferTick = -1;
 
-    public static PipeNetwork getNetwork(World world, BlockPos pos) {
-        return NETWORKS.get(pos);
-    }
+    public static PipeNetwork getNetwork(World world, BlockPos pos) { return NETWORKS.get(pos); }
+    /** Overload without World for use in ConduitNetwork where world isn't needed for lookup. */
+    public static PipeNetwork getNetwork(BlockPos pos) { return NETWORKS.get(pos); }
 
     public static void serverTick() {
         globalTick++;
+        // Reset conduit tiers each tick — conduits will re-push
+        for (PipeNetwork network : new java.util.HashSet<>(NETWORKS.values())) {
+            network.conduitTier = SpeedTier.SLOW;
+        }
     }
 
     public static void onPipeAdded(World world, BlockPos pos) {
@@ -130,7 +135,9 @@ public class PipeNetwork {
 
     private static int getEffectiveTickRate(PipeNetwork network) {
         int base;
-        switch (network.speedTier) {
+        SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
+                ? network.conduitTier : network.speedTier;
+        switch (eff) {
             case TURBO:  base = ForgeConfigHandler.server.pipeTickRateTurbo;  break;
             case FAST:   base = ForgeConfigHandler.server.pipeTickRateFast;   break;
             case NORMAL: base = ForgeConfigHandler.server.pipeTickRateNormal; break;
@@ -142,7 +149,9 @@ public class PipeNetwork {
 
 
     private static int getEffectiveTransferSize(PipeNetwork network) {
-        switch (network.speedTier) {
+        SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
+                ? network.conduitTier : network.speedTier;
+        switch (eff) {
             case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
             case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
             case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
@@ -159,7 +168,13 @@ public class PipeNetwork {
         }
     }
 
-    public SpeedTier getSpeedTier() { return speedTier; }
+    /** Called by ConduitNetwork each tick to boost this pipe network's tier. */
+    public void setConduitTier(SpeedTier tier) {
+        if (tier.ordinal() > conduitTier.ordinal()) conduitTier = tier;
+    }
+
+    public SpeedTier getSpeedTier()   { return speedTier; }
+    public SpeedTier getConduitTier() { return conduitTier; }
 
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
