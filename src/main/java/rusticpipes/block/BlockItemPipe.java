@@ -135,8 +135,9 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand,
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
-        // If the player is holding a pipe, let placement take priority (no shift needed)
         net.minecraft.item.ItemStack held = player.getHeldItem(hand);
+
+        // Holding a pipe: let placement take priority (no shift needed)
         if (!held.isEmpty() && held.getItem() instanceof net.minecraft.item.ItemBlock) {
             net.minecraft.block.Block heldBlock = ((net.minecraft.item.ItemBlock) held.getItem()).getBlock();
             if (heldBlock instanceof BlockItemPipe) return false;

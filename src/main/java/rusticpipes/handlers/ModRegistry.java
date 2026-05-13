@@ -6,10 +6,14 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.IRecipe;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.oredict.OreDictionary;
+import net.minecraftforge.oredict.ShapedOreRecipe;
+import net.minecraftforge.oredict.ShapelessOreRecipe;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
@@ -66,4 +70,59 @@ public class ModRegistry {
         }
     }
 
+    @SubscribeEvent
+    public static void registerRecipes(RegistryEvent.Register<IRecipe> event) {
+        // ── Base pipe recipe ──────────────────────────────────────────────────
+        // Shaped: hollow 3x3 ring of iron ingots → N white pipes
+        //   I I I
+        //   I   I
+        //   I I I
+        if (ForgeConfigHandler.recipes.enableBasePipeRecipe) {
+            ItemStack whitePipeOutput = new ItemStack(
+                    getPipe(PipeColor.WHITE), ForgeConfigHandler.recipes.basePipeRecipeOutput);
+            ShapedOreRecipe basePipeRecipe = new ShapedOreRecipe(
+                    null,
+                    whitePipeOutput,
+                    "III",
+                    "I I",
+                    "III",
+                    'I', "ingotIron"
+            );
+            basePipeRecipe.setRegistryName(RusticPipes.MODID, "white_pipe");
+            event.getRegistry().register(basePipeRecipe);
+        }
+
+        // ── Dye conversion recipes ────────────────────────────────────────────
+        // Shapeless: any pipe + matching ore-dict dye → dyed pipe (1 output)
+        // Ore dictionary dye names match EnumDyeColor ordinals exactly.
+        if (ForgeConfigHandler.recipes.enableDyeRecipes) {
+            String[] oreNames = {
+                    "dyeWhite", "dyeOrange", "dyeMagenta", "dyeLightBlue",
+                    "dyeYellow", "dyeLime", "dyePink", "dyeGray",
+                    "dyeLightGray", "dyeCyan", "dyePurple", "dyeBlue",
+                    "dyeBrown", "dyeGreen", "dyeRed", "dyeBlack"
+            };
+
+            PipeColor[] colors = PipeColor.values();
+            for (int i = 0; i < colors.length; i++) {
+                PipeColor targetColor = colors[i];
+                String dyeOreName = oreNames[i];
+                ItemStack output = new ItemStack(getPipe(targetColor), 1);
+
+                // Register a conversion recipe from every other pipe color to this color
+                for (PipeColor sourceColor : colors) {
+                    if (sourceColor == targetColor) continue;
+                    ShapelessOreRecipe dyeRecipe = new ShapelessOreRecipe(
+                            null,
+                            output,
+                            new ItemStack(getPipe(sourceColor)),
+                            dyeOreName
+                    );
+                    dyeRecipe.setRegistryName(RusticPipes.MODID,
+                            sourceColor.registryName + "_to_" + targetColor.registryName);
+                    event.getRegistry().register(dyeRecipe);
+                }
+            }
+        }
+    }
 }

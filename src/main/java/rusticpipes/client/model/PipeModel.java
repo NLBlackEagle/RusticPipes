@@ -320,16 +320,18 @@ public class PipeModel implements IModel {
                         default:    texDir = EnumFacing.SOUTH; break;
                     } break;
                 case UP:
+                    // Arrow points away from pipe (upward) toward the inventory above
                     switch (sideFace) {
-                        case NORTH: texDir = EnumFacing.SOUTH; break;
+                        case NORTH: texDir = EnumFacing.NORTH; break;
                         case SOUTH: texDir = EnumFacing.NORTH; break;
                         default:    texDir = EnumFacing.NORTH; break;
                     } break;
                 case DOWN:
+                    // Arrow points away from pipe (downward) toward the inventory below
                     switch (sideFace) {
                         case NORTH: texDir = EnumFacing.SOUTH; break;
-                        case SOUTH: texDir = EnumFacing.NORTH; break;
-                        default:    texDir = EnumFacing.NORTH; break;
+                        case SOUTH: texDir = EnumFacing.SOUTH; break;
+                        default:    texDir = EnumFacing.SOUTH; break;
                     } break;
                 default: texDir = EnumFacing.EAST; break;
             }
