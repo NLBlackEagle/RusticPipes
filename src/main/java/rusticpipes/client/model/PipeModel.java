@@ -201,13 +201,44 @@ public class PipeModel implements IModel {
             List<BakedQuad> quads = new ArrayList<>();
 
             // ---- Inventory / item rendering (state == null) ----
+            // Straight pipe segment scaled to 80% around the block center (0.5, 0.5, 0.5).
             if (state == null) {
                 TextureAtlasSprite body = bodySprites[0];
-                addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, body, BODY_TINT_INDEX);
-                for (EnumFacing f : EnumFacing.VALUES) {
-                    addArm(quads, f, body, BODY_TINT_INDEX);
-                    addFlange(quads, f, CON_INV_OUTPUT, flange);
-                }
+                final float S = 0.8f;
+                final float C = 0.5f;
+                // Scale a coordinate: move toward center by (1-S)/2
+                final float D = (1f - S) / 2f; // 0.1
+                // Scaled versions of the key coordinates
+                final float sCORE_MIN = C - (C - CORE_MIN) * S; // scaled inward
+                final float sCORE_MAX = C + (CORE_MAX - C) * S;
+                final float sCAP_MIN  = C - (C - CAP_MIN)  * S;
+                final float sCAP_MAX  = C + (CAP_MAX - C)  * S;
+                final float sCAP_W    = CAP_W * S;
+                final float EPS = 0.001f;
+                // Core
+                addCube(quads, sCORE_MIN, sCORE_MIN, sCORE_MIN, sCORE_MAX, sCORE_MAX, sCORE_MAX, body, BODY_TINT_INDEX);
+                // East arm (scaled, outer end inset by EPS)
+                addCube(quads, sCORE_MAX, sCORE_MIN, sCORE_MIN, 1f-D-EPS, sCORE_MAX, sCORE_MAX, body, BODY_TINT_INDEX);
+                // West arm (scaled, outer end inset by EPS)
+                addCube(quads, D+EPS, sCORE_MIN, sCORE_MIN, sCORE_MIN, sCORE_MAX, sCORE_MAX, body, BODY_TINT_INDEX);
+                // East flange
+                TextureAtlasSprite eOuter = flangeOuter, eInner = flangeInner;
+                float ex1=1f-D-sCAP_W, ey1=sCAP_MIN, ez1=sCAP_MIN, ex2=1f-D+0.001f, ey2=sCAP_MAX, ez2=sCAP_MAX;
+                addQuad(quads, EnumFacing.NORTH, ex2,ey1,ez1, ex1,ey1,ez1, ex1,ey2,ez1, ex2,ey2,ez1, flange, NO_TINT);
+                addQuad(quads, EnumFacing.SOUTH, ex1,ey1,ez2, ex2,ey1,ez2, ex2,ey2,ez2, ex1,ey2,ez2, flange, NO_TINT);
+                addQuad(quads, EnumFacing.DOWN,  ex1,ey1,ez1, ex2,ey1,ez1, ex2,ey1,ez2, ex1,ey1,ez2, flange, NO_TINT);
+                addQuad(quads, EnumFacing.UP,    ex1,ey2,ez2, ex2,ey2,ez2, ex2,ey2,ez1, ex1,ey2,ez1, flange, NO_TINT);
+                addQuad(quads, EnumFacing.WEST,  ex1,ey1,ez1, ex1,ey1,ez2, ex1,ey2,ez2, ex1,ey2,ez1, eInner, NO_TINT);
+                addQuad(quads, EnumFacing.EAST,  ex2,ey1,ez2, ex2,ey1,ez1, ex2,ey2,ez1, ex2,ey2,ez2, eOuter, NO_TINT);
+                // West flange
+                TextureAtlasSprite wOuter = flangeOuter, wInner = flangeInner;
+                float wx1=D-0.001f, wy1=sCAP_MIN, wz1=sCAP_MIN, wx2=D+sCAP_W, wy2=sCAP_MAX, wz2=sCAP_MAX;
+                addQuad(quads, EnumFacing.NORTH, wx2,wy1,wz1, wx1,wy1,wz1, wx1,wy2,wz1, wx2,wy2,wz1, flange, NO_TINT);
+                addQuad(quads, EnumFacing.SOUTH, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy2,wz2, wx1,wy2,wz2, flange, NO_TINT);
+                addQuad(quads, EnumFacing.DOWN,  wx1,wy1,wz1, wx2,wy1,wz1, wx2,wy1,wz2, wx1,wy1,wz2, flange, NO_TINT);
+                addQuad(quads, EnumFacing.UP,    wx1,wy2,wz2, wx2,wy2,wz2, wx2,wy2,wz1, wx1,wy2,wz1, flange, NO_TINT);
+                addQuad(quads, EnumFacing.EAST,  wx2,wy1,wz2, wx2,wy1,wz1, wx2,wy2,wz1, wx2,wy2,wz2, wInner, NO_TINT);
+                addQuad(quads, EnumFacing.WEST,  wx1,wy1,wz1, wx1,wy1,wz2, wx1,wy2,wz2, wx1,wy2,wz1, wOuter, NO_TINT);
                 return quads;
             }
 
@@ -329,12 +360,12 @@ public class PipeModel implements IModel {
         private void addArm(List<BakedQuad> quads, EnumFacing dir,
                             TextureAtlasSprite body, int tint) {
             switch (dir) {
-                case DOWN:  addCube(quads, CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, body, tint); break;
-                case UP:    addCube(quads, CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,        CORE_MAX, body, tint); break;
-                case NORTH: addCube(quads, CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN, body, tint); break;
-                case SOUTH: addCube(quads, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1,        body, tint); break;
-                case WEST:  addCube(quads, 0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, body, tint); break;
-                case EAST:  addCube(quads, CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX, body, tint); break;
+                case DOWN:  addCube(quads, CORE_MIN, 0.001f,   CORE_MIN, CORE_MAX, CORE_MIN,    CORE_MAX, body, tint); break;
+                case UP:    addCube(quads, CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 0.999f,       CORE_MAX, body, tint); break;
+                case NORTH: addCube(quads, CORE_MIN, CORE_MIN, 0.001f,   CORE_MAX, CORE_MAX,     CORE_MIN, body, tint); break;
+                case SOUTH: addCube(quads, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX,     0.999f,   body, tint); break;
+                case WEST:  addCube(quads, 0.001f,   CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX,     CORE_MAX, body, tint); break;
+                case EAST:  addCube(quads, CORE_MAX, CORE_MIN, CORE_MIN, 0.999f,   CORE_MAX,     CORE_MAX, body, tint); break;
             }
         }
 
@@ -347,7 +378,7 @@ public class PipeModel implements IModel {
 
             switch (dir) {
                 case DOWN: {
-                    float x1=CAP_MIN, y1=0, z1=CAP_MIN, x2=CAP_MAX, y2=CAP_W, z2=CAP_MAX;
+                    float x1=CAP_MIN, y1=-0.001f, z1=CAP_MIN, x2=CAP_MAX, y2=CAP_W, z2=CAP_MAX;
                     addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange, NO_TINT);
@@ -357,7 +388,7 @@ public class PipeModel implements IModel {
                     break;
                 }
                 case UP: {
-                    float x1=CAP_MIN, y1=1-CAP_W, z1=CAP_MIN, x2=CAP_MAX, y2=1, z2=CAP_MAX;
+                    float x1=CAP_MIN, y1=1-CAP_W, z1=CAP_MIN, x2=CAP_MAX, y2=1+0.001f, z2=CAP_MAX;
                     addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange, NO_TINT);
@@ -367,7 +398,7 @@ public class PipeModel implements IModel {
                     break;
                 }
                 case NORTH: {
-                    float x1=CAP_MIN, y1=CAP_MIN, z1=0, x2=CAP_MAX, y2=CAP_MAX, z2=CAP_W;
+                    float x1=CAP_MIN, y1=CAP_MIN, z1=-0.001f, x2=CAP_MAX, y2=CAP_MAX, z2=CAP_W;
                     addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange, NO_TINT);
@@ -377,7 +408,7 @@ public class PipeModel implements IModel {
                     break;
                 }
                 case SOUTH: {
-                    float x1=CAP_MIN, y1=CAP_MIN, z1=1-CAP_W, x2=CAP_MAX, y2=CAP_MAX, z2=1;
+                    float x1=CAP_MIN, y1=CAP_MIN, z1=1-CAP_W, x2=CAP_MAX, y2=CAP_MAX, z2=1+0.001f;
                     addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange, NO_TINT);
@@ -387,7 +418,7 @@ public class PipeModel implements IModel {
                     break;
                 }
                 case WEST: {
-                    float x1=0, y1=CAP_MIN, z1=CAP_MIN, x2=CAP_W, y2=CAP_MAX, z2=CAP_MAX;
+                    float x1=-0.001f, y1=CAP_MIN, z1=CAP_MIN, x2=CAP_W, y2=CAP_MAX, z2=CAP_MAX;
                     addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange, NO_TINT);
@@ -397,7 +428,7 @@ public class PipeModel implements IModel {
                     break;
                 }
                 case EAST: {
-                    float x1=1-CAP_W, y1=CAP_MIN, z1=CAP_MIN, x2=1, y2=CAP_MAX, z2=CAP_MAX;
+                    float x1=1-CAP_W, y1=CAP_MIN, z1=CAP_MIN, x2=1+0.001f, y2=CAP_MAX, z2=CAP_MAX;
                     addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange, NO_TINT);
                     addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange, NO_TINT);
