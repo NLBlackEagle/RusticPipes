@@ -30,12 +30,12 @@ public class ForgeConfigHandler {
         @Config.Name("Pipe Tick Rate - Normal")
         public int pipeTickRateNormal = 10;
 
-        @Config.Comment("Fast tier: ticks between network updates. Requires RF.")
+        @Config.Comment("Fast tier: ticks between network updates.")
         @Config.RangeInt(min = 1, max = 200)
         @Config.Name("Pipe Tick Rate - Fast")
         public int pipeTickRateFast = 4;
 
-        @Config.Comment("Turbo tier: ticks between network updates. Requires more RF.")
+        @Config.Comment("Turbo tier: ticks between network updates.")
         @Config.RangeInt(min = 1, max = 200)
         @Config.Name("Pipe Tick Rate - Turbo")
         public int pipeTickRateTurbo = 1;
@@ -45,10 +45,25 @@ public class ForgeConfigHandler {
         @Config.Name("Pipe Distance Penalty")
         public int pipeDistancePenalty = 1;
 
-        @Config.Comment("Max items transferred per network tick.")
+        @Config.Comment("Slow tier: items transferred per network update.")
         @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Amount")
-        public int pipeTransferSize = 4;
+        @Config.Name("Pipe Transfer Size - Slow")
+        public int pipeTransferSizeSlow = 1;
+
+        @Config.Comment("Normal tier: items transferred per network update.")
+        @Config.RangeInt(min = 1, max = 64)
+        @Config.Name("Pipe Transfer Size - Normal")
+        public int pipeTransferSizeNormal = 2;
+
+        @Config.Comment("Fast tier: items transferred per network update.")
+        @Config.RangeInt(min = 1, max = 64)
+        @Config.Name("Pipe Transfer Size - Fast")
+        public int pipeTransferSizeFast = 4;
+
+        @Config.Comment("Turbo tier: items transferred per network update.")
+        @Config.RangeInt(min = 1, max = 64)
+        @Config.Name("Pipe Transfer Size - Turbo")
+        public int pipeTransferSizeTurbo = 8;
     }
 
     public static class ClientConfig {

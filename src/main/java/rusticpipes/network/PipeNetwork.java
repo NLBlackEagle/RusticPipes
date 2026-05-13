@@ -26,6 +26,7 @@ public class PipeNetwork {
     private int bucket;
     private SpeedTier speedTier = SpeedTier.SLOW;
     private int rrPointer = 0;
+    private int lastTransferTick = -1;
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) {
         return NETWORKS.get(pos);
@@ -108,6 +109,8 @@ public class PipeNetwork {
     }
 
     public boolean isMyTick() {
+        if (globalTick == lastTransferTick) return false;
+        lastTransferTick = globalTick;
         int rate = getEffectiveTickRate(this);
         return (globalTick % rate) == (bucket % rate);
     }
@@ -122,6 +125,16 @@ public class PipeNetwork {
         }
         int penalty = network.members.size() * ForgeConfigHandler.server.pipeDistancePenalty;
         return Math.max(1, base + penalty);
+    }
+
+
+    private static int getEffectiveTransferSize(PipeNetwork network) {
+        switch (network.speedTier) {
+            case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
+            case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
+            case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
+            default:     return ForgeConfigHandler.server.pipeTransferSizeSlow;
+        }
     }
 
     public void cycleSpeedTier() {
@@ -170,7 +183,7 @@ public class PipeNetwork {
 
         List<BlockPos> inputs  = new ArrayList<>(inputPositions);
         List<BlockPos> outputs = new ArrayList<>(outputPositions);
-        int maxTransfer = ForgeConfigHandler.server.pipeTransferSize;
+        int maxTransfer = getEffectiveTransferSize(this);
 
         for (BlockPos inputPos : inputs) {
             IItemHandler source = getInventoryAtPos(world, inputPos);
