@@ -77,13 +77,18 @@ public class BlockConduit extends Block implements ITileEntityProvider {
 
     @Override
     public IBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos) {
-        if (!(state instanceof IExtendedBlockState)) return state;
+        if (!(state instanceof IExtendedBlockState)) {
+            rusticpipes.RusticPipes.LOGGER.warn("[Conduit] getExtendedState: state is NOT IExtendedBlockState at " + pos);
+            return state;
+        }
         IExtendedBlockState ext = (IExtendedBlockState) state;
 
-        // Get current tier from the conduit network
-        ConduitNetwork network = ConduitNetwork.getNetwork(pos);
-        PipeNetwork.SpeedTier tier = network != null
-                ? network.getCurrentTier() : PipeNetwork.SpeedTier.SLOW;
+        // Read tier from the TE's cached value — works on both client and server
+        TileEntity teTier = world.getTileEntity(pos);
+        PipeNetwork.SpeedTier tier = (teTier instanceof rusticpipes.tileentity.TileEntityConduit)
+                ? ((rusticpipes.tileentity.TileEntityConduit) teTier).cachedTier
+                : PipeNetwork.SpeedTier.SLOW;
+        rusticpipes.RusticPipes.LOGGER.info("[Conduit] getExtendedState at " + pos + " tier=" + tier);
 
         ext = ext.withProperty(ConduitModel.BLOCK_POS, pos)
                 .withProperty(ConduitModel.CONDUIT_TIER, tier);
@@ -109,6 +114,12 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         }
 
         return CON_NONE;
+    }
+
+    @Override
+    public IBlockState getActualState(IBlockState state, IBlockAccess world, BlockPos pos) {
+        // Returning state here ensures getExtendedState is called by the render pipeline
+        return state;
     }
 
     @Override

@@ -54,7 +54,7 @@ public class PipeModel implements IModel {
         return new IUnlistedProperty<Integer>() {
             @Override public String getName() { return name; }
             @Override public Class<Integer> getType() { return Integer.class; }
-            @Override public boolean isValid(Integer value) { return value >= 0 && value <= 3; }
+            @Override public boolean isValid(Integer value) { return value >= 0 && value <= 5; }
             @Override public String valueToString(Integer value) { return value.toString(); }
         };
     }
@@ -322,15 +322,15 @@ public class PipeModel implements IModel {
                 case UP:
                     // Arrow points away from pipe (upward) toward the inventory above
                     switch (sideFace) {
-                        case NORTH: texDir = EnumFacing.NORTH; break;
+                        case NORTH: texDir = EnumFacing.SOUTH; break;
                         case SOUTH: texDir = EnumFacing.NORTH; break;
-                        default:    texDir = EnumFacing.NORTH; break;
+                        default:    texDir = EnumFacing.SOUTH; break;
                     } break;
                 case DOWN:
                     // Arrow points away from pipe (downward) toward the inventory below
                     switch (sideFace) {
                         case NORTH: texDir = EnumFacing.SOUTH; break;
-                        case SOUTH: texDir = EnumFacing.SOUTH; break;
+                        case SOUTH: texDir = EnumFacing.NORTH; break;
                         default:    texDir = EnumFacing.SOUTH; break;
                     } break;
                 default: texDir = EnumFacing.EAST; break;

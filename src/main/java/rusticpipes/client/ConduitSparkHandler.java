@@ -12,9 +12,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockConduit;
-import rusticpipes.client.model.ConduitModel;
 import rusticpipes.network.ConduitNetwork;
-import rusticpipes.network.PipeNetwork;
 
 import java.util.Random;
 
@@ -24,14 +22,24 @@ public class ConduitSparkHandler {
 
     private static final Random RAND = new Random();
 
-    /** Ticks between spark attempts per conduit block, per tier. */
-    private static int sparkIntervalForTier(PipeNetwork.SpeedTier tier) {
-        switch (tier) {
-            case TURBO:  return 5;
-            case FAST:   return 15;
-            case NORMAL: return 40;
-            default:     return 0; // no sparks when SLOW (no power)
-        }
+    private static final int FE_MIN   = 10;    // sparks start appearing
+    private static final int FE_MAX   = 100000; // maximum spark intensity
+    private static final int INT_MAX  = 80;    // ticks between sparks at FE_MIN
+    private static final int INT_MIN  = 2;     // ticks between sparks at FE_MAX
+    private static final int CNT_MIN  = 1;     // particles per spark at FE_MIN
+    private static final int CNT_MAX  = 6;     // particles per spark at FE_MAX
+
+    /** Returns the spark interval in ticks for the given FE/t, or 0 if below threshold. */
+    private static int sparkInterval(int fePerTick) {
+        if (fePerTick < FE_MIN) return 0;
+        float t = Math.min(1f, (float)(fePerTick - FE_MIN) / (FE_MAX - FE_MIN));
+        return Math.max(INT_MIN, (int)(INT_MAX - t * (INT_MAX - INT_MIN)));
+    }
+
+    /** Returns the number of particles per spark event for the given FE/t. */
+    private static int sparkCount(int fePerTick) {
+        float t = Math.min(1f, (float)(fePerTick - FE_MIN) / (FE_MAX - FE_MIN));
+        return CNT_MIN + (int)(t * (CNT_MAX - CNT_MIN));
     }
 
     @SubscribeEvent
@@ -57,15 +65,15 @@ public class ConduitSparkHandler {
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
             if (network == null) continue;
 
-            PipeNetwork.SpeedTier tier = network.getCurrentTier();
-            int interval = sparkIntervalForTier(tier);
+            int fePerTick = network.getLastFePerTick();
+            int interval = sparkInterval(fePerTick);
             if (interval == 0) continue;
 
             // Probabilistic spark — fires roughly once per interval ticks
             if (RAND.nextInt(interval) != 0) continue;
 
-            // Spawn 1-3 CRIT_MAGIC particles at a random point on the conduit block
-            int count = 1 + RAND.nextInt(2);
+            // Spawn particles scaled to FE/t
+            int count = sparkCount(fePerTick);
             for (int i = 0; i < count; i++) {
                 double x = pos.getX() + 0.2 + RAND.nextDouble() * 0.6;
                 double y = pos.getY() + 0.2 + RAND.nextDouble() * 0.6;
@@ -73,7 +81,7 @@ public class ConduitSparkHandler {
                 double vx = (RAND.nextDouble() - 0.5) * 0.2;
                 double vy = (RAND.nextDouble() - 0.5) * 0.2;
                 double vz = (RAND.nextDouble() - 0.5) * 0.2;
-                world.spawnParticle(EnumParticleTypes.CRIT_MAGIC, x, y, z, vx, vy, vz);
+                world.spawnParticle(EnumParticleTypes.CRIT, x, y, z, vx, vy, vz);
             }
         }
     }

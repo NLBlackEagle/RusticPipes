@@ -10,6 +10,7 @@ import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.EnergyStorage;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.network.ConduitNetwork;
+import rusticpipes.network.PipeNetwork;
 
 import javax.annotation.Nullable;
 
@@ -17,6 +18,10 @@ public class TileEntityConduit extends TileEntity implements ITickable {
 
     /** Internal energy buffer — accepts FE pushed in by external sources. */
     private EnergyStorage energyBuffer;
+
+    /** Cached tier for client-side rendering — synced via NBT. */
+    public rusticpipes.network.PipeNetwork.SpeedTier cachedTier =
+            rusticpipes.network.PipeNetwork.SpeedTier.SLOW;
 
     /** Whether this TE has already triggered a tick for its network this tick. */
     private boolean tickedThisTick = false;
@@ -44,21 +49,21 @@ public class TileEntityConduit extends TileEntity implements ITickable {
         ConduitNetwork network = ConduitNetwork.getNetwork(pos);
         if (network == null) return;
 
-        // Only the TE whose pos is first in the member set drives the network tick
-        // to avoid ticking the same network N times per game tick
+        // Only the first member drives the network tick
         BlockPos first = network.getMembers().iterator().next();
-        if (!first.equals(pos)) return;
-
-        network.tick(world);
-
-        // Drain the energy buffer proportional to usage
-        int drain = network.getLastFePerTick();
-        if (drain > 0) {
-            energyBuffer.extractEnergy(drain, false);
+        if (first.equals(pos)) {
+            network.tick(world);
+            int drain = network.getLastFePerTick();
+            if (drain > 0) energyBuffer.extractEnergy(drain, false);
         }
 
-        // Schedule re-render on conduit tier change
-        world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+        // Every TE syncs its own cachedTier so getExtendedState works on every conduit block
+        PipeNetwork.SpeedTier networkTier = network.getCurrentTier();
+        if (networkTier != cachedTier) {
+            cachedTier = networkTier;
+            markDirty();
+            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -109,6 +114,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         super.writeToNBT(compound);
         compound.setInteger("energy", energyBuffer.getEnergyStored());
+        compound.setString("tier", cachedTier.name());
         return compound;
     }
 
@@ -118,6 +124,14 @@ public class TileEntityConduit extends TileEntity implements ITickable {
         int stored = compound.getInteger("energy");
         energyBuffer = new EnergyStorage(10000, 10000, 0);
         energyBuffer.receiveEnergy(stored, false);
+        if (compound.hasKey("tier")) {
+            try {
+                cachedTier = rusticpipes.network.PipeNetwork.SpeedTier
+                        .valueOf(compound.getString("tier"));
+            } catch (IllegalArgumentException e) {
+                cachedTier = rusticpipes.network.PipeNetwork.SpeedTier.SLOW;
+            }
+        }
     }
 
     @Override

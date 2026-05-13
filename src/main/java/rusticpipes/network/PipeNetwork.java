@@ -7,6 +7,8 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import rusticpipes.block.BlockItemPipe;
@@ -19,7 +21,7 @@ import java.util.*;
 
 public class PipeNetwork {
 
-    public enum SpeedTier { SLOW, NORMAL, FAST, TURBO }
+    public enum SpeedTier { SLOW, NORMAL, FAST, TURBO, HYPER, ULTRA }
 
     private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
     private static int globalTick = 0;
@@ -30,6 +32,9 @@ public class PipeNetwork {
     private SpeedTier conduitTier = SpeedTier.SLOW;
     private int rrPointer = 0;
     private int lastTransferTick = -1;
+    private int lastFeTick = -1;
+    private SpeedTier lastEffectiveTier = SpeedTier.SLOW;
+    private boolean pendingConduitReset = false;
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) { return NETWORKS.get(pos); }
     /** Overload without World for use in ConduitNetwork where world isn't needed for lookup. */
@@ -37,9 +42,10 @@ public class PipeNetwork {
 
     public static void serverTick() {
         globalTick++;
-        // Reset conduit tiers each tick — conduits will re-push
+        // Reset conduit tiers — will be re-set by collectFe this tick
+        // We reset AFTER the previous tick's value was used in isMyTick()
         for (PipeNetwork network : new java.util.HashSet<>(NETWORKS.values())) {
-            network.conduitTier = SpeedTier.SLOW;
+            network.pendingConduitReset = true;
         }
     }
 
@@ -128,6 +134,13 @@ public class PipeNetwork {
 
     public boolean isMyTick() {
         if (globalTick == lastTransferTick) return false;
+        SpeedTier eff = conduitTier.ordinal() > speedTier.ordinal() ? conduitTier : speedTier;
+        if (eff != lastEffectiveTier) {
+            lastEffectiveTier = eff;
+            bucket = globalTick;
+            lastTransferTick = globalTick;
+            return true;
+        }
         lastTransferTick = globalTick;
         int rate = getEffectiveTickRate(this);
         return (globalTick % rate) == (bucket % rate);
@@ -138,6 +151,8 @@ public class PipeNetwork {
         SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
                 ? network.conduitTier : network.speedTier;
         switch (eff) {
+            case ULTRA:  base = ForgeConfigHandler.server.pipeTickRateUltra;  break;
+            case HYPER:  base = ForgeConfigHandler.server.pipeTickRateHyper;  break;
             case TURBO:  base = ForgeConfigHandler.server.pipeTickRateTurbo;  break;
             case FAST:   base = ForgeConfigHandler.server.pipeTickRateFast;   break;
             case NORMAL: base = ForgeConfigHandler.server.pipeTickRateNormal; break;
@@ -152,6 +167,8 @@ public class PipeNetwork {
         SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
                 ? network.conduitTier : network.speedTier;
         switch (eff) {
+            case ULTRA:  return ForgeConfigHandler.server.pipeTransferSizeUltra;
+            case HYPER:  return ForgeConfigHandler.server.pipeTransferSizeHyper;
             case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
             case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
             case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
@@ -164,6 +181,8 @@ public class PipeNetwork {
             case SLOW:   speedTier = SpeedTier.NORMAL; break;
             case NORMAL: speedTier = SpeedTier.FAST;   break;
             case FAST:   speedTier = SpeedTier.TURBO;  break;
+            case TURBO:  speedTier = SpeedTier.HYPER;  break;
+            case HYPER:  speedTier = SpeedTier.ULTRA;  break;
             default:     speedTier = SpeedTier.SLOW;   break;
         }
     }
@@ -175,6 +194,46 @@ public class PipeNetwork {
 
     public SpeedTier getSpeedTier()   { return speedTier; }
     public SpeedTier getConduitTier() { return conduitTier; }
+
+    public void collectFe(World world) {
+        // Only collect once per global tick regardless of how many pipes call this
+        if (lastFeTick == globalTick) return;
+        lastFeTick = globalTick;
+        // Apply deferred reset now — before we set the new tier
+        if (pendingConduitReset) {
+            conduitTier = SpeedTier.SLOW;
+            pendingConduitReset = false;
+        }
+        int totalFe = 0;
+        for (BlockPos memberPos : members) {
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos neighbourPos = memberPos.offset(face);
+                Block neighbourBlock = world.getBlockState(neighbourPos).getBlock();
+                // Skip pipes and conduits — only collect from external FE sources
+                if (neighbourBlock instanceof BlockItemPipe) continue;
+                if (neighbourBlock instanceof rusticpipes.block.BlockConduit) continue;
+                TileEntity neighbourTe = world.getTileEntity(neighbourPos);
+                if (neighbourTe == null) continue;
+                IEnergyStorage storage = neighbourTe.getCapability(
+                        CapabilityEnergy.ENERGY, face.getOpposite());
+                if (storage == null || !storage.canExtract()) continue;
+                totalFe += storage.extractEnergy(
+                        ForgeConfigHandler.conduit.maxFePerTickPerFace, false);
+            }
+        }
+        if (totalFe > 0) {
+            setConduitTier(tierFromFe(totalFe));
+        }
+    }
+
+    private static SpeedTier tierFromFe(int fePerTick) {
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickUltra)  return SpeedTier.ULTRA;
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickHyper)  return SpeedTier.HYPER;
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickTurbo)  return SpeedTier.TURBO;
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickFast)   return SpeedTier.FAST;
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickNormal) return SpeedTier.NORMAL;
+        return SpeedTier.SLOW;
+    }
 
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();

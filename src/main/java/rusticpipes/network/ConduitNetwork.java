@@ -144,7 +144,22 @@ public class ConduitNetwork {
         }
 
         lastFePerTick = totalFe;
-        currentTier = tierFromFe(totalFe);
+        PipeNetwork.SpeedTier newTier = tierFromFe(totalFe);
+
+        // If tier changed, sync TE to client so getExtendedState gets the new tier
+        if (newTier != currentTier) {
+            currentTier = newTier;
+            for (BlockPos memberPos : members) {
+                net.minecraft.tileentity.TileEntity te = world.getTileEntity(memberPos);
+                if (te instanceof TileEntityConduit) {
+                    te.markDirty();
+                    net.minecraft.block.state.IBlockState bs = world.getBlockState(memberPos);
+                    world.notifyBlockUpdate(memberPos, bs, bs, 3);
+                }
+            }
+        } else {
+            currentTier = newTier;
+        }
 
         // Push tier to all adjacent pipe networks
         pushTierToPipeNetworks(world);
@@ -167,6 +182,8 @@ public class ConduitNetwork {
     }
 
     private static PipeNetwork.SpeedTier tierFromFe(int fePerTick) {
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickUltra)  return PipeNetwork.SpeedTier.ULTRA;
+        if (fePerTick >= ForgeConfigHandler.conduit.fePerTickHyper)  return PipeNetwork.SpeedTier.HYPER;
         if (fePerTick >= ForgeConfigHandler.conduit.fePerTickTurbo)  return PipeNetwork.SpeedTier.TURBO;
         if (fePerTick >= ForgeConfigHandler.conduit.fePerTickFast)   return PipeNetwork.SpeedTier.FAST;
         if (fePerTick >= ForgeConfigHandler.conduit.fePerTickNormal) return PipeNetwork.SpeedTier.NORMAL;

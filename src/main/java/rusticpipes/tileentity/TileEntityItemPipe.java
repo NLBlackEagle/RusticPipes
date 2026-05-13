@@ -7,6 +7,7 @@ import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
+import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.network.PipeNetwork;
@@ -100,9 +101,12 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
     public boolean isConnected(EnumFacing face) {
         Block neighbourBlock = world.getBlockState(pos.offset(face)).getBlock();
         if (neighbourBlock instanceof BlockItemPipe) return true;
+        if (neighbourBlock instanceof rusticpipes.block.BlockConduit) return true;
         TileEntity neighbour = world.getTileEntity(pos.offset(face));
         if (neighbour == null) return false;
-        return neighbour.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite());
+        if (neighbour.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite())) return true;
+        if (neighbour.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite())) return true;
+        return false;
     }
 
     public void refreshConnections() {
@@ -138,6 +142,8 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (world.isRemote) return;
         PipeNetwork network = PipeNetwork.getNetwork(world, pos);
         if (network == null) return;
+        // collectFe guards itself with lastFeTick so it only runs once per global tick
+        network.collectFe(world);
         if (!network.isMyTick()) return;
         network.transferItems(world);
     }

@@ -13,7 +13,9 @@ public class ConduitModelLoader implements ICustomModelLoader {
     @Override
     public boolean accepts(ResourceLocation modelLocation) {
         return modelLocation.getNamespace().equals(RusticPipes.MODID)
-                && modelLocation.getPath().equals("conduit");
+                && (modelLocation.getPath().equals("conduit")
+                || modelLocation.getPath().equals("models/block/conduit")
+                || modelLocation.getPath().endsWith("/conduit"));
     }
 
     @Override
