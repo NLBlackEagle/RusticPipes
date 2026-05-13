@@ -1,5 +1,6 @@
 package rusticpipes.network;
 
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -9,6 +10,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import rusticpipes.block.BlockItemPipe;
+import rusticpipes.block.PipeColor;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityItemPipe;
@@ -37,9 +39,20 @@ public class PipeNetwork {
     }
 
     public static void onPipeAdded(World world, BlockPos pos) {
+        // Determine the color of the pipe being added so we only merge same-color networks
+        Block addedBlock = world.getBlockState(pos).getBlock();
+        PipeColor addedColor = (addedBlock instanceof BlockItemPipe)
+                ? ((BlockItemPipe) addedBlock).pipeColor : null;
+
         Set<PipeNetwork> neighbours = new HashSet<>();
         for (EnumFacing face : EnumFacing.VALUES) {
-            PipeNetwork n = NETWORKS.get(pos.offset(face));
+            BlockPos neighbourPos = pos.offset(face);
+            if (addedColor != null) {
+                Block neighbourBlock = world.getBlockState(neighbourPos).getBlock();
+                if (!(neighbourBlock instanceof BlockItemPipe)) continue;
+                if (((BlockItemPipe) neighbourBlock).pipeColor != addedColor) continue;
+            }
+            PipeNetwork n = NETWORKS.get(neighbourPos);
             if (n != null) neighbours.add(n);
         }
 

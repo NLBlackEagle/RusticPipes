@@ -1,5 +1,0 @@
-{
-  "forge_marker": 1,
-  "defaults": { "model": "rusticpipes:item_pipe" },
-  "variants": { "normal": [{}], "inventory": [{}] }
-}
