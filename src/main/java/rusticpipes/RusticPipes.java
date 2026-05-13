@@ -17,18 +17,20 @@ public class RusticPipes {
     public static final String NAME = "RusticPipes";
     public static final Logger LOGGER = LogManager.getLogger();
     public static boolean completedLoading = false;
-	
+
+    /** Set to true to enable debug chat messages in-game. */
+    public static final boolean DEBUG = false;
+
     @SidedProxy(clientSide = "rusticpipes.proxy.ClientProxy", serverSide = "rusticpipes.proxy.CommonProxy")
     public static CommonProxy PROXY;
-	
-	@Instance(MODID)
-	public static RusticPipes instance;
-	
-	@Mod.EventHandler
+
+    @Instance(MODID)
+    public static RusticPipes instance;
+
+    @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ModRegistry.init();
         RusticPipes.PROXY.preInit();
-
     }
 
     @Mod.EventHandler
