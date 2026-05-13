@@ -34,15 +34,17 @@ public class PipeModel implements IModel {
 
     @Override
     public Collection<ResourceLocation> getTextures() {
-        return Arrays.asList(PIPE_BODY, PIPE_CAP, PIPE_FLANGE,
+        List<ResourceLocation> texList = new ArrayList<>(Arrays.asList(PIPE_BODY, PIPE_CAP, PIPE_FLANGE,
                 PIPE_CAP_OUTPUT_EAST, PIPE_CAP_OUTPUT_WEST, PIPE_CAP_OUTPUT_NORTH, PIPE_CAP_OUTPUT_SOUTH,
-                PIPE_CAP_INPUT_EAST,  PIPE_CAP_INPUT_WEST,  PIPE_CAP_INPUT_NORTH,  PIPE_CAP_INPUT_SOUTH);
+                PIPE_CAP_INPUT_EAST,  PIPE_CAP_INPUT_WEST,  PIPE_CAP_INPUT_NORTH,  PIPE_CAP_INPUT_SOUTH));
+        for (int i = 1; i <= 20; i++) texList.add(new ResourceLocation("rusticpipes:blocks/pipe_rust_" + String.format("%02d", i)));
+        return texList;
     }
 
     @Override
     public IBakedModel bake(IModelState state, VertexFormat format,
                             Function<ResourceLocation, TextureAtlasSprite> bakedTextureGetter) {
-        return new PipeBakedModel(
+        PipeBakedModel baked = new PipeBakedModel(
                 bakedTextureGetter.apply(PIPE_BODY),
                 bakedTextureGetter.apply(PIPE_CAP),
                 bakedTextureGetter.apply(PIPE_FLANGE),
@@ -54,6 +56,13 @@ public class PipeModel implements IModel {
                 bakedTextureGetter.apply(PIPE_CAP_INPUT_WEST),
                 bakedTextureGetter.apply(PIPE_CAP_INPUT_NORTH),
                 bakedTextureGetter.apply(PIPE_CAP_INPUT_SOUTH));
+        // Load rust sprites into baked model
+
+        for (int i = 0; i < 20; i++) {
+            baked.rustSprites[i] = bakedTextureGetter.apply(
+                    new ResourceLocation("rusticpipes:blocks/pipe_rust_" + String.format("%02d", i + 1)));
+        }
+        return baked;
     }
 
     @Override public IModelState getDefaultState() { return TRSRTransformation.identity(); }
@@ -62,6 +71,7 @@ public class PipeModel implements IModel {
     public static class PipeBakedModel implements IBakedModel {
 
         private final TextureAtlasSprite body, cap, flange;
+        private final TextureAtlasSprite[] rustSprites = new TextureAtlasSprite[20];
         private final TextureAtlasSprite outEast, outWest, outNorth, outSouth;
         private final TextureAtlasSprite inEast,  inWest,  inNorth,  inSouth;
 
@@ -126,6 +136,42 @@ public class PipeModel implements IModel {
             if (west  > 0) { addArm(quads, EnumFacing.WEST);  addFlange(quads, EnumFacing.WEST,  west);  }
             if (up    > 0) { addArm(quads, EnumFacing.UP);    addFlange(quads, EnumFacing.UP,    up);    }
             if (down  > 0) { addArm(quads, EnumFacing.DOWN);  addFlange(quads, EnumFacing.DOWN,  down);  }
+
+
+            // Rust overlays — pick layers using rand (seeded by block position)
+            if (rustSprites[0] != null) {
+                int minLayers = rusticpipes.handlers.ForgeConfigHandler.client.rustLayersMin;
+                int maxLayers = rusticpipes.handlers.ForgeConfigHandler.client.rustLayersMax;
+                minLayers = Math.max(1, Math.min(20, minLayers));
+                maxLayers = Math.max(minLayers, Math.min(20, maxLayers));
+                java.util.Random rng = new java.util.Random(rand);
+                int layerCount = minLayers + (maxLayers > minLayers ? rng.nextInt(maxLayers - minLayers + 1) : 0);
+                int[] indices = new int[20];
+                for (int i = 0; i < 20; i++) indices[i] = i;
+                for (int i = 19; i > 0; i--) {
+                    int j = rng.nextInt(i + 1);
+                    int tmp = indices[i]; indices[i] = indices[j]; indices[j] = tmp;
+                }
+                for (int i = 0; i < layerCount; i++) {
+                    TextureAtlasSprite rust = rustSprites[indices[i]];
+                    // Core
+                    addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, rust);
+                    // Arms
+                    if (north > 0) addCube(quads, CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN, rust);
+                    if (south > 0) addCube(quads, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1,        rust);
+                    if (east  > 0) addCube(quads, CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX, rust);
+                    if (west  > 0) addCube(quads, 0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, rust);
+                    if (up    > 0) addCube(quads, CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,        CORE_MAX, rust);
+                    if (down  > 0) addCube(quads, CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, rust);
+                    // Flanges
+                    if (north > 0) addCube(quads, CAP_MIN, CAP_MIN, 0,       CAP_MAX, CAP_MAX, CAP_W,   rust);
+                    if (south > 0) addCube(quads, CAP_MIN, CAP_MIN, 1-CAP_W, CAP_MAX, CAP_MAX, 1,       rust);
+                    if (east  > 0) addCube(quads, 1-CAP_W, CAP_MIN, CAP_MIN, 1,       CAP_MAX, CAP_MAX, rust);
+                    if (west  > 0) addCube(quads, 0,       CAP_MIN, CAP_MIN, CAP_W,   CAP_MAX, CAP_MAX, rust);
+                    if (up    > 0) addCube(quads, CAP_MIN, 1-CAP_W, CAP_MIN, CAP_MAX, 1,       CAP_MAX, rust);
+                    if (down  > 0) addCube(quads, CAP_MIN, 0,       CAP_MIN, CAP_MAX, CAP_W,   CAP_MAX, rust);
+                }
+            }
 
             return quads;
         }

@@ -71,6 +71,16 @@ public class ForgeConfigHandler {
         @Config.Comment("Show pipe network debug info when sneaking.")
         @Config.Name("Show Debug Overlay")
         public boolean showDebugOverlay = false;
+
+        @Config.Comment("Minimum number of rust overlay layers per pipe. (1-20)")
+        @Config.RangeInt(min = 1, max = 20)
+        @Config.Name("Rust Layers - Minimum")
+        public int rustLayersMin = 1;
+
+        @Config.Comment("Maximum number of rust overlay layers per pipe. (1-20)")
+        @Config.RangeInt(min = 1, max = 20)
+        @Config.Name("Rust Layers - Maximum")
+        public int rustLayersMax = 10;
     }
 
     @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
