@@ -26,15 +26,13 @@ public class ClientModRegistry {
         ModelLoader.setCustomStateMapper(ModRegistry.ITEM_PIPE, new StateMapperBase() {
             @Override
             protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
-                // Encode full state into variant string so getQuads receives correct booleans
-                String variant = "facing="   + state.getValue(BlockItemPipe.FACING).getName()
-                        + ",endpoint=" + state.getValue(BlockItemPipe.ENDPOINT)
-                        + ",north="    + state.getValue(BlockItemPipe.NORTH)
-                        + ",south="    + state.getValue(BlockItemPipe.SOUTH)
-                        + ",east="     + state.getValue(BlockItemPipe.EAST)
-                        + ",west="     + state.getValue(BlockItemPipe.WEST)
-                        + ",up="       + state.getValue(BlockItemPipe.UP)
-                        + ",down="     + state.getValue(BlockItemPipe.DOWN);
+                String variant = "facing=" + state.getValue(BlockItemPipe.FACING).getName()
+                        + ",north=" + state.getValue(BlockItemPipe.NORTH)
+                        + ",south=" + state.getValue(BlockItemPipe.SOUTH)
+                        + ",east="  + state.getValue(BlockItemPipe.EAST)
+                        + ",west="  + state.getValue(BlockItemPipe.WEST)
+                        + ",up="    + state.getValue(BlockItemPipe.UP)
+                        + ",down="  + state.getValue(BlockItemPipe.DOWN);
                 return new ModelResourceLocation(RusticPipes.MODID + ":item_pipe", variant);
             }
         });

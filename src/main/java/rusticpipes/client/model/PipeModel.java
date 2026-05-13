@@ -20,14 +20,23 @@ public class PipeModel implements IModel {
 
     public static final PipeModel INSTANCE = new PipeModel();
 
-    private static final ResourceLocation PIPE_BODY      = new ResourceLocation("rusticpipes:blocks/pipe_body");
-    private static final ResourceLocation PIPE_CAP       = new ResourceLocation("rusticpipes:blocks/pipe_cap");
-    private static final ResourceLocation PIPE_IND_RIGHT = new ResourceLocation("rusticpipes:blocks/pipe_indicator_right");
-    private static final ResourceLocation PIPE_IND_LEFT  = new ResourceLocation("rusticpipes:blocks/pipe_indicator_left");
+    private static final ResourceLocation PIPE_BODY             = new ResourceLocation("rusticpipes:blocks/pipe_body");
+    private static final ResourceLocation PIPE_CAP    = new ResourceLocation("rusticpipes:blocks/pipe_cap");
+    private static final ResourceLocation PIPE_FLANGE = new ResourceLocation("rusticpipes:blocks/pipe_flange");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_EAST  = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_east");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_WEST  = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_west");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_NORTH = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_north");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_SOUTH = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_south");
+    private static final ResourceLocation PIPE_CAP_INPUT_EAST   = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_east");
+    private static final ResourceLocation PIPE_CAP_INPUT_WEST   = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_west");
+    private static final ResourceLocation PIPE_CAP_INPUT_NORTH  = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_north");
+    private static final ResourceLocation PIPE_CAP_INPUT_SOUTH  = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_south");
 
     @Override
     public Collection<ResourceLocation> getTextures() {
-        return Arrays.asList(PIPE_BODY, PIPE_CAP, PIPE_IND_RIGHT, PIPE_IND_LEFT);
+        return Arrays.asList(PIPE_BODY, PIPE_CAP, PIPE_FLANGE,
+                PIPE_CAP_OUTPUT_EAST, PIPE_CAP_OUTPUT_WEST, PIPE_CAP_OUTPUT_NORTH, PIPE_CAP_OUTPUT_SOUTH,
+                PIPE_CAP_INPUT_EAST,  PIPE_CAP_INPUT_WEST,  PIPE_CAP_INPUT_NORTH,  PIPE_CAP_INPUT_SOUTH);
     }
 
     @Override
@@ -36,8 +45,15 @@ public class PipeModel implements IModel {
         return new PipeBakedModel(
                 bakedTextureGetter.apply(PIPE_BODY),
                 bakedTextureGetter.apply(PIPE_CAP),
-                bakedTextureGetter.apply(PIPE_IND_RIGHT),
-                bakedTextureGetter.apply(PIPE_IND_LEFT));
+                bakedTextureGetter.apply(PIPE_FLANGE),
+                bakedTextureGetter.apply(PIPE_CAP_OUTPUT_EAST),
+                bakedTextureGetter.apply(PIPE_CAP_OUTPUT_WEST),
+                bakedTextureGetter.apply(PIPE_CAP_OUTPUT_NORTH),
+                bakedTextureGetter.apply(PIPE_CAP_OUTPUT_SOUTH),
+                bakedTextureGetter.apply(PIPE_CAP_INPUT_EAST),
+                bakedTextureGetter.apply(PIPE_CAP_INPUT_WEST),
+                bakedTextureGetter.apply(PIPE_CAP_INPUT_NORTH),
+                bakedTextureGetter.apply(PIPE_CAP_INPUT_SOUTH));
     }
 
     @Override public IModelState getDefaultState() { return TRSRTransformation.identity(); }
@@ -45,7 +61,9 @@ public class PipeModel implements IModel {
 
     public static class PipeBakedModel implements IBakedModel {
 
-        private final TextureAtlasSprite body, cap, indRight, indLeft;
+        private final TextureAtlasSprite body, cap, flange;
+        private final TextureAtlasSprite outEast, outWest, outNorth, outSouth;
+        private final TextureAtlasSprite inEast,  inWest,  inNorth,  inSouth;
 
         private static final float CORE_MIN = 4f / 16f;
         private static final float CORE_MAX = 12f / 16f;
@@ -53,12 +71,29 @@ public class PipeModel implements IModel {
         private static final float CAP_MAX  = 13f / 16f;
         private static final float CAP_W    = 2f / 16f;
 
+        // Face state values
+        private static final int NOT_CONNECTED  = 0;
+        private static final int PIPE           = 1;
+        private static final int INV_OUTPUT     = 2;
+        private static final int INV_INPUT      = 3;
+
         public PipeBakedModel(TextureAtlasSprite body, TextureAtlasSprite cap,
-                              TextureAtlasSprite indRight, TextureAtlasSprite indLeft) {
+                              TextureAtlasSprite flange,
+                              TextureAtlasSprite outEast, TextureAtlasSprite outWest,
+                              TextureAtlasSprite outNorth, TextureAtlasSprite outSouth,
+                              TextureAtlasSprite inEast, TextureAtlasSprite inWest,
+                              TextureAtlasSprite inNorth, TextureAtlasSprite inSouth) {
             this.body     = body;
             this.cap      = cap;
-            this.indRight = indRight;
-            this.indLeft  = indLeft;
+            this.flange   = flange;
+            this.outEast  = outEast;
+            this.outWest  = outWest;
+            this.outNorth = outNorth;
+            this.outSouth = outSouth;
+            this.inEast   = inEast;
+            this.inWest   = inWest;
+            this.inNorth  = inNorth;
+            this.inSouth  = inSouth;
         }
 
         @Override
@@ -71,53 +106,109 @@ public class PipeModel implements IModel {
                 addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, body);
                 for (EnumFacing f : EnumFacing.VALUES) {
                     addArm(quads, f);
-                    addFlange(quads, f);
+                    addFlange(quads, f, INV_OUTPUT);
                 }
                 return quads;
             }
 
-            EnumFacing facing     = state.getValue(BlockItemPipe.FACING);
-            boolean    isEndpoint = state.getValue(BlockItemPipe.ENDPOINT);
-            boolean    connNorth  = state.getValue(BlockItemPipe.NORTH);
-            boolean    connSouth  = state.getValue(BlockItemPipe.SOUTH);
-            boolean    connEast   = state.getValue(BlockItemPipe.EAST);
-            boolean    connWest   = state.getValue(BlockItemPipe.WEST);
-            boolean    connUp     = state.getValue(BlockItemPipe.UP);
-            boolean    connDown   = state.getValue(BlockItemPipe.DOWN);
+            int north = state.getValue(BlockItemPipe.NORTH);
+            int south = state.getValue(BlockItemPipe.SOUTH);
+            int east  = state.getValue(BlockItemPipe.EAST);
+            int west  = state.getValue(BlockItemPipe.WEST);
+            int up    = state.getValue(BlockItemPipe.UP);
+            int down  = state.getValue(BlockItemPipe.DOWN);
 
-            // Core
             addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, body);
 
-            // Connected faces: arm + flange at block face
-            // Unconnected faces: nothing — just the plain core face
-            if (connNorth) { addArm(quads, EnumFacing.NORTH); addFlange(quads, EnumFacing.NORTH); }
-            if (connSouth) { addArm(quads, EnumFacing.SOUTH); addFlange(quads, EnumFacing.SOUTH); }
-            if (connEast)  { addArm(quads, EnumFacing.EAST);  addFlange(quads, EnumFacing.EAST);  }
-            if (connWest)  { addArm(quads, EnumFacing.WEST);  addFlange(quads, EnumFacing.WEST);  }
-            if (connUp)    { addArm(quads, EnumFacing.UP);    addFlange(quads, EnumFacing.UP);    }
-            if (connDown)  { addArm(quads, EnumFacing.DOWN);  addFlange(quads, EnumFacing.DOWN);  }
-
-            // Indicator panels
-            if (isEndpoint) {
-                TextureAtlasSprite ind = getIndicator(facing);
-                for (EnumFacing face : EnumFacing.VALUES) {
-                    if (face.getAxis() != facing.getAxis()) {
-                        addIndicatorPanel(quads, face, ind);
-                    }
-                }
-            }
+            if (north > 0) { addArm(quads, EnumFacing.NORTH); addFlange(quads, EnumFacing.NORTH, north); }
+            if (south > 0) { addArm(quads, EnumFacing.SOUTH); addFlange(quads, EnumFacing.SOUTH, south); }
+            if (east  > 0) { addArm(quads, EnumFacing.EAST);  addFlange(quads, EnumFacing.EAST,  east);  }
+            if (west  > 0) { addArm(quads, EnumFacing.WEST);  addFlange(quads, EnumFacing.WEST,  west);  }
+            if (up    > 0) { addArm(quads, EnumFacing.UP);    addFlange(quads, EnumFacing.UP,    up);    }
+            if (down  > 0) { addArm(quads, EnumFacing.DOWN);  addFlange(quads, EnumFacing.DOWN,  down);  }
 
             return quads;
         }
 
-        private TextureAtlasSprite getIndicator(EnumFacing facing) {
-            switch (facing) {
-                case EAST: case SOUTH: case UP: return indRight;
-                default: return indLeft;
+        private TextureAtlasSprite getArrowTex(EnumFacing armDir, EnumFacing sideFace, boolean input) {
+            EnumFacing texDir;
+            switch (armDir) {
+                case EAST:
+                    switch (sideFace) {
+                        case NORTH: texDir = EnumFacing.WEST;  break;
+                        case SOUTH: texDir = EnumFacing.EAST;  break;
+                        case UP:    texDir = EnumFacing.EAST;  break;
+                        case DOWN:  texDir = EnumFacing.EAST;  break;
+                        default:    texDir = EnumFacing.EAST;  break;
+                    }
+                    break;
+                case WEST:
+                    switch (sideFace) {
+                        case NORTH: texDir = EnumFacing.EAST;  break;
+                        case SOUTH: texDir = EnumFacing.WEST;  break;
+                        case UP:    texDir = EnumFacing.WEST;  break;
+                        case DOWN:  texDir = EnumFacing.WEST;  break;
+                        default:    texDir = EnumFacing.WEST;  break;
+                    }
+                    break;
+                case NORTH:
+                    switch (sideFace) {
+                        case EAST:  texDir = EnumFacing.EAST;  break;
+                        case WEST:  texDir = EnumFacing.WEST;  break;
+                        case UP:    texDir = EnumFacing.NORTH; break;
+                        case DOWN:  texDir = EnumFacing.SOUTH; break;
+                        default:    texDir = EnumFacing.NORTH; break;
+                    }
+                    break;
+                case SOUTH:
+                    switch (sideFace) {
+                        case EAST:  texDir = EnumFacing.WEST;  break;
+                        case WEST:  texDir = EnumFacing.EAST;  break;
+                        case UP:    texDir = EnumFacing.SOUTH; break;
+                        case DOWN:  texDir = EnumFacing.NORTH; break;
+                        default:    texDir = EnumFacing.SOUTH; break;
+                    }
+                    break;
+                case UP:
+                    switch (sideFace) {
+                        case NORTH: texDir = EnumFacing.SOUTH; break;
+                        case SOUTH: texDir = EnumFacing.NORTH; break;
+                        case EAST:  texDir = EnumFacing.NORTH; break;
+                        case WEST:  texDir = EnumFacing.NORTH; break;
+                        default:    texDir = EnumFacing.NORTH; break;
+                    }
+                    break;
+                case DOWN:
+                    switch (sideFace) {
+                        case NORTH: texDir = EnumFacing.SOUTH; break;
+                        case SOUTH: texDir = EnumFacing.NORTH; break;
+                        case EAST:  texDir = EnumFacing.NORTH; break;
+                        case WEST:  texDir = EnumFacing.NORTH; break;
+                        default:    texDir = EnumFacing.NORTH; break;
+                    }
+                    break;
+                default: texDir = EnumFacing.EAST; break;
+            }
+
+            if (input) {
+                switch (texDir) {
+                    case EAST:  return inEast;
+                    case WEST:  return inWest;
+                    case NORTH: return inNorth;
+                    case SOUTH: return inSouth;
+                    default:    return inEast;
+                }
+            } else {
+                switch (texDir) {
+                    case EAST:  return outEast;
+                    case WEST:  return outWest;
+                    case NORTH: return outNorth;
+                    case SOUTH: return outSouth;
+                    default:    return outEast;
+                }
             }
         }
 
-        // Arm: tube from core to block face
         private void addArm(List<BakedQuad> quads, EnumFacing dir) {
             switch (dir) {
                 case DOWN:  addCube(quads, CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, body); break;
@@ -129,27 +220,72 @@ public class PipeModel implements IModel {
             }
         }
 
-        // Flange: wider collar at block face on connected faces only
-        private void addFlange(List<BakedQuad> quads, EnumFacing dir) {
-            switch (dir) {
-                case DOWN:  addCube(quads, CAP_MIN, 0,        CAP_MIN, CAP_MAX, CAP_W,    CAP_MAX, cap); break;
-                case UP:    addCube(quads, CAP_MIN, 1-CAP_W,  CAP_MIN, CAP_MAX, 1,        CAP_MAX, cap); break;
-                case NORTH: addCube(quads, CAP_MIN, CAP_MIN,  0,       CAP_MAX, CAP_MAX,  CAP_W,   cap); break;
-                case SOUTH: addCube(quads, CAP_MIN, CAP_MIN,  1-CAP_W, CAP_MAX, CAP_MAX,  1,       cap); break;
-                case WEST:  addCube(quads, 0,       CAP_MIN,  CAP_MIN, CAP_W,   CAP_MAX,  CAP_MAX, cap); break;
-                case EAST:  addCube(quads, 1-CAP_W, CAP_MIN,  CAP_MIN, 1,       CAP_MAX,  CAP_MAX, cap); break;
-            }
-        }
+        // faceState: 1=pipe, 2=inv output, 3=inv input
+        private void addFlange(List<BakedQuad> quads, EnumFacing dir, int faceState) {
+            boolean isInventory = faceState == INV_OUTPUT || faceState == INV_INPUT;
+            boolean isInput     = faceState == INV_INPUT;
 
-        private void addIndicatorPanel(List<BakedQuad> quads, EnumFacing face, TextureAtlasSprite sprite) {
-            float off = 0.002f;
-            switch (face) {
-                case UP:    addQuad(quads, face, CORE_MIN,CORE_MAX+off,CORE_MIN, CORE_MAX,CORE_MAX+off,CORE_MIN, CORE_MAX,CORE_MAX+off,CORE_MAX, CORE_MIN,CORE_MAX+off,CORE_MAX, sprite); break;
-                case DOWN:  addQuad(quads, face, CORE_MIN,CORE_MIN-off,CORE_MAX, CORE_MAX,CORE_MIN-off,CORE_MAX, CORE_MAX,CORE_MIN-off,CORE_MIN, CORE_MIN,CORE_MIN-off,CORE_MIN, sprite); break;
-                case NORTH: addQuad(quads, face, CORE_MAX,CORE_MIN,CORE_MIN-off, CORE_MIN,CORE_MIN,CORE_MIN-off, CORE_MIN,CORE_MAX,CORE_MIN-off, CORE_MAX,CORE_MAX,CORE_MIN-off, sprite); break;
-                case SOUTH: addQuad(quads, face, CORE_MIN,CORE_MIN,CORE_MAX+off, CORE_MAX,CORE_MIN,CORE_MAX+off, CORE_MAX,CORE_MAX,CORE_MAX+off, CORE_MIN,CORE_MAX,CORE_MAX+off, sprite); break;
-                case WEST:  addQuad(quads, face, CORE_MIN-off,CORE_MIN,CORE_MAX, CORE_MIN-off,CORE_MIN,CORE_MIN, CORE_MIN-off,CORE_MAX,CORE_MIN, CORE_MIN-off,CORE_MAX,CORE_MAX, sprite); break;
-                case EAST:  addQuad(quads, face, CORE_MAX+off,CORE_MIN,CORE_MIN, CORE_MAX+off,CORE_MIN,CORE_MAX, CORE_MAX+off,CORE_MAX,CORE_MAX, CORE_MAX+off,CORE_MAX,CORE_MIN, sprite); break;
+            switch (dir) {
+                case DOWN: {
+                    float x1=CAP_MIN, y1=0, z1=CAP_MIN, x2=CAP_MAX, y2=CAP_W, z2=CAP_MAX;
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, flange);
+                    break;
+                }
+                case UP: {
+                    float x1=CAP_MIN, y1=1-CAP_W, z1=CAP_MIN, x2=CAP_MAX, y2=1, z2=CAP_MAX;
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, flange);
+                    break;
+                }
+                case NORTH: {
+                    float x1=CAP_MIN, y1=CAP_MIN, z1=0, x2=CAP_MAX, y2=CAP_MAX, z2=CAP_W;
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.UP,    isInput) : flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, flange);
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, flange);
+                    break;
+                }
+                case SOUTH: {
+                    float x1=CAP_MIN, y1=CAP_MIN, z1=1-CAP_W, x2=CAP_MAX, y2=CAP_MAX, z2=1;
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.WEST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.EAST,  isInput) : flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.UP,    isInput) : flange);
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, flange);
+                    break;
+                }
+                case WEST: {
+                    float x1=0, y1=CAP_MIN, z1=CAP_MIN, x2=CAP_W, y2=CAP_MAX, z2=CAP_MAX;
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.UP,    isInput) : flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, flange);
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, flange);
+                    break;
+                }
+                case EAST: {
+                    float x1=1-CAP_W, y1=CAP_MIN, z1=CAP_MIN, x2=1, y2=CAP_MAX, z2=CAP_MAX;
+                    addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.NORTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, isInventory ? getArrowTex(dir, EnumFacing.SOUTH, isInput) : flange);
+                    addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, isInventory ? getArrowTex(dir, EnumFacing.DOWN,  isInput) : flange);
+                    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, isInventory ? getArrowTex(dir, EnumFacing.UP,    isInput) : flange);
+                    addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, flange);
+                    addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, flange);
+                    break;
+                }
             }
         }
 

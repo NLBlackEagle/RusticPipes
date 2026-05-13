@@ -3,8 +3,8 @@ package rusticpipes.block;
 import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
-import net.minecraft.block.properties.PropertyBool;
 import net.minecraft.block.properties.PropertyDirection;
+import net.minecraft.block.properties.PropertyInteger;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -31,14 +31,19 @@ import java.util.List;
 
 public class BlockItemPipe extends Block implements ITileEntityProvider {
 
-    public static final PropertyDirection FACING   = PropertyDirection.create("facing");
-    public static final PropertyBool      ENDPOINT = PropertyBool.create("endpoint");
-    public static final PropertyBool      NORTH    = PropertyBool.create("north");
-    public static final PropertyBool      SOUTH    = PropertyBool.create("south");
-    public static final PropertyBool      EAST     = PropertyBool.create("east");
-    public static final PropertyBool      WEST     = PropertyBool.create("west");
-    public static final PropertyBool      UP       = PropertyBool.create("up");
-    public static final PropertyBool      DOWN     = PropertyBool.create("down");
+    public static final PropertyDirection FACING = PropertyDirection.create("facing");
+
+    // Per-face state encoded as integer:
+    // 0 = not connected
+    // 1 = connected to pipe
+    // 2 = connected to inventory, OUTPUT mode
+    // 3 = connected to inventory, INPUT mode
+    public static final PropertyInteger NORTH = PropertyInteger.create("north", 0, 3);
+    public static final PropertyInteger SOUTH = PropertyInteger.create("south", 0, 3);
+    public static final PropertyInteger EAST  = PropertyInteger.create("east",  0, 3);
+    public static final PropertyInteger WEST  = PropertyInteger.create("west",  0, 3);
+    public static final PropertyInteger UP    = PropertyInteger.create("up",    0, 3);
+    public static final PropertyInteger DOWN  = PropertyInteger.create("down",  0, 3);
 
     private static final float CORE_MIN = 4f / 16f;
     private static final float CORE_MAX = 12f / 16f;
@@ -49,14 +54,13 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
     public BlockItemPipe() {
         super(Material.IRON);
         setDefaultState(blockState.getBaseState()
-                .withProperty(FACING,   EnumFacing.NORTH)
-                .withProperty(ENDPOINT, false)
-                .withProperty(NORTH,    false)
-                .withProperty(SOUTH,    false)
-                .withProperty(EAST,     false)
-                .withProperty(WEST,     false)
-                .withProperty(UP,       false)
-                .withProperty(DOWN,     false));
+                .withProperty(FACING, EnumFacing.NORTH)
+                .withProperty(NORTH,  0)
+                .withProperty(SOUTH,  0)
+                .withProperty(EAST,   0)
+                .withProperty(WEST,   0)
+                .withProperty(UP,     0)
+                .withProperty(DOWN,   0));
     }
 
     @Override public boolean isOpaqueCube(IBlockState state) { return false; }
@@ -70,7 +74,7 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
 
     @Override
     protected BlockStateContainer createBlockState() {
-        return new BlockStateContainer(this, FACING, ENDPOINT, NORTH, SOUTH, EAST, WEST, UP, DOWN);
+        return new BlockStateContainer(this, FACING, NORTH, SOUTH, EAST, WEST, UP, DOWN);
     }
 
     @Override
@@ -85,37 +89,34 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
 
     @Override
     public IBlockState getActualState(IBlockState state, IBlockAccess world, BlockPos pos) {
-        int pipeNeighbours = 0;
-        boolean hasInventory = false;
+        TileEntity te = world.getTileEntity(pos);
+        TileEntityItemPipe pipe = (te instanceof TileEntityItemPipe) ? (TileEntityItemPipe) te : null;
 
         for (EnumFacing face : EnumFacing.VALUES) {
+            PropertyInteger prop = getFaceProp(face);
+            if (prop == null) continue;
+
             Block neighbour = world.getBlockState(pos.offset(face)).getBlock();
             boolean isPipe = neighbour instanceof BlockItemPipe;
 
             if (isPipe) {
-                pipeNeighbours++;
+                state = state.withProperty(prop, 1);
             } else {
-                TileEntity te = world.getTileEntity(pos.offset(face));
-                if (te != null && te.hasCapability(
-                        CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite())) {
-                    hasInventory = true;
+                TileEntity neighbourTE = world.getTileEntity(pos.offset(face));
+                boolean isInventory = neighbourTE != null
+                        && neighbourTE.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite());
+                if (isInventory) {
+                    boolean isInput = pipe != null && pipe.getFaceMode(face) == FaceMode.INPUT;
+                    state = state.withProperty(prop, isInput ? 3 : 2);
+                } else {
+                    state = state.withProperty(prop, 0);
                 }
             }
-
-            PropertyBool prop = getFaceProperty(face);
-            if (prop != null) {
-                boolean connected = isPipe || (world.getTileEntity(pos.offset(face)) != null
-                        && world.getTileEntity(pos.offset(face)).hasCapability(
-                        CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite()));
-                state = state.withProperty(prop, connected);
-            }
         }
-
-        boolean endpoint = hasInventory || pipeNeighbours >= 3;
-        return state.withProperty(ENDPOINT, endpoint);
+        return state;
     }
 
-    private static PropertyBool getFaceProperty(EnumFacing face) {
+    public static PropertyInteger getFaceProp(EnumFacing face) {
         switch (face) {
             case NORTH: return NORTH;
             case SOUTH: return SOUTH;
@@ -150,11 +151,7 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (world.isRemote) return true;
 
-        RusticPipes.LOGGER.info("onBlockActivated: facing={} hit={},{},{}", facing, hitX, hitY, hitZ);
-
         EnumFacing clickedArm = getClickedArm(hitX, hitY, hitZ, facing);
-        RusticPipes.LOGGER.info("clickedArm={}", clickedArm);
-
         if (clickedArm == null) return false;
 
         TileEntity te = world.getTileEntity(pos);
@@ -163,16 +160,20 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
 
         Block neighbour = world.getBlockState(pos.offset(clickedArm)).getBlock();
         if (neighbour instanceof BlockItemPipe) {
-            player.sendMessage(new TextComponentString(
-                    capitalize(clickedArm.getName()) + " arm: pipe connection"));
+            if (RusticPipes.DEBUG) {
+                player.sendMessage(new TextComponentString(
+                        capitalize(clickedArm.getName()) + " arm: pipe connection"));
+            }
             return true;
         }
 
         TileEntity neighbourTE = world.getTileEntity(pos.offset(clickedArm));
         if (neighbourTE == null || !neighbourTE.hasCapability(
                 CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, clickedArm.getOpposite())) {
-            player.sendMessage(new TextComponentString(
-                    capitalize(clickedArm.getName()) + " arm: no connection"));
+            if (RusticPipes.DEBUG) {
+                player.sendMessage(new TextComponentString(
+                        capitalize(clickedArm.getName()) + " arm: no connection"));
+            }
             return true;
         }
 
@@ -180,6 +181,7 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
         FaceMode next = (current == FaceMode.INPUT) ? FaceMode.OUTPUT : FaceMode.INPUT;
         pipe.setFaceMode(clickedArm, next);
 
+        // Always show mode change feedback
         player.sendMessage(new TextComponentString(
                 capitalize(clickedArm.getName()) + " face: " + next.getDisplayName()));
 
@@ -188,22 +190,16 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
 
     private EnumFacing getClickedArm(float x, float y, float z, EnumFacing hitFace) {
         float eps = 0.01f;
-        float capLo = CAP_MIN - eps;
-        float capHi = CAP_MAX + eps;
-
-        // Calculate how far outside the core each axis is
         float dx = x < CORE_MIN ? CORE_MIN - x : (x > CORE_MAX ? x - CORE_MAX : 0);
         float dy = y < CORE_MIN ? CORE_MIN - y : (y > CORE_MAX ? y - CORE_MAX : 0);
         float dz = z < CORE_MIN ? CORE_MIN - z : (z > CORE_MAX ? z - CORE_MAX : 0);
 
-        // If one axis is clearly dominant, use it
         float max = Math.max(dx, Math.max(dy, dz));
-        if (max <= eps) return null; // inside core
+        if (max <= eps) return null;
 
         if (dx == max) return x < CORE_MIN ? EnumFacing.WEST  : EnumFacing.EAST;
-        if (dy == max) return y < CORE_MIN ? EnumFacing.DOWN  : EnumFacing.UP;
         if (dz == max) return z < CORE_MIN ? EnumFacing.NORTH : EnumFacing.SOUTH;
-        return null;
+        return y < CORE_MIN ? EnumFacing.DOWN : EnumFacing.UP;
     }
 
     @Override
@@ -211,22 +207,16 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
                                             Vec3d start, Vec3d end) {
         List<AxisAlignedBB> boxes = new ArrayList<>();
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
-        // NORTH
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN));
         boxes.add(new AxisAlignedBB(CAP_MIN,  CAP_MIN,  0,        CAP_MAX,  CAP_MAX,  CAP_W));
-        // SOUTH
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1));
         boxes.add(new AxisAlignedBB(CAP_MIN,  CAP_MIN,  1-CAP_W,  CAP_MAX,  CAP_MAX,  1));
-        // WEST
         boxes.add(new AxisAlignedBB(0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
         boxes.add(new AxisAlignedBB(0,        CAP_MIN,  CAP_MIN,  CAP_W,    CAP_MAX,  CAP_MAX));
-        // EAST
         boxes.add(new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX));
         boxes.add(new AxisAlignedBB(1-CAP_W,  CAP_MIN,  CAP_MIN,  1,        CAP_MAX,  CAP_MAX));
-        // DOWN
         boxes.add(new AxisAlignedBB(CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));
         boxes.add(new AxisAlignedBB(CAP_MIN,  0,        CAP_MIN,  CAP_MAX,  CAP_W,    CAP_MAX));
-        // UP
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,        CORE_MAX));
         boxes.add(new AxisAlignedBB(CAP_MIN,  1-CAP_W,  CAP_MIN,  CAP_MAX,  1,        CAP_MAX));
 
@@ -242,8 +232,6 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
                 }
             }
         }
-
-        RusticPipes.LOGGER.info("collisionRayTrace: sideHit={}", closest != null ? closest.sideHit : "null");
         return closest;
     }
 

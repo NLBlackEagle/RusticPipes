@@ -2,6 +2,8 @@ package rusticpipes.tileentity;
 
 import net.minecraft.block.Block;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
@@ -9,12 +11,12 @@ import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.network.PipeNetwork;
 
+import javax.annotation.Nullable;
 import java.util.EnumMap;
 import java.util.Map;
 
 public class TileEntityItemPipe extends TileEntity implements ITickable {
 
-    // Per-face mode — defaults to OUTPUT on all faces
     private final Map<EnumFacing, FaceMode> faceModes = new EnumMap<>(EnumFacing.class);
 
     public TileEntityItemPipe() {
@@ -31,9 +33,37 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         faceModes.put(face, mode);
         markDirty();
         if (world != null && !world.isRemote) {
+            // Sync to client via tile entity update packet
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Client sync — these methods send TE data to the client when the
+    // block state changes so the renderer gets the correct face modes
+    // -----------------------------------------------------------------------
+
+    @Override
+    public NBTTagCompound getUpdateTag() {
+        return writeToNBT(new NBTTagCompound());
+    }
+
+    @Nullable
+    @Override
+    public SPacketUpdateTileEntity getUpdatePacket() {
+        return new SPacketUpdateTileEntity(pos, 0, getUpdateTag());
+    }
+
+    @Override
+    public void onDataPacket(NetworkManager net, SPacketUpdateTileEntity pkt) {
+        readFromNBT(pkt.getNbtCompound());
+        // Force re-render on client
+        world.markBlockRangeForRenderUpdate(pos, pos);
+    }
+
+    // -----------------------------------------------------------------------
+    // NBT
+    // -----------------------------------------------------------------------
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
@@ -63,6 +93,10 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Connection rendering
+    // -----------------------------------------------------------------------
+
     public boolean isConnected(EnumFacing face) {
         Block neighbourBlock = world.getBlockState(pos.offset(face)).getBlock();
         if (neighbourBlock instanceof BlockItemPipe) return true;
@@ -75,6 +109,10 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (world == null || world.isRemote) return;
         world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
     }
+
+    // -----------------------------------------------------------------------
+    // Network lifecycle
+    // -----------------------------------------------------------------------
 
     public void onRemoved() {
         PipeNetwork.onPipeRemoved(world, pos);
@@ -90,6 +128,10 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         onRemoved();
         super.invalidate();
     }
+
+    // -----------------------------------------------------------------------
+    // Tick
+    // -----------------------------------------------------------------------
 
     @Override
     public void update() {
