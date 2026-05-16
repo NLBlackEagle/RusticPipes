@@ -130,11 +130,13 @@ public class ConduitNetwork {
 
                 IEnergyStorage storage = neighbourTe.getCapability(
                         CapabilityEnergy.ENERGY, face.getOpposite());
-                if (storage == null || !storage.canExtract()) continue;
-
-                // Extract up to the configured max per face per tick
+                if (storage == null)
+                    storage = neighbourTe.getCapability(CapabilityEnergy.ENERGY, null);
+                if (storage == null) continue;
                 int maxExtract = ForgeConfigHandler.conduit.maxFePerTickPerFace;
-                int extracted = storage.extractEnergy(maxExtract, false);
+                int simResult = storage.extractEnergy(maxExtract, true);
+                if (simResult <= 0) continue;
+                int extracted = storage.extractEnergy(simResult, false);
                 totalFe += extracted;
 
                 // Store in the conduit's own buffer
@@ -144,6 +146,32 @@ public class ConduitNetwork {
         }
 
         lastFePerTick = totalFe;
+
+        // Push buffered FE into adjacent machines that can receive
+        for (BlockPos memberPos : members) {
+            TileEntity mte = world.getTileEntity(memberPos);
+            if (!(mte instanceof TileEntityConduit)) continue;
+            TileEntityConduit cte = (TileEntityConduit) mte;
+            int buffered = cte.getEnergyStored();
+            if (buffered <= 0) continue;
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos np = memberPos.offset(face);
+                Block nb = world.getBlockState(np).getBlock();
+                if (nb instanceof BlockConduit) continue;
+                if (nb instanceof BlockItemPipe) continue;
+                TileEntity nte = world.getTileEntity(np);
+                if (nte == null) continue;
+                IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
+                if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
+                if (st == null || !st.canReceive()) continue;
+                // Skip sources we already extracted from
+                if (st.canExtract() && st.getEnergyStored() >= st.getMaxEnergyStored()) continue;
+                int pushed = st.receiveEnergy(buffered, false);
+                if (pushed > 0) buffered -= pushed;
+                if (buffered <= 0) break;
+            }
+        }
+
         PipeNetwork.SpeedTier newTier = tierFromFe(totalFe);
 
         // If tier changed, sync TE to client so getExtendedState gets the new tier

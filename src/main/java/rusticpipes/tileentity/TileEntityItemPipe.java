@@ -142,8 +142,6 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (world.isRemote) return;
         PipeNetwork network = PipeNetwork.getNetwork(world, pos);
         if (network == null) return;
-        // collectFe guards itself with lastFeTick so it only runs once per global tick
-        network.collectFe(world);
         if (!network.isMyTick()) return;
         network.transferItems(world);
     }

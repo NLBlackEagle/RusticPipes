@@ -27,7 +27,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     private boolean tickedThisTick = false;
 
     public TileEntityConduit() {
-        energyBuffer = new EnergyStorage(10000, 10000, 0);
+        energyBuffer = new EnergyStorage(500000, 500000, 500000);
     }
 
     /** Called by ConduitNetwork to deposit extracted FE into this buffer. */
@@ -49,12 +49,13 @@ public class TileEntityConduit extends TileEntity implements ITickable {
         ConduitNetwork network = ConduitNetwork.getNetwork(pos);
         if (network == null) return;
 
-        // Only the first member drives the network tick
-        BlockPos first = network.getMembers().iterator().next();
-        if (first.equals(pos)) {
+        // Stable master: smallest BlockPos drives the tick
+        BlockPos master = null;
+        for (BlockPos p : network.getMembers()) {
+            if (master == null || p.toLong() < master.toLong()) master = p;
+        }
+        if (master != null && master.equals(pos)) {
             network.tick(world);
-            int drain = network.getLastFePerTick();
-            if (drain > 0) energyBuffer.extractEnergy(drain, false);
         }
 
         // Every TE syncs its own cachedTier so getExtendedState works on every conduit block
@@ -122,7 +123,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
         int stored = compound.getInteger("energy");
-        energyBuffer = new EnergyStorage(10000, 10000, 0);
+        energyBuffer = new EnergyStorage(500000, 500000, 500000);
         energyBuffer.receiveEnergy(stored, false);
         if (compound.hasKey("tier")) {
             try {
