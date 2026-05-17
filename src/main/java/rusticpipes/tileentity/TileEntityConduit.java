@@ -7,39 +7,28 @@ import net.minecraft.util.ITickable;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.energy.EnergyStorage;
-import rusticpipes.handlers.ForgeConfigHandler;
+import net.minecraftforge.energy.IEnergyStorage;
 import rusticpipes.network.ConduitNetwork;
 import rusticpipes.network.PipeNetwork;
 
 import javax.annotation.Nullable;
 
+/**
+ * Conduit tile entity.
+ *
+ * Exposes the network's shared EnergyStorage via the ENERGY capability so that
+ * any generator/machine adjacent to any conduit block reads/writes the same buffer.
+ *
+ * The master TE (smallest BlockPos in the network) drives the network tick each
+ * game tick to push buffered FE into machines and update the tier.
+ */
 public class TileEntityConduit extends TileEntity implements ITickable {
 
-    /** Internal energy buffer — accepts FE pushed in by external sources. */
-    private EnergyStorage energyBuffer;
-
-    /** Cached tier for client-side rendering — synced via NBT. */
-    public rusticpipes.network.PipeNetwork.SpeedTier cachedTier =
-            rusticpipes.network.PipeNetwork.SpeedTier.SLOW;
-
-    /** Whether this TE has already triggered a tick for its network this tick. */
-    private boolean tickedThisTick = false;
-
-    public TileEntityConduit() {
-        energyBuffer = new EnergyStorage(500000, 500000, 500000);
-    }
-
-    /** Called by ConduitNetwork to deposit extracted FE into this buffer. */
-    public void receiveEnergy(int amount) {
-        energyBuffer.receiveEnergy(amount, false);
-    }
-
-    public int getEnergyStored()    { return energyBuffer.getEnergyStored(); }
-    public int getMaxEnergyStored() { return energyBuffer.getMaxEnergyStored(); }
+    /** Cached tier for client-side rendering — synced via getUpdatePacket. */
+    public PipeNetwork.SpeedTier cachedTier = PipeNetwork.SpeedTier.SLOW;
 
     // -----------------------------------------------------------------------
-    // Tick — only the first TE in the network triggers a network tick
+    // Tick — master TE drives the network tick
     // -----------------------------------------------------------------------
 
     @Override
@@ -57,14 +46,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
         if (master != null && master.equals(pos)) {
             network.tick(world);
         }
-
-        // Every TE syncs its own cachedTier so getExtendedState works on every conduit block
-        PipeNetwork.SpeedTier networkTier = network.getCurrentTier();
-        if (networkTier != cachedTier) {
-            cachedTier = networkTier;
-            markDirty();
-            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-        }
+        // cachedTier is updated by ConduitNetwork.tick() only for TEs that border a pipe network
     }
 
     // -----------------------------------------------------------------------
@@ -89,7 +71,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     }
 
     // -----------------------------------------------------------------------
-    // Capability — expose energy buffer so FE sources can push power in
+    // Capability — expose shared network buffer
     // -----------------------------------------------------------------------
 
     @Override
@@ -102,7 +84,13 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     @Nullable
     public <T> T getCapability(Capability<T> capability, @Nullable EnumFacing facing) {
         if (capability == CapabilityEnergy.ENERGY) {
-            return CapabilityEnergy.ENERGY.cast(energyBuffer);
+            ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+            IEnergyStorage storage = (network != null)
+                    ? network.getSharedStorage()
+                    : null;
+            // Fallback: return a zero-capacity dummy so callers don't NPE
+            if (storage == null) storage = new net.minecraftforge.energy.EnergyStorage(0);
+            return CapabilityEnergy.ENERGY.cast(storage);
         }
         return super.getCapability(capability, facing);
     }
@@ -114,23 +102,22 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         super.writeToNBT(compound);
-        compound.setInteger("energy", energyBuffer.getEnergyStored());
         compound.setString("tier", cachedTier.name());
+        // Note: buffer FE is NOT saved per-TE — it lives on ConduitNetwork.
+        // On world reload, ConduitNetwork is rebuilt from onLoad() calls.
+        // If you want buffer persistence across reloads, save it on the
+        // master TE only (check pos == master before writing).
         return compound;
     }
 
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
-        int stored = compound.getInteger("energy");
-        energyBuffer = new EnergyStorage(500000, 500000, 500000);
-        energyBuffer.receiveEnergy(stored, false);
         if (compound.hasKey("tier")) {
             try {
-                cachedTier = rusticpipes.network.PipeNetwork.SpeedTier
-                        .valueOf(compound.getString("tier"));
+                cachedTier = PipeNetwork.SpeedTier.valueOf(compound.getString("tier"));
             } catch (IllegalArgumentException e) {
-                cachedTier = rusticpipes.network.PipeNetwork.SpeedTier.SLOW;
+                cachedTier = PipeNetwork.SpeedTier.SLOW;
             }
         }
     }

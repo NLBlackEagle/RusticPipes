@@ -128,35 +128,40 @@ public class ForgeConfigHandler {
 
     public static class ConduitConfig {
 
-        @Config.Comment("Minimum FE/tick for NORMAL tier.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("FE/tick - Normal threshold")
-        public int fePerTickNormal = 20;
+        @Config.Comment("FE buffer per conduit block in the network.\n"
+                + "Total network buffer = this value × number of conduit blocks connected.\n"
+                + "e.g. 10 conduits at 1000 FE/block = 10,000 FE total buffer.\n"
+                + "Tier is determined by how full the buffer is (see tier thresholds below).")
+        @Config.RangeInt(min = 100, max = 1000000)
+        @Config.Name("Network Buffer Per Conduit (FE)")
+        public int networkBufferPerConduit = 1000;
 
-        @Config.Comment("Minimum FE/tick for FAST tier.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("FE/tick - Fast threshold")
-        public int fePerTickFast = 200;
-
-        @Config.Comment("Minimum FE/tick for TURBO tier.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("FE/tick - Turbo threshold")
-        public int fePerTickTurbo = 800;
-
-        @Config.Comment("Minimum FE/tick for HYPER tier.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("FE/tick - Hyper threshold")
-        public int fePerTickHyper = 2000;
-
-        @Config.Comment("Minimum FE/tick for ULTRA tier.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("FE/tick - Ultra threshold")
-        public int fePerTickUltra = 6000;
-
-        @Config.Comment("Maximum FE/tick to extract per face per tick.")
+        @Config.Comment("Maximum FE/tick to push or pull through any single conduit face.\n"
+                + "This caps both how fast generators charge the buffer and how fast\n"
+                + "machines drain it per face per tick.")
         @Config.RangeInt(min = 1, max = 100000)
         @Config.Name("Max FE/tick per face")
         public int maxFePerTickPerFace = 10000;
+
+        @Config.Comment("Buffer fill % (0.0–1.0) required for NORMAL tier (10%).")
+        @Config.Name("Tier threshold - Normal (fill ratio)")
+        public float tierNormal = 0.10f;
+
+        @Config.Comment("Buffer fill % required for FAST tier (30%).")
+        @Config.Name("Tier threshold - Fast (fill ratio)")
+        public float tierFast = 0.30f;
+
+        @Config.Comment("Buffer fill % required for TURBO tier (50%).")
+        @Config.Name("Tier threshold - Turbo (fill ratio)")
+        public float tierTurbo = 0.50f;
+
+        @Config.Comment("Buffer fill % required for HYPER tier (70%).")
+        @Config.Name("Tier threshold - Hyper (fill ratio)")
+        public float tierHyper = 0.70f;
+
+        @Config.Comment("Buffer fill % required for ULTRA tier (90%).")
+        @Config.Name("Tier threshold - Ultra (fill ratio)")
+        public float tierUltra = 0.90f;
 
         @Config.Comment("Enable the conduit crafting recipe.")
         @Config.Name("Enable Conduit Recipe")

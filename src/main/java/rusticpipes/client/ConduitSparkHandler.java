@@ -16,30 +16,32 @@ import rusticpipes.network.ConduitNetwork;
 
 import java.util.Random;
 
+/**
+ * Spark particle handler.
+ *
+ * Spark intensity is driven by the buffer fill fraction — a nearly-full buffer
+ * produces constant rapid sparks; an empty buffer produces none.
+ */
 @SideOnly(Side.CLIENT)
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
 public class ConduitSparkHandler {
 
     private static final Random RAND = new Random();
 
-    private static final int FE_MIN   = 10;    // sparks start appearing
-    private static final int FE_MAX   = 100000; // maximum spark intensity
-    private static final int INT_MAX  = 80;    // ticks between sparks at FE_MIN
-    private static final int INT_MIN  = 2;     // ticks between sparks at FE_MAX
-    private static final int CNT_MIN  = 1;     // particles per spark at FE_MIN
-    private static final int CNT_MAX  = 6;     // particles per spark at FE_MAX
+    // Spark intensity parameters
+    private static final int INT_MAX  = 80; // ticks between sparks at 0% fill
+    private static final int INT_MIN  = 2;  // ticks between sparks at 100% fill
+    private static final int CNT_MIN  = 1;  // particles per event at 0% fill
+    private static final int CNT_MAX  = 6;  // particles per event at 100% fill
 
-    /** Returns the spark interval in ticks for the given FE/t, or 0 if below threshold. */
-    private static int sparkInterval(int fePerTick) {
-        if (fePerTick < FE_MIN) return 0;
-        float t = Math.min(1f, (float)(fePerTick - FE_MIN) / (FE_MAX - FE_MIN));
-        return Math.max(INT_MIN, (int)(INT_MAX - t * (INT_MAX - INT_MIN)));
+    /** Returns spark interval in ticks for fill fraction [0,1], 0 = no sparks. */
+    private static int sparkInterval(float fill) {
+        if (fill <= 0.01f) return 0;
+        return Math.max(INT_MIN, (int)(INT_MAX - fill * (INT_MAX - INT_MIN)));
     }
 
-    /** Returns the number of particles per spark event for the given FE/t. */
-    private static int sparkCount(int fePerTick) {
-        float t = Math.min(1f, (float)(fePerTick - FE_MIN) / (FE_MAX - FE_MIN));
-        return CNT_MIN + (int)(t * (CNT_MAX - CNT_MIN));
+    private static int sparkCount(float fill) {
+        return CNT_MIN + (int)(fill * (CNT_MAX - CNT_MIN));
     }
 
     @SubscribeEvent
@@ -51,7 +53,6 @@ public class ConduitSparkHandler {
         World world = mc.world;
         if (world == null || mc.isGamePaused()) return;
 
-        // Iterate loaded conduit blocks near the player
         BlockPos playerPos = mc.player.getPosition();
         int range = 24;
 
@@ -65,15 +66,16 @@ public class ConduitSparkHandler {
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
             if (network == null) continue;
 
-            int fePerTick = network.getLastFePerTick();
-            int interval = sparkInterval(fePerTick);
-            if (interval == 0) continue;
+            int stored   = network.getBufferStored();
+            int capacity = network.getBufferCapacity();
+            if (capacity <= 0 || stored <= 0) continue;
 
-            // Probabilistic spark — fires roughly once per interval ticks
+            float fill = Math.min(1f, (float) stored / capacity);
+            int interval = sparkInterval(fill);
+            if (interval == 0) continue;
             if (RAND.nextInt(interval) != 0) continue;
 
-            // Spawn particles scaled to FE/t
-            int count = sparkCount(fePerTick);
+            int count = sparkCount(fill);
             for (int i = 0; i < count; i++) {
                 double x = pos.getX() + 0.2 + RAND.nextDouble() * 0.6;
                 double y = pos.getY() + 0.2 + RAND.nextDouble() * 0.6;

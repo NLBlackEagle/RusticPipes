@@ -18,7 +18,6 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
-import net.minecraftforge.energy.CapabilityEnergy;
 import rusticpipes.client.model.ConduitModel;
 import rusticpipes.network.ConduitNetwork;
 import rusticpipes.network.PipeNetwork;
@@ -30,11 +29,11 @@ import java.util.List;
 
 public class BlockConduit extends Block implements ITileEntityProvider {
 
-    // Connection type constants — same pattern as BlockItemPipe
-    public static final int CON_NONE      = 0; // not connected
-    public static final int CON_CONDUIT   = 1; // connected to another conduit
-    public static final int CON_FE_SOURCE = 2; // connected to a FE source/sink
-    public static final int CON_PIPE_NET  = 3; // connected to a pipe network
+    // Connection type constants
+    public static final int CON_NONE     = 0; // not connected
+    public static final int CON_CONDUIT  = 1; // connected to another conduit
+    public static final int CON_FE_SOURCE = 2; // connected to a FE source/sink (reserved for future use)
+    public static final int CON_PIPE_NET = 3; // connected to a pipe network
 
     private static final float CORE_MIN = 6f / 16f;
     private static final float CORE_MAX = 10f / 16f;
@@ -83,12 +82,10 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         }
         IExtendedBlockState ext = (IExtendedBlockState) state;
 
-        // Read tier from the TE's cached value — works on both client and server
         TileEntity teTier = world.getTileEntity(pos);
-        PipeNetwork.SpeedTier tier = (teTier instanceof rusticpipes.tileentity.TileEntityConduit)
-                ? ((rusticpipes.tileentity.TileEntityConduit) teTier).cachedTier
+        PipeNetwork.SpeedTier tier = (teTier instanceof TileEntityConduit)
+                ? ((TileEntityConduit) teTier).cachedTier
                 : PipeNetwork.SpeedTier.SLOW;
-        rusticpipes.RusticPipes.LOGGER.info("[Conduit] getExtendedState at " + pos + " tier=" + tier);
 
         ext = ext.withProperty(ConduitModel.BLOCK_POS, pos)
                 .withProperty(ConduitModel.CONDUIT_TIER, tier);
@@ -103,29 +100,25 @@ public class BlockConduit extends Block implements ITileEntityProvider {
 
     private int computeConnection(IBlockAccess world, BlockPos pos, EnumFacing face) {
         Block neighbour = world.getBlockState(pos.offset(face)).getBlock();
-
         if (neighbour instanceof BlockConduit) return CON_CONDUIT;
         if (neighbour instanceof BlockItemPipe) return CON_PIPE_NET;
-
+        // Detect adjacent FE sources/sinks (generators, machines)
         TileEntity neighbourTE = world.getTileEntity(pos.offset(face));
         if (neighbourTE != null
-                && neighbourTE.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite())) {
+                && neighbourTE.hasCapability(net.minecraftforge.energy.CapabilityEnergy.ENERGY, face.getOpposite())) {
             return CON_FE_SOURCE;
         }
-
         return CON_NONE;
     }
 
     @Override
     public IBlockState getActualState(IBlockState state, IBlockAccess world, BlockPos pos) {
-        // Returning state here ensures getExtendedState is called by the render pipeline
         return state;
     }
 
     @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
-        // Force re-render when neighbors change
         world.notifyBlockUpdate(pos, state, state, 3);
     }
 
@@ -136,10 +129,11 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         if (!world.isRemote) {
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
             if (network != null) {
-                int fe = network.getLastFePerTick();
-                PipeNetwork.SpeedTier tier = network.getCurrentTier();
+                int stored   = network.getBufferStored();
+                int capacity = network.getBufferCapacity();
                 player.sendMessage(new net.minecraft.util.text.TextComponentString(
-                        "Conduit: " + fe + " FE/t — " + tier.name()));
+                        "Conduit [" + network.getMemberCount() + " blocks] "
+                        + stored + "/" + capacity + " FE"));
             }
         }
         return true;
@@ -155,7 +149,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     }
 
     // -----------------------------------------------------------------------
-    // Collision / bounding boxes — same as pipes
+    // Collision / bounding boxes
     // -----------------------------------------------------------------------
 
     @Override
@@ -186,12 +180,12 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     private List<AxisAlignedBB> buildBoxes() {
         List<AxisAlignedBB> boxes = new ArrayList<>();
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, 0, CORE_MAX, CORE_MAX, CORE_MIN));
+        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN));
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1));
-        boxes.add(new AxisAlignedBB(0, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1, CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, 0, CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1, CORE_MAX));
+        boxes.add(new AxisAlignedBB(0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
+        boxes.add(new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX));
+        boxes.add(new AxisAlignedBB(CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));
+        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,        CORE_MAX));
         return boxes;
     }
 

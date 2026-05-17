@@ -8,9 +8,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import rusticpipes.RusticPipes;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.network.ConduitNetwork;
-import rusticpipes.network.PipeNetwork;
 
 import java.util.ArrayList;
 
@@ -19,11 +17,8 @@ public class ConduitRainHandler {
 
     private static int tickCounter = 0;
     private static final int CHECK_INTERVAL = 100;
-
-    /** Tracks the last world-tick a lightning strike was spawned. One strike per interval globally. */
     private static int lastStrikeTick = -1;
-    /** Minimum ticks between any two lightning strikes from this handler. Configurable. */
-    private static final int STRIKE_COOLDOWN = 200; // 10 seconds
+    private static final int STRIKE_COOLDOWN = 200;
 
     @SubscribeEvent
     public static void onWorldTick(TickEvent.WorldTickEvent event) {
@@ -37,29 +32,21 @@ public class ConduitRainHandler {
         if (!world.isRaining()) return;
         if (!ForgeConfigHandler.conduit.enableRainDamage) return;
 
-        // Iterate all loaded tile entities and find conduits
         for (TileEntity te : new ArrayList<>(world.loadedTileEntityList)) {
-
             if (!(te instanceof rusticpipes.tileentity.TileEntityConduit)) continue;
 
             BlockPos pos = te.getPos();
-
-            // Must be exposed to sky
             if (!world.canSeeSky(pos.up())) continue;
 
-            // Must be powered
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
             if (network == null) continue;
-            if (network.getCurrentTier() == PipeNetwork.SpeedTier.SLOW) continue;
+            // Only strike if network has meaningful energy stored
+            if (network.getBufferStored() <= 0) continue;
 
-            // Enforce cooldown — only one strike per STRIKE_COOLDOWN ticks
             if (tickCounter - lastStrikeTick < STRIKE_COOLDOWN) continue;
             lastStrikeTick = tickCounter;
 
-            // Destroy the conduit block first
             world.setBlockToAir(pos);
-
-            // Then spawn lightning for visual/damage effect
             EntityLightningBolt bolt = new EntityLightningBolt(
                     world, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, false);
             world.addWeatherEffect(bolt);
