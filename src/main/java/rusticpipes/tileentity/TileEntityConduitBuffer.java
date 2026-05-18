@@ -1,6 +1,7 @@
 package rusticpipes.tileentity;
 
 import net.minecraft.nbt.NBTTagCompound;
+import rusticpipes.block.BlockConduitBuffer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
@@ -9,7 +10,6 @@ import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.energy.IEnergyStorage;
 import rusticpipes.handlers.ForgeConfigHandler;
-import rusticpipes.network.ConduitNetwork;
 import rusticpipes.network.PipeNetwork;
 
 import javax.annotation.Nullable;
@@ -17,13 +17,9 @@ import javax.annotation.Nullable;
 /**
  * Sits between a conduit network and a pipe network.
  *
- * Each tick:
- *   1. Draws exactly the tier's FE cost from an adjacent conduit.
- *   2. Stores it in a local buffer.
- *   3. Exposes that buffer via ENERGY capability so pipes drain it normally.
- *
- * If not enough FE is available for the tier, falls back to the next lower tier
- * that can be afforded, or SLOW (free) if nothing is available.
+ * Each tick draws FE from an adjacent conduit equal to the highest tier
+ * this motor can supply that the conduit can afford. Stores it locally.
+ * Pipes drain from this local buffer via ENERGY capability.
  */
 public class TileEntityConduitBuffer extends TileEntity implements ITickable {
 
@@ -35,64 +31,86 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
         initBuffer();
     }
 
-    // NBT deserialization calls the no-arg constructor
+    /** No-arg constructor for NBT deserialization — tier resolved from block in onLoad. */
     public TileEntityConduitBuffer() {
-        this.tier = PipeNetwork.SpeedTier.SLOW;
-        initBuffer();
+        this.tier = PipeNetwork.SpeedTier.SLOW; // placeholder, overwritten in onLoad
+        this.buffer = new EnergyStorage(100, 100, 100); // placeholder
     }
 
     private void initBuffer() {
-        // Local buffer sized to hold one tick's worth of the tier's FE cost
-        int cap = tierCost(PipeNetwork.SpeedTier.TURBO); // max possible
+        int cap = ForgeConfigHandler.motors.getBuffer(tier);
+        int stored = buffer != null ? Math.min(buffer.getEnergyStored(), cap) : 0;
         buffer = new EnergyStorage(cap, cap, cap);
+        if (stored > 0) buffer.receiveEnergy(stored, false);
+    }
+
+    @Override
+    public void onLoad() {
+        // Resolve actual tier from the placed block and resize buffer accordingly
+        if (world != null) {
+            net.minecraft.block.Block block = world.getBlockState(pos).getBlock();
+            if (block instanceof BlockConduitBuffer) {
+                // Use reflection-free field trick: re-assign via a local shadow
+                // Since tier is final we rebuild the buffer using the block's tier
+                PipeNetwork.SpeedTier blockTier = ((BlockConduitBuffer) block).tier;
+                int cap = ForgeConfigHandler.motors.getBuffer(blockTier);
+                int stored = Math.min(buffer.getEnergyStored(), cap);
+                buffer = new EnergyStorage(cap, cap, cap);
+                if (stored > 0) buffer.receiveEnergy(stored, false);
+            }
+        }
+    }
+
+    public PipeNetwork.SpeedTier getTier() {
+        if (world != null) {
+            net.minecraft.block.Block block = world.getBlockState(pos).getBlock();
+            if (block instanceof BlockConduitBuffer) return ((BlockConduitBuffer) block).tier;
+        }
+        return tier;
     }
 
     // -----------------------------------------------------------------------
-    // Tick
+    // Tick — draw from adjacent conduit into local buffer
     // -----------------------------------------------------------------------
 
     @Override
     public void update() {
         if (world.isRemote) return;
 
-        // Find adjacent conduit and draw FE for the highest affordable tier
+        // Only draw from conduit if the local buffer has room
+        int room = buffer.getMaxEnergyStored() - buffer.getEnergyStored();
+        if (room <= 0) return;
+
         IEnergyStorage conduitStorage = findAdjacentConduit();
-        if (conduitStorage != null) {
-            int available = conduitStorage.getEnergyStored();
-            int cost = highestAffordableCost(available);
-            if (cost > 0) {
-                int drawn = conduitStorage.extractEnergy(cost, false);
-                if (drawn > 0) buffer.receiveEnergy(drawn, false);
-            }
+        if (conduitStorage == null) return;
+
+        int available = conduitStorage.getEnergyStored();
+        int cost = highestAffordableCost(available);
+        if (cost > 0 && cost <= room) {
+            int drawn = conduitStorage.extractEnergy(cost, false);
+            if (drawn > 0) buffer.receiveEnergy(drawn, false);
         }
     }
 
     /**
-     * Returns the FE cost of the highest tier this block can afford given
-     * the available FE in the conduit. Caps at this block's own tier.
+     * Returns the FE cost of the highest tier this motor can supply
+     * that the conduit can currently afford. Caps at this motor's own tier.
      */
     private int highestAffordableCost(int available) {
-        PipeNetwork.SpeedTier[] tiers = {
+        PipeNetwork.SpeedTier[] descending = {
+                PipeNetwork.SpeedTier.ULTRA,
+                PipeNetwork.SpeedTier.HYPER,
                 PipeNetwork.SpeedTier.TURBO,
                 PipeNetwork.SpeedTier.FAST,
                 PipeNetwork.SpeedTier.NORMAL
         };
-        for (PipeNetwork.SpeedTier t : tiers) {
-            if (t.ordinal() > tier.ordinal()) continue; // don't exceed block's own tier
-            int cost = tierCost(t);
+        for (PipeNetwork.SpeedTier t : descending) {
+            if (t.ordinal() > tier.ordinal()) continue; // don't exceed motor's own tier
+            int cost = ForgeConfigHandler.getFeCost(t);
+            if (cost == 0) return 0; // SLOW is free
             if (available >= cost) return cost;
         }
-        return 0; // SLOW is free — draw nothing
-    }
-
-    private static int tierCost(PipeNetwork.SpeedTier t) {
-        ForgeConfigHandler.ConduitConfig cfg = ForgeConfigHandler.conduit;
-        switch (t) {
-            case TURBO:  return cfg.feThresholdTurbo;
-            case FAST:   return cfg.feThresholdFast;
-            case NORMAL: return cfg.feThresholdNormal;
-            default:     return 0;
-        }
+        return 0; // SLOW — draw nothing
     }
 
     @Nullable
@@ -107,7 +125,7 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
     }
 
     // -----------------------------------------------------------------------
-    // Capability — expose local buffer to pipes
+    // Capability
     // -----------------------------------------------------------------------
 
     @Override
@@ -138,7 +156,8 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
         super.readFromNBT(compound);
         initBuffer();
         if (compound.hasKey("stored"))
-            buffer.receiveEnergy(compound.getInteger("stored"), false);
+            buffer.receiveEnergy(Math.min(compound.getInteger("stored"),
+                    buffer.getMaxEnergyStored()), false);
     }
 
     public int getStored()   { return buffer.getEnergyStored(); }

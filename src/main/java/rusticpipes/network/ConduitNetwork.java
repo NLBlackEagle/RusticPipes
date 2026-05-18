@@ -24,6 +24,15 @@ public class ConduitNetwork {
     private EnergyStorage sharedBuffer;
     private int lastTier = -1; // -1 forces first-tick notify
 
+    /**
+     * Exponential moving average of buffer fill fraction (0.0-1.0).
+     * Updated every tick server-side. Exposed to client via getSmoothedFill()
+     * which the spark handler uses instead of the raw instantaneous fill.
+     * Alpha=0.05 gives ~20 tick smoothing window.
+     */
+    private float smoothedFill = 0f;
+    private static final float SMOOTH_ALPHA = 0.05f;
+
     // -----------------------------------------------------------------------
     // Constructor / buffer
     // -----------------------------------------------------------------------
@@ -117,8 +126,34 @@ public class ConduitNetwork {
     public void tick(World world) {
         int stored = sharedBuffer.getEnergyStored();
 
-        // Push to adjacent machines
-        if (stored > 0) {
+        int bufferRoom = sharedBuffer.getMaxEnergyStored() - sharedBuffer.getEnergyStored();
+
+        // Pull from adjacent energy sources (e.g. batteries/capacitors that don't push)
+        if (bufferRoom > 0) {
+            for (BlockPos memberPos : members) {
+                if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
+                for (EnumFacing face : EnumFacing.VALUES) {
+                    BlockPos np = memberPos.offset(face);
+                    Block nb = world.getBlockState(np).getBlock();
+                    if (nb instanceof BlockConduit || nb instanceof BlockItemPipe) continue;
+                    TileEntity nte = world.getTileEntity(np);
+                    if (nte == null) continue;
+                    IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
+                    if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
+                    if (st == null || !st.canExtract()) continue;
+                    int toTake = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace, bufferRoom);
+                    if (toTake <= 0) break;
+                    int extracted = st.extractEnergy(toTake, false);
+                    if (extracted > 0) {
+                        sharedBuffer.receiveEnergy(extracted, false);
+                        bufferRoom -= extracted;
+                    }
+                }
+            }
+        }
+
+        // Push to adjacent machines (e.g. machines that don't pull themselves)
+        if (sharedBuffer.getEnergyStored() > 0) {
             for (BlockPos memberPos : members) {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
                 for (EnumFacing face : EnumFacing.VALUES) {
@@ -146,6 +181,12 @@ public class ConduitNetwork {
             if (lossFe > 0) sharedBuffer.extractEnergy(lossFe, false);
         }
 
+        // Update smoothed fill EMA — gives spark handler a stable value
+        float currentFill = sharedBuffer.getMaxEnergyStored() > 0
+                ? (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored()
+                : 0f;
+        smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
+
         // Notify client re-render only when tier bracket changes
         int tier = tierFromStored(sharedBuffer.getEnergyStored());
         if (tier != lastTier) {
@@ -163,13 +204,15 @@ public class ConduitNetwork {
     // -----------------------------------------------------------------------
 
     public static int tierFromStored(int stored) {
-        ForgeConfigHandler.ConduitConfig cfg = ForgeConfigHandler.conduit;
-        if (stored >= cfg.feThresholdTurbo)  return 3;
-        if (stored >= cfg.feThresholdFast)   return 2;
-        if (stored >= cfg.feThresholdNormal) return 1;
+        // Use motor FE costs as the tier display thresholds on conduits
+        if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.TURBO)) return 3;
+        if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.FAST))  return 2;
+        if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.NORMAL))return 1;
         return 0;
     }
 
+    /** Smoothed fill fraction 0.0-1.0 — use this for spark effects. */
+    public float getSmoothedFill() { return smoothedFill; }
     public int getBufferStored()   { return sharedBuffer.getEnergyStored(); }
     public int getBufferCapacity() { return ForgeConfigHandler.conduit.networkBufferCapacity; }
     public Set<BlockPos> getMembers() { return Collections.unmodifiableSet(members); }

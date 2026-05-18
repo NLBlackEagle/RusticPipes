@@ -6,88 +6,213 @@ import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import rusticpipes.RusticPipes;
+import rusticpipes.network.PipeNetwork;
 
 @Config(modid = RusticPipes.MODID)
 public class ForgeConfigHandler {
 
-    @Config.Comment("Server-Side Options")
-    @Config.Name("Server Options")
-    public static final ServerConfig server = new ServerConfig();
+    // -----------------------------------------------------------------------
+    // Parsed tier data — populated on first access or after config reload
+    // -----------------------------------------------------------------------
 
-    @Config.Comment("Client-Side Options")
-    @Config.Name("Client Options")
-    public static final ClientConfig client = new ClientConfig();
+    /** Parsed values from pipe tier strings. Index = SpeedTier.ordinal(). */
+    private static int[] parsedTickRate    = null;
+    private static int[] parsedTransfer    = null;
+    private static int[] parsedFeCost      = null;
+
+    /** Call after config load/reload to re-parse tier strings. */
+    public static void parseTiers() {
+        PipeNetwork.SpeedTier[] tiers = PipeNetwork.SpeedTier.values();
+        parsedTickRate = new int[tiers.length];
+        parsedTransfer = new int[tiers.length];
+        parsedFeCost   = new int[tiers.length];
+
+        String[] raw = {
+            pipes.tierSlow, pipes.tierNormal, pipes.tierFast,
+            pipes.tierTurbo, pipes.tierHyper, pipes.tierUltra
+        };
+        int[][] defaults = {
+            {100, 1, 0}, {60, 1, 100}, {40, 2, 500},
+            {40, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
+        };
+
+        for (int i = 0; i < tiers.length; i++) {
+            try {
+                String[] parts = raw[i].split(",");
+                parsedTickRate[i] = Math.max(1,  Integer.parseInt(parts[0].trim()));
+                parsedTransfer[i] = Math.max(1,  Integer.parseInt(parts[1].trim()));
+                parsedFeCost[i]   = Math.max(0,  Integer.parseInt(parts[2].trim()));
+            } catch (Exception e) {
+                parsedTickRate[i] = defaults[i][0];
+                parsedTransfer[i] = defaults[i][1];
+                parsedFeCost[i]   = defaults[i][2];
+                RusticPipes.LOGGER.warn("[RusticPipes] Failed to parse tier string for "
+                        + tiers[i].name() + ", using defaults. Value was: " + raw[i]);
+            }
+        }
+    }
+
+    private static void ensureParsed() {
+        if (parsedTickRate == null) parseTiers();
+    }
+
+    public static int getTickRate(PipeNetwork.SpeedTier tier) {
+        ensureParsed();
+        return parsedTickRate[tier.ordinal()];
+    }
+
+    public static int getTransferSize(PipeNetwork.SpeedTier tier) {
+        ensureParsed();
+        return parsedTransfer[tier.ordinal()];
+    }
+
+    public static int getFeCost(PipeNetwork.SpeedTier tier) {
+        ensureParsed();
+        return parsedFeCost[tier.ordinal()];
+    }
+
+    // -----------------------------------------------------------------------
+    // Config sections
+    // -----------------------------------------------------------------------
+
+    @Config.Comment("Pipe Options")
+    @Config.Name("Pipe Options")
+    public static final PipeConfig pipes = new PipeConfig();
+
+    @Config.Comment("Conduit Options")
+    @Config.Name("Conduit Options")
+    public static final ConduitConfig conduit = new ConduitConfig();
+
+    @Config.Comment("Motor Options")
+    @Config.Name("Motor Options")
+    public static final MotorConfig motors = new MotorConfig();
 
     @Config.Comment("Recipe Options")
     @Config.Name("Recipe Options")
     public static final RecipeConfig recipes = new RecipeConfig();
 
-    public static class ServerConfig {
+    @Config.Comment("Client Options")
+    @Config.Name("Client Options")
+    public static final ClientConfig client = new ClientConfig();
 
-        @Config.Comment("Slow tier: ticks between network updates. Higher = slower transfer.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Slow")
-        public int pipeTickRateSlow = 100;
+    // -----------------------------------------------------------------------
 
-        @Config.Comment("Normal tier: ticks between network updates.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Normal")
-        public int pipeTickRateNormal = 60;
+    public static class PipeConfig {
 
-        @Config.Comment("Fast tier: ticks between network updates.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Fast")
-        public int pipeTickRateFast = 40;
+        @Config.Comment("Pipe tier definitions.\n"
+                + "Format: \"<tier>\" = <ticks between transfers>, <items per transfer>, <FE cost per transfer>\n"
+                + "SLOW costs 0 FE (no motor needed). All other tiers require a motor of that tier or higher.")
+        @Config.Name("Slow/Default")
+        public String tierSlow  = "100, 1, 0";
 
-        @Config.Comment("Turbo tier: ticks between network updates.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Turbo")
-        public int pipeTickRateTurbo = 40;
+        @Config.Name("Normal/Basic")
+        public String tierNormal = "20, 1, 100";
 
-        @Config.Comment("Hyper tier: ticks between network updates.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Hyper")
-        public int pipeTickRateHyper = 40;
+        @Config.Name("Fast/Efficient")
+        public String tierFast   = "20, 2, 500";
 
-        @Config.Comment("Ultra tier: ticks between network updates.")
-        @Config.RangeInt(min = 40, max = 200)
-        @Config.Name("Pipe Tick Rate - Ultra")
-        public int pipeTickRateUltra = 40;
+        @Config.Name("Turbo/Advanced")
+        public String tierTurbo  = "20, 4, 2500";
 
-        @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slower.")
+        @Config.Name("Hyper/Reinforced")
+        public String tierHyper  = "20, 16, 5000";
+
+        @Config.Name("Ultra/Overclocked")
+        public String tierUltra  = "20, 64, 10000";
+
+        @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slightly slower.")
         @Config.RangeInt(min = 0, max = 20)
-        @Config.Name("Pipe Distance Penalty")
-        public int pipeDistancePenalty = 0;
+        @Config.Name("Distance Penalty (ticks per pipe)")
+        public int distancePenalty = 0;
+    }
 
-        @Config.Comment("Slow tier: items transferred per network update.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Slow")
-        public int pipeTransferSizeSlow = 1;
+    public static class ConduitConfig {
 
-        @Config.Comment("Normal tier: items transferred per network update.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Normal")
-        public int pipeTransferSizeNormal = 1;
+        @Config.Comment("Total FE buffer for the entire conduit network.")
+        @Config.RangeInt(min = 100, max = 1000000)
+        @Config.Name("Network Buffer Capacity (FE)")
+        public int networkBufferCapacity = 1000;
 
-        @Config.Comment("Fast tier: items transferred per network update.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Fast")
-        public int pipeTransferSizeFast = 2;
+        @Config.Comment("Maximum FE/tick pushed or pulled through any single conduit face.")
+        @Config.RangeInt(min = 1, max = 100000)
+        @Config.Name("Max FE/tick per face")
+        public int maxFePerTickPerFace = 10000;
 
-        @Config.Comment("Turbo tier: items transferred per network update.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Turbo")
-        public int pipeTransferSizeTurbo = 4;
+        @Config.Comment("Percentage of stored FE lost per tick, voided. 0.0 = disabled.")
+        @Config.Name("Power Loss Per Tick (%)")
+        public double powerLossPerConduitPerTick = 0.0;
 
-        @Config.Comment("Hyper tier: items transferred per network update.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Hyper")
-        public int pipeTransferSizeHyper = 8;
+        @Config.Comment("Conduits spark when powered.")
+        @Config.Name("Conduits Spark When Powered")
+        public boolean enableSparks = true;
 
-        @Config.Comment("Ultra tier: items transferred per network update.")
+        @Config.Comment("Enable the conduit crafting recipe.")
+        @Config.Name("Enable Conduit Recipe")
+        public boolean enableConduitRecipe = true;
+
+        @Config.Comment("Powered conduits exposed to the sky are struck by lightning during rain.")
+        @Config.Name("Enable Rain Lightning Damage")
+        public boolean enableRainDamage = true;
+    }
+
+    public static class MotorConfig {
+
+        @Config.Comment("FE buffer capacity for each motor tier.\n"
+                + "This is the local buffer the motor fills from the conduit and pipes drain from.\n"
+                + "Larger = more forgiving when the conduit supply dips briefly.")
+        @Config.RangeInt(min = 0, max = 1000000)
+        @Config.Name("Slow Motor Buffer (FE)")
+        public int bufferSlow   = 100;
+
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Normal Motor Buffer (FE)")
+        public int bufferNormal = 500;
+
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Fast Motor Buffer (FE)")
+        public int bufferFast   = 1500;
+
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Turbo Motor Buffer (FE)")
+        public int bufferTurbo  = 4000;
+
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Hyper Motor Buffer (FE)")
+        public int bufferHyper  = 10000;
+
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Ultra Motor Buffer (FE)")
+        public int bufferUltra  = 25000;
+
+        public int getBuffer(rusticpipes.network.PipeNetwork.SpeedTier tier) {
+            switch (tier) {
+                case NORMAL: return bufferNormal;
+                case FAST:   return bufferFast;
+                case TURBO:  return bufferTurbo;
+                case HYPER:  return bufferHyper;
+                case ULTRA:  return bufferUltra;
+                default:     return bufferSlow;
+            }
+        }
+    }
+
+    public static class RecipeConfig {
+
+        @Config.Comment("Enable the shaped crafting recipe for the white (base) pipe.")
+        @Config.Name("Enable Base Pipe Recipe")
+        public boolean enableBasePipeRecipe = true;
+
         @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Pipe Transfer Size - Ultra")
-        public int pipeTransferSizeUltra = 16;
+        @Config.Name("Base Pipe Recipe Output Count")
+        public int basePipeRecipeOutput = 4;
+
+        @Config.Comment("Enable shapeless dye conversion recipes.")
+        @Config.Name("Enable Dye Conversion Recipes")
+        public boolean enableDyeRecipes = true;
+
+        @Config.Comment("Enable shift+right-click on a placed pipe with a dye in hand to recolor it.")
+        @Config.Name("Enable In-World Dye Conversion")
+        public boolean enableInWorldDyeing = true;
     }
 
     public static class ClientConfig {
@@ -97,90 +222,13 @@ public class ForgeConfigHandler {
         public boolean showDebugOverlay = false;
     }
 
-    public static class RecipeConfig {
-
-        @Config.Comment("Enable the shaped crafting recipe for the white (base) pipe.\n"
-                + "Pattern: iron ingots in a hollow 3x3 ring, empty center.\n"
-                + "Disable if you want to add your own recipe via CraftTweaker or similar.")
-        @Config.Name("Enable Base Pipe Recipe")
-        public boolean enableBasePipeRecipe = true;
-
-        @Config.Comment("Number of white pipes produced by the base recipe.")
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Base Pipe Recipe Output Count")
-        public int basePipeRecipeOutput = 4;
-
-        @Config.Comment("Enable shapeless dye conversion recipes.\n"
-                + "Combine any pipe with any Minecraft dye in the crafting grid to recolor it.\n"
-                + "Uses ore dictionary dye names (dyeWhite, dyeRed, etc.) so modded dyes work too.")
-        @Config.Name("Enable Dye Conversion Recipes")
-        public boolean enableDyeRecipes = true;
-
-        @Config.Comment("Enable shift+right-click on a placed pipe with a dye in hand to recolor it in-world.\n"
-                + "Consumes one dye from the player's hand.")
-        @Config.Name("Enable In-World Dye Conversion")
-        public boolean enableInWorldDyeing = true;
-    }
-
-    @Config.Comment("Conduit Options")
-    @Config.Name("Conduit Options")
-    public static final ConduitConfig conduit = new ConduitConfig();
-
-    public static class ConduitConfig {
-
-        @Config.Comment("Total FE buffer for the entire conduit network, regardless of size.\n"
-                + "Pipe tier is determined by how much FE the pipe network draws per tick.")
-        @Config.RangeInt(min = 100, max = 1000000)
-        @Config.Name("Network Buffer Capacity (FE)")
-        public int networkBufferCapacity = 1000;
-
-        @Config.Comment("Maximum FE/tick to push or pull through any single conduit face.\n"
-                + "This caps both how fast generators charge the buffer and how fast\n"
-                + "machines drain it per face per tick.")
-        @Config.RangeInt(min = 1, max = 100000)
-        @Config.Name("Max FE/tick per face")
-        public int maxFePerTickPerFace = 10000;
-
-        @Config.Comment("Percentage of stored FE lost per conduit block per tick, voided.\n"
-                + "e.g. 0.001 = 0.1% loss per block per tick.\n"
-                + "Set to 0.0 to disable power loss entirely.")
-        @Config.Name("Power Loss Per Conduit Per Tick (%)")
-        public double powerLossPerConduitPerTick = 0.0;
-
-        @Config.Comment("Conduits spark when powered.")
-        @Config.Name("Conduits Spark When Powered")
-        public boolean enableSparks = true;
-
-        @Config.Comment("FE drawn per tick required to reach NORMAL tier. Below this pipes run at SLOW.")
-        @Config.RangeInt(min = 0, max = 100000)
-        @Config.Name("FE/t threshold - Normal")
-        public int feThresholdNormal = 100;
-
-        @Config.Comment("FE drawn per tick required to reach FAST tier.")
-        @Config.RangeInt(min = 0, max = 100000)
-        @Config.Name("FE/t threshold - Fast")
-        public int feThresholdFast = 500;
-
-        @Config.Comment("FE drawn per tick required to reach TURBO tier.")
-        @Config.RangeInt(min = 0, max = 100000)
-        @Config.Name("FE/t threshold - Turbo")
-        public int feThresholdTurbo = 1000;
-
-        @Config.Comment("Enable the conduit crafting recipe.")
-        @Config.Name("Enable Conduit Recipe")
-        public boolean enableConduitRecipe = true;
-
-        @Config.Comment("If enabled, powered conduits exposed to the sky are struck by lightning during rain.")
-        @Config.Name("Enable Rain Lightning Damage")
-        public boolean enableRainDamage = true;
-    }
-
     @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
     private static class EventHandler {
         @SubscribeEvent
         public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
             if (event.getModID().equals(RusticPipes.MODID)) {
                 ConfigManager.sync(RusticPipes.MODID, Config.Type.INSTANCE);
+                parsedTickRate = null; // force re-parse on next access
             }
         }
     }

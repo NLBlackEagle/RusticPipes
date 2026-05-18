@@ -85,13 +85,18 @@ public class ConduitSparkHandler {
             if (!(block instanceof BlockConduit)) continue;
 
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
-            if (network == null || network.getBufferStored() <= 0) {
+            if (network == null) {
                 nextFireTick.remove(pos);
                 continue;
             }
 
-            // fill: 0.0 = 1 FE stored, 1.0 = buffer completely full
-            float fill = Math.min(1f, (float) network.getBufferStored() / network.getBufferCapacity());
+            // Use smoothed fill — averages over ~20 ticks so fast-cycling buffers
+            // still show stable spark intensity rather than flickering on/off
+            float fill = network.getSmoothedFill();
+            if (fill <= 0.01f) {
+                nextFireTick.remove(pos);
+                continue;
+            }
 
             // Schedule initial fire tick lazily
             int fireTick = nextFireTick.computeIfAbsent(pos, k -> clientTick + nextInterval(fill));

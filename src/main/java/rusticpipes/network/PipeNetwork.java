@@ -16,6 +16,7 @@ import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.FaceMode;
+import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 import java.util.*;
@@ -24,7 +25,6 @@ public class PipeNetwork {
 
     public enum SpeedTier { SLOW, NORMAL, FAST, TURBO, HYPER, ULTRA }
 
-    // FE thresholds are configurable — see ForgeConfigHandler.conduit.feThreshold*
 
     private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
     private static int globalTick = 0;
@@ -152,51 +152,58 @@ public class PipeNetwork {
      * 1000 FE from it. The amount actually extracted determines the tier for
      * this tick. Stops at the first conduit face that yields any FE.
      */
+    /**
+     * Scans all adjacent motor blocks (TileEntityConduitBuffer), sorted highest tier first.
+     * Tries each in order — if a motor has enough FE for its tier cost, drains it and sets
+     * the pipe tier. Falls back to the next motor down if the current one is insufficient.
+     * If no motor can supply, runs SLOW (free).
+     */
     public void drainFromConduit(World world) {
-        int threshTurbo  = ForgeConfigHandler.conduit.feThresholdTurbo;
-        int threshFast   = ForgeConfigHandler.conduit.feThresholdFast;
-        int threshNormal = ForgeConfigHandler.conduit.feThresholdNormal;
-
-        // Find first adjacent conduit face with any stored FE
-        IEnergyStorage found = null;
-        outer:
+        // Collect all adjacent motors with their tiers
+        java.util.List<MotorEntry> motors = new java.util.ArrayList<>();
         for (BlockPos memberPos : members) {
             for (EnumFacing face : EnumFacing.VALUES) {
-                BlockPos np = memberPos.offset(face);
-                Block nb = world.getBlockState(np).getBlock();
-                if (!(nb instanceof BlockConduit)) continue;
-
-                TileEntity nte = world.getTileEntity(np);
-                if (nte == null) continue;
-
+                TileEntity nte = world.getTileEntity(memberPos.offset(face));
+                if (!(nte instanceof TileEntityConduitBuffer)) continue;
+                TileEntityConduitBuffer motor = (TileEntityConduitBuffer) nte;
                 IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
                 if (st == null || !st.canExtract()) continue;
-                if (st.getEnergyStored() <= 0) continue;
-
-                found = st;
-                break outer;
+                motors.add(new MotorEntry(motor.getTier(), st));
             }
         }
 
-        if (found == null) {
+        if (motors.isEmpty()) {
             currentTier = SpeedTier.SLOW;
             return;
         }
 
-        // Extract exact cost for the highest achievable tier
-        int available = found.getEnergyStored();
-        if (available >= threshTurbo) {
-            found.extractEnergy(threshTurbo, false);
-            currentTier = SpeedTier.TURBO;
-        } else if (available >= threshFast) {
-            found.extractEnergy(threshFast, false);
-            currentTier = SpeedTier.FAST;
-        } else if (available >= threshNormal) {
-            found.extractEnergy(threshNormal, false);
-            currentTier = SpeedTier.NORMAL;
-        } else {
-            // Not enough for NORMAL — run SLOW for free
-            currentTier = SpeedTier.SLOW;
+        // Sort highest tier first
+        motors.sort((a, b) -> b.tier.ordinal() - a.tier.ordinal());
+
+        // Try each motor in order, fall back down the list
+        for (MotorEntry entry : motors) {
+            int cost = ForgeConfigHandler.getFeCost(entry.tier);
+            if (cost == 0) {
+                // SLOW motor — always succeeds, no drain
+                currentTier = SpeedTier.SLOW;
+                return;
+            }
+            if (entry.storage.getEnergyStored() >= cost) {
+                entry.storage.extractEnergy(cost, false);
+                currentTier = entry.tier;
+                return;
+            }
+        }
+
+        // All motors insufficient
+        currentTier = SpeedTier.SLOW;
+    }
+
+    private static class MotorEntry {
+        final SpeedTier tier;
+        final IEnergyStorage storage;
+        MotorEntry(SpeedTier tier, IEnergyStorage storage) {
+            this.tier = tier; this.storage = storage;
         }
     }
 
@@ -271,28 +278,13 @@ public class PipeNetwork {
     // -----------------------------------------------------------------------
 
     private static int getEffectiveTickRate(PipeNetwork network) {
-        int base;
-        switch (network.currentTier) {
-            case ULTRA:  base = ForgeConfigHandler.server.pipeTickRateUltra;  break;
-            case HYPER:  base = ForgeConfigHandler.server.pipeTickRateHyper;  break;
-            case TURBO:  base = ForgeConfigHandler.server.pipeTickRateTurbo;  break;
-            case FAST:   base = ForgeConfigHandler.server.pipeTickRateFast;   break;
-            case NORMAL: base = ForgeConfigHandler.server.pipeTickRateNormal; break;
-            default:     base = ForgeConfigHandler.server.pipeTickRateSlow;   break;
-        }
-        int penalty = network.members.size() * ForgeConfigHandler.server.pipeDistancePenalty;
+        int base = ForgeConfigHandler.getTickRate(network.currentTier);
+        int penalty = network.members.size() * ForgeConfigHandler.pipes.distancePenalty;
         return Math.max(1, base + penalty);
     }
 
     private static int getEffectiveTransferSize(PipeNetwork network) {
-        switch (network.currentTier) {
-            case ULTRA:  return ForgeConfigHandler.server.pipeTransferSizeUltra;
-            case HYPER:  return ForgeConfigHandler.server.pipeTransferSizeHyper;
-            case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
-            case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
-            case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
-            default:     return ForgeConfigHandler.server.pipeTransferSizeSlow;
-        }
+        return ForgeConfigHandler.getTransferSize(network.currentTier);
     }
 
     @javax.annotation.Nullable

@@ -1,6 +1,7 @@
 package rusticpipes;
 
 import net.minecraftforge.fml.common.Mod;
+import rusticpipes.handlers.ForgeConfigHandler;
 import net.minecraftforge.fml.common.Mod.Instance;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
@@ -31,6 +32,7 @@ public class RusticPipes {
     public void preInit(FMLPreInitializationEvent event) {
         ModRegistry.init();
         RusticPipes.PROXY.preInit();
+        ForgeConfigHandler.parseTiers();
     }
 
     @Mod.EventHandler
