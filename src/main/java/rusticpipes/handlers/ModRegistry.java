@@ -18,7 +18,10 @@ import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.block.BlockConduit;
+import rusticpipes.block.BlockConduitBuffer;
+import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.TileEntityConduit;
+import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 
@@ -49,9 +52,17 @@ public class ModRegistry {
 
     public static final BlockConduit CONDUIT = new BlockConduit();
 
+    public static final BlockConduitBuffer BUFFER_SLOW   = new BlockConduitBuffer(PipeNetwork.SpeedTier.SLOW);
+    public static final BlockConduitBuffer BUFFER_NORMAL = new BlockConduitBuffer(PipeNetwork.SpeedTier.NORMAL);
+    public static final BlockConduitBuffer BUFFER_FAST   = new BlockConduitBuffer(PipeNetwork.SpeedTier.FAST);
+    public static final BlockConduitBuffer BUFFER_TURBO  = new BlockConduitBuffer(PipeNetwork.SpeedTier.TURBO);
+    public static final BlockConduitBuffer BUFFER_HYPER  = new BlockConduitBuffer(PipeNetwork.SpeedTier.HYPER);
+    public static final BlockConduitBuffer BUFFER_ULTRA  = new BlockConduitBuffer(PipeNetwork.SpeedTier.ULTRA);
+
     public static void init() {
         GameRegistry.registerTileEntity(TileEntityItemPipe.class, RusticPipes.MODID + ":item_pipe");
-        GameRegistry.registerTileEntity(TileEntityConduit.class,  RusticPipes.MODID + ":conduit");
+        GameRegistry.registerTileEntity(TileEntityConduit.class,       RusticPipes.MODID + ":conduit");
+        GameRegistry.registerTileEntity(TileEntityConduitBuffer.class, RusticPipes.MODID + ":conduit_buffer");
     }
 
     @SubscribeEvent
@@ -67,6 +78,15 @@ public class ModRegistry {
         CONDUIT.setTranslationKey("conduit");
         CONDUIT.setCreativeTab(CREATIVE_TAB);
         event.getRegistry().register(CONDUIT);
+
+        BlockConduitBuffer[] buffers = {BUFFER_SLOW, BUFFER_NORMAL, BUFFER_FAST, BUFFER_TURBO, BUFFER_HYPER, BUFFER_ULTRA};
+        String[] bufNames = {"conduit_buffer_slow","conduit_buffer_normal","conduit_buffer_fast","conduit_buffer_turbo","conduit_buffer_hyper","conduit_buffer_ultra"};
+        for (int i = 0; i < buffers.length; i++) {
+            buffers[i].setRegistryName(RusticPipes.MODID, bufNames[i]);
+            buffers[i].setTranslationKey(bufNames[i]);
+            buffers[i].setCreativeTab(CREATIVE_TAB);
+            event.getRegistry().register(buffers[i]);
+        }
     }
 
     @SubscribeEvent
@@ -80,6 +100,13 @@ public class ModRegistry {
         net.minecraft.item.ItemBlock conduitItem = new net.minecraft.item.ItemBlock(CONDUIT);
         conduitItem.setRegistryName(CONDUIT.getRegistryName());
         event.getRegistry().register(conduitItem);
+   
+        BlockConduitBuffer[] buffers = {BUFFER_SLOW, BUFFER_NORMAL, BUFFER_FAST, BUFFER_TURBO, BUFFER_HYPER, BUFFER_ULTRA};
+        for (BlockConduitBuffer buf : buffers) {
+            net.minecraft.item.ItemBlock ib = new net.minecraft.item.ItemBlock(buf);
+            ib.setRegistryName(buf.getRegistryName());
+            event.getRegistry().register(ib);
+        }
     }
 
     @SubscribeEvent

@@ -7,8 +7,11 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
+import rusticpipes.block.BlockConduit;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.handlers.ForgeConfigHandler;
@@ -21,27 +24,28 @@ public class PipeNetwork {
 
     public enum SpeedTier { SLOW, NORMAL, FAST, TURBO, HYPER, ULTRA }
 
+    // FE thresholds are configurable — see ForgeConfigHandler.conduit.feThreshold*
+
     private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
     private static int globalTick = 0;
 
     private final Set<BlockPos> members = new HashSet<>();
     private int bucket;
-    private SpeedTier speedTier = SpeedTier.SLOW;
-    private SpeedTier conduitTier = SpeedTier.SLOW;
+    private SpeedTier currentTier = SpeedTier.SLOW;
     private int rrPointer = 0;
     private int lastTransferTick = -1;
     private SpeedTier lastEffectiveTier = SpeedTier.SLOW;
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) { return NETWORKS.get(pos); }
-    public static PipeNetwork getNetwork(BlockPos pos) { return NETWORKS.get(pos); }
+    public static PipeNetwork getNetwork(BlockPos pos)              { return NETWORKS.get(pos); }
 
     public static void serverTick() {
         globalTick++;
-        // Reset conduit tiers each tick — ConduitNetwork will re-push each tick
-        for (PipeNetwork network : new HashSet<>(NETWORKS.values())) {
-            network.conduitTier = SpeedTier.SLOW;
-        }
     }
+
+    // -----------------------------------------------------------------------
+    // Network management
+    // -----------------------------------------------------------------------
 
     public static void onPipeAdded(World world, BlockPos pos) {
         Block addedBlock = world.getBlockState(pos).getBlock();
@@ -125,11 +129,14 @@ public class PipeNetwork {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Tick
+    // -----------------------------------------------------------------------
+
     public boolean isMyTick() {
         if (globalTick == lastTransferTick) return false;
-        SpeedTier eff = conduitTier.ordinal() > speedTier.ordinal() ? conduitTier : speedTier;
-        if (eff != lastEffectiveTier) {
-            lastEffectiveTier = eff;
+        if (currentTier != lastEffectiveTier) {
+            lastEffectiveTier = currentTier;
             bucket = globalTick;
             lastTransferTick = globalTick;
             return true;
@@ -139,53 +146,63 @@ public class PipeNetwork {
         return (globalTick % rate) == (bucket % rate);
     }
 
-    private static int getEffectiveTickRate(PipeNetwork network) {
-        int base;
-        SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
-                ? network.conduitTier : network.speedTier;
-        switch (eff) {
-            case ULTRA:  base = ForgeConfigHandler.server.pipeTickRateUltra;  break;
-            case HYPER:  base = ForgeConfigHandler.server.pipeTickRateHyper;  break;
-            case TURBO:  base = ForgeConfigHandler.server.pipeTickRateTurbo;  break;
-            case FAST:   base = ForgeConfigHandler.server.pipeTickRateFast;   break;
-            case NORMAL: base = ForgeConfigHandler.server.pipeTickRateNormal; break;
-            default:     base = ForgeConfigHandler.server.pipeTickRateSlow;   break;
+    /**
+     * Called each tick by the master pipe TE.
+     * Scans all member faces for a directly adjacent conduit and draws up to
+     * 1000 FE from it. The amount actually extracted determines the tier for
+     * this tick. Stops at the first conduit face that yields any FE.
+     */
+    public void drainFromConduit(World world) {
+        int threshTurbo  = ForgeConfigHandler.conduit.feThresholdTurbo;
+        int threshFast   = ForgeConfigHandler.conduit.feThresholdFast;
+        int threshNormal = ForgeConfigHandler.conduit.feThresholdNormal;
+
+        // Find first adjacent conduit face with any stored FE
+        IEnergyStorage found = null;
+        outer:
+        for (BlockPos memberPos : members) {
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos np = memberPos.offset(face);
+                Block nb = world.getBlockState(np).getBlock();
+                if (!(nb instanceof BlockConduit)) continue;
+
+                TileEntity nte = world.getTileEntity(np);
+                if (nte == null) continue;
+
+                IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
+                if (st == null || !st.canExtract()) continue;
+                if (st.getEnergyStored() <= 0) continue;
+
+                found = st;
+                break outer;
+            }
         }
-        int penalty = network.members.size() * ForgeConfigHandler.server.pipeDistancePenalty;
-        return Math.max(1, base + penalty);
-    }
 
-    private static int getEffectiveTransferSize(PipeNetwork network) {
-        SpeedTier eff = network.conduitTier.ordinal() > network.speedTier.ordinal()
-                ? network.conduitTier : network.speedTier;
-        switch (eff) {
-            case ULTRA:  return ForgeConfigHandler.server.pipeTransferSizeUltra;
-            case HYPER:  return ForgeConfigHandler.server.pipeTransferSizeHyper;
-            case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
-            case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
-            case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
-            default:     return ForgeConfigHandler.server.pipeTransferSizeSlow;
+        if (found == null) {
+            currentTier = SpeedTier.SLOW;
+            return;
+        }
+
+        // Extract exact cost for the highest achievable tier
+        int available = found.getEnergyStored();
+        if (available >= threshTurbo) {
+            found.extractEnergy(threshTurbo, false);
+            currentTier = SpeedTier.TURBO;
+        } else if (available >= threshFast) {
+            found.extractEnergy(threshFast, false);
+            currentTier = SpeedTier.FAST;
+        } else if (available >= threshNormal) {
+            found.extractEnergy(threshNormal, false);
+            currentTier = SpeedTier.NORMAL;
+        } else {
+            // Not enough for NORMAL — run SLOW for free
+            currentTier = SpeedTier.SLOW;
         }
     }
 
-    public void cycleSpeedTier() {
-        switch (speedTier) {
-            case SLOW:   speedTier = SpeedTier.NORMAL; break;
-            case NORMAL: speedTier = SpeedTier.FAST;   break;
-            case FAST:   speedTier = SpeedTier.TURBO;  break;
-            case TURBO:  speedTier = SpeedTier.HYPER;  break;
-            case HYPER:  speedTier = SpeedTier.ULTRA;  break;
-            default:     speedTier = SpeedTier.SLOW;   break;
-        }
-    }
-
-    /** Called by ConduitNetwork each tick to boost this pipe network's tier. */
-    public void setConduitTier(SpeedTier tier) {
-        if (tier.ordinal() > conduitTier.ordinal()) conduitTier = tier;
-    }
-
-    public SpeedTier getSpeedTier()   { return speedTier; }
-    public SpeedTier getConduitTier() { return conduitTier; }
+    // -----------------------------------------------------------------------
+    // Transfer
+    // -----------------------------------------------------------------------
 
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
@@ -249,6 +266,35 @@ public class PipeNetwork {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    private static int getEffectiveTickRate(PipeNetwork network) {
+        int base;
+        switch (network.currentTier) {
+            case ULTRA:  base = ForgeConfigHandler.server.pipeTickRateUltra;  break;
+            case HYPER:  base = ForgeConfigHandler.server.pipeTickRateHyper;  break;
+            case TURBO:  base = ForgeConfigHandler.server.pipeTickRateTurbo;  break;
+            case FAST:   base = ForgeConfigHandler.server.pipeTickRateFast;   break;
+            case NORMAL: base = ForgeConfigHandler.server.pipeTickRateNormal; break;
+            default:     base = ForgeConfigHandler.server.pipeTickRateSlow;   break;
+        }
+        int penalty = network.members.size() * ForgeConfigHandler.server.pipeDistancePenalty;
+        return Math.max(1, base + penalty);
+    }
+
+    private static int getEffectiveTransferSize(PipeNetwork network) {
+        switch (network.currentTier) {
+            case ULTRA:  return ForgeConfigHandler.server.pipeTransferSizeUltra;
+            case HYPER:  return ForgeConfigHandler.server.pipeTransferSizeHyper;
+            case TURBO:  return ForgeConfigHandler.server.pipeTransferSizeTurbo;
+            case FAST:   return ForgeConfigHandler.server.pipeTransferSizeFast;
+            case NORMAL: return ForgeConfigHandler.server.pipeTransferSizeNormal;
+            default:     return ForgeConfigHandler.server.pipeTransferSizeSlow;
+        }
+    }
+
     @javax.annotation.Nullable
     private static IItemHandler getInventoryAtPos(World world, BlockPos pos) {
         TileEntity te = world.getTileEntity(pos);
@@ -262,5 +308,6 @@ public class PipeNetwork {
         return null;
     }
 
-    public Set<BlockPos> getMembers() { return Collections.unmodifiableSet(members); }
+    public SpeedTier getCurrentTier()              { return currentTier; }
+    public Set<BlockPos> getMembers()              { return Collections.unmodifiableSet(members); }
 }

@@ -7,6 +7,7 @@ import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.block.BlockItemPipe;
@@ -142,7 +143,16 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (world.isRemote) return;
         PipeNetwork network = PipeNetwork.getNetwork(world, pos);
         if (network == null) return;
-        if (!network.isMyTick()) return;
-        network.transferItems(world);
+        // Master TE (smallest pos) draws FE from adjacent conduit and sets tier
+        BlockPos master = null;
+        for (BlockPos p : network.getMembers()) {
+            if (master == null || p.toLong() < master.toLong()) master = p;
+        }
+        if (pos.equals(master)) {
+            if (network.isMyTick()) {
+                network.drainFromConduit(world);
+                network.transferItems(world);
+            }
+        }
     }
 }

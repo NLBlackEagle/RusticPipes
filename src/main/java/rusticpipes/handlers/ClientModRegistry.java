@@ -12,11 +12,12 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import rusticpipes.RusticPipes;
+import rusticpipes.block.BlockConduit;
+import rusticpipes.block.BlockConduitBuffer;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.client.color.PipeBlockColor;
 import rusticpipes.client.color.PipeItemColor;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.client.model.ConduitModelLoader;
 import rusticpipes.client.model.PipeModelLoader;
 
@@ -26,28 +27,22 @@ public class ClientModRegistry {
     public static void preInit() {
         ModelLoaderRegistry.registerLoader(PipeModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(ConduitModelLoader.INSTANCE);
+        // Buffer blocks use vanilla full-cube models — no custom loader needed
     }
 
     @SubscribeEvent
     public static void modelRegisterEvent(ModelRegistryEvent event) {
-        // All 16 pipe colors share the same single baked model — tinting via IBlockColor
-        // handles the visual difference. Mapping every state permutation would produce
-        // tens of thousands of bake calls and cause very long load times.
         final ModelResourceLocation MODEL     = new ModelResourceLocation(RusticPipes.MODID + ":item_pipe", "normal");
         final ModelResourceLocation INVENTORY = new ModelResourceLocation(RusticPipes.MODID + ":item_pipe", "inventory");
 
         for (PipeColor color : PipeColor.values()) {
             BlockItemPipe pipe = ModRegistry.getPipe(color);
-
-            // Every block state variant maps to the same model location
             ModelLoader.setCustomStateMapper(pipe, new StateMapperBase() {
                 @Override
                 protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
                     return MODEL;
                 }
             });
-
-            // Item model
             ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(pipe), 0, INVENTORY);
         }
 
@@ -61,24 +56,43 @@ public class ClientModRegistry {
         });
         ModelLoader.setCustomModelResourceLocation(
                 Item.getItemFromBlock(ModRegistry.CONDUIT), 0, CONDUIT_MODEL);
+
+        // Buffer blocks — simple full-cube models, one per tier
+        BlockConduitBuffer[] buffers = {
+            ModRegistry.BUFFER_SLOW, ModRegistry.BUFFER_NORMAL,
+            ModRegistry.BUFFER_FAST, ModRegistry.BUFFER_TURBO,
+            ModRegistry.BUFFER_HYPER, ModRegistry.BUFFER_ULTRA
+        };
+        String[] bufNames = {
+            "conduit_buffer_slow", "conduit_buffer_normal",
+            "conduit_buffer_fast", "conduit_buffer_turbo",
+            "conduit_buffer_hyper", "conduit_buffer_ultra"
+        };
+        for (int i = 0; i < buffers.length; i++) {
+            final ModelResourceLocation loc = new ModelResourceLocation(
+                    RusticPipes.MODID + ":" + bufNames[i], "normal");
+            ModelLoader.setCustomStateMapper(buffers[i], new StateMapperBase() {
+                @Override
+                protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+                    return loc;
+                }
+            });
+            ModelLoader.setCustomModelResourceLocation(
+                    Item.getItemFromBlock(buffers[i]), 0,
+                    new ModelResourceLocation(RusticPipes.MODID + ":" + bufNames[i], "inventory"));
+        }
     }
 
-    /**
-     * Register block color handlers AFTER models are baked but BEFORE the first render.
-     * This is the correct Forge event for IBlockColor / IItemColor registration.
-     */
     @SubscribeEvent
     public static void registerBlockColors(ColorHandlerEvent.Block event) {
-        BlockItemPipe[] pipes = ModRegistry.PIPES;
-        event.getBlockColors().registerBlockColorHandler(PipeBlockColor.INSTANCE, pipes);
+        event.getBlockColors().registerBlockColorHandler(PipeBlockColor.INSTANCE, ModRegistry.PIPES);
     }
 
     @SubscribeEvent
     public static void registerItemColors(ColorHandlerEvent.Item event) {
         for (BlockItemPipe pipe : ModRegistry.PIPES) {
             event.getItemColors().registerItemColorHandler(
-                    PipeItemColor.INSTANCE,
-                    Item.getItemFromBlock(pipe));
+                    PipeItemColor.INSTANCE, Item.getItemFromBlock(pipe));
         }
     }
 }

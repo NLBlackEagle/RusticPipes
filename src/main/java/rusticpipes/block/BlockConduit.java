@@ -18,6 +18,8 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
+import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.energy.IEnergyStorage;
 import rusticpipes.client.model.ConduitModel;
 import rusticpipes.network.ConduitNetwork;
 import rusticpipes.network.PipeNetwork;
@@ -29,11 +31,10 @@ import java.util.List;
 
 public class BlockConduit extends Block implements ITileEntityProvider {
 
-    // Connection type constants
-    public static final int CON_NONE     = 0; // not connected
-    public static final int CON_CONDUIT  = 1; // connected to another conduit
-    public static final int CON_FE_SOURCE = 2; // connected to a FE source/sink (reserved for future use)
-    public static final int CON_PIPE_NET = 3; // connected to a pipe network
+    public static final int CON_NONE      = 0;
+    public static final int CON_CONDUIT   = 1;
+    public static final int CON_FE_SOURCE = 2;
+    public static final int CON_PIPE_NET  = 3;
 
     private static final float CORE_MIN = 6f / 16f;
     private static final float CORE_MAX = 10f / 16f;
@@ -48,9 +49,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     @Override public boolean hasTileEntity(IBlockState state) { return true; }
 
     @Override
-    public TileEntity createNewTileEntity(World world, int meta) {
-        return new TileEntityConduit();
-    }
+    public TileEntity createNewTileEntity(World world, int meta) { return new TileEntityConduit(); }
 
     @Override
     protected BlockStateContainer createBlockState() {
@@ -59,55 +58,49 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                 new net.minecraftforge.common.property.IUnlistedProperty[]{
                         ConduitModel.BLOCK_POS,
                         ConduitModel.CONDUIT_TIER,
-                        ConduitModel.CON_NORTH,
-                        ConduitModel.CON_SOUTH,
-                        ConduitModel.CON_EAST,
-                        ConduitModel.CON_WEST,
-                        ConduitModel.CON_UP,
-                        ConduitModel.CON_DOWN
+                        ConduitModel.CON_NORTH, ConduitModel.CON_SOUTH,
+                        ConduitModel.CON_EAST,  ConduitModel.CON_WEST,
+                        ConduitModel.CON_UP,    ConduitModel.CON_DOWN
                 });
     }
 
-    @Override
-    public int getMetaFromState(IBlockState state) { return 0; }
-
-    @Override
-    public IBlockState getStateFromMeta(int meta) { return getDefaultState(); }
+    @Override public int getMetaFromState(IBlockState state) { return 0; }
+    @Override public IBlockState getStateFromMeta(int meta)  { return getDefaultState(); }
 
     @Override
     public IBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos) {
-        if (!(state instanceof IExtendedBlockState)) {
-            rusticpipes.RusticPipes.LOGGER.warn("[Conduit] getExtendedState: state is NOT IExtendedBlockState at " + pos);
-            return state;
-        }
+        if (!(state instanceof IExtendedBlockState)) return state;
         IExtendedBlockState ext = (IExtendedBlockState) state;
 
-        TileEntity teTier = world.getTileEntity(pos);
-        PipeNetwork.SpeedTier tier = (teTier instanceof TileEntityConduit)
-                ? ((TileEntityConduit) teTier).cachedTier
-                : PipeNetwork.SpeedTier.SLOW;
+        // Read tier directly from the TE's energy capability — works client-side
+        // because the capability is populated via the normal chunk load packet.
+        // notifyBlockUpdate(flag=2) triggers a re-render when tier changes.
+        int tier = 0;
+        TileEntity te = world.getTileEntity(pos);
+        if (te != null) {
+            IEnergyStorage storage = te.getCapability(CapabilityEnergy.ENERGY, null);
+            if (storage != null && storage.getMaxEnergyStored() > 0) {
+                tier = ConduitNetwork.tierFromStored(storage.getEnergyStored());
+            }
+        }
 
         ext = ext.withProperty(ConduitModel.BLOCK_POS, pos)
-                .withProperty(ConduitModel.CONDUIT_TIER, tier);
+                 .withProperty(ConduitModel.CONDUIT_TIER, tier);
 
-        for (EnumFacing face : EnumFacing.VALUES) {
-            int con = computeConnection(world, pos, face);
-            ext = ext.withProperty(ConduitModel.getConProperty(face), con);
-        }
+        for (EnumFacing face : EnumFacing.VALUES)
+            ext = ext.withProperty(ConduitModel.getConProperty(face),
+                    computeConnection(world, pos, face));
 
         return ext;
     }
 
     private int computeConnection(IBlockAccess world, BlockPos pos, EnumFacing face) {
         Block neighbour = world.getBlockState(pos.offset(face)).getBlock();
-        if (neighbour instanceof BlockConduit) return CON_CONDUIT;
+        if (neighbour instanceof BlockConduit)  return CON_CONDUIT;
         if (neighbour instanceof BlockItemPipe) return CON_PIPE_NET;
-        // Detect adjacent FE sources/sinks (generators, machines)
-        TileEntity neighbourTE = world.getTileEntity(pos.offset(face));
-        if (neighbourTE != null
-                && neighbourTE.hasCapability(net.minecraftforge.energy.CapabilityEnergy.ENERGY, face.getOpposite())) {
+        TileEntity nte = world.getTileEntity(pos.offset(face));
+        if (nte != null && nte.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite()))
             return CON_FE_SOURCE;
-        }
         return CON_NONE;
     }
 
@@ -119,7 +112,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
-        world.notifyBlockUpdate(pos, state, state, 3);
+        if (!world.isRemote) world.notifyBlockUpdate(pos, state, state, 2);
     }
 
     @Override
@@ -128,13 +121,10 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (!world.isRemote) {
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
-            if (network != null) {
-                int stored   = network.getBufferStored();
-                int capacity = network.getBufferCapacity();
+            if (network != null)
                 player.sendMessage(new net.minecraft.util.text.TextComponentString(
                         "Conduit [" + network.getMemberCount() + " blocks] "
-                        + stored + "/" + capacity + " FE"));
-            }
+                        + network.getBufferStored() + "/" + network.getBufferCapacity() + " FE"));
         }
         return true;
     }
@@ -142,23 +132,16 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     @Override
     public void breakBlock(World world, BlockPos pos, IBlockState state) {
         TileEntity te = world.getTileEntity(pos);
-        if (te instanceof TileEntityConduit) {
-            ((TileEntityConduit) te).onRemoved();
-        }
+        if (te instanceof TileEntityConduit) ((TileEntityConduit) te).onRemoved();
         super.breakBlock(world, pos, state);
     }
-
-    // -----------------------------------------------------------------------
-    // Collision / bounding boxes
-    // -----------------------------------------------------------------------
 
     @Override
     public RayTraceResult collisionRayTrace(IBlockState state, World world, BlockPos pos,
                                             Vec3d start, Vec3d end) {
-        List<AxisAlignedBB> boxes = buildBoxes();
         RayTraceResult closest = null;
         double closestDist = Double.MAX_VALUE;
-        for (AxisAlignedBB box : boxes) {
+        for (AxisAlignedBB box : buildBoxes()) {
             RayTraceResult hit = rayTrace(pos, start, end, box);
             if (hit != null) {
                 double dist = hit.hitVec.squareDistanceTo(start);
@@ -172,16 +155,15 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     public void addCollisionBoxToList(IBlockState state, World world, BlockPos pos,
                                       AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes,
                                       @Nullable Entity entity, boolean isActualState) {
-        for (AxisAlignedBB box : buildBoxes()) {
+        for (AxisAlignedBB box : buildBoxes())
             addCollisionBoxToList(pos, entityBox, collidingBoxes, box);
-        }
     }
 
     private List<AxisAlignedBB> buildBoxes() {
         List<AxisAlignedBB> boxes = new ArrayList<>();
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
         boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1));
+        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1       ));
         boxes.add(new AxisAlignedBB(0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
         boxes.add(new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX));
         boxes.add(new AxisAlignedBB(CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));

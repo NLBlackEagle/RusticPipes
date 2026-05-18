@@ -12,15 +12,32 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockConduit;
+import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.network.ConduitNetwork;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 /**
  * Spark particle handler.
  *
- * Spark intensity is driven by the buffer fill fraction — a nearly-full buffer
- * produces constant rapid sparks; an empty buffer produces none.
+ * Spark behaviour scales continuously with buffer fill fraction (0–1):
+ *
+ *   Interval: lerp(MAX_INTERVAL, MIN_INTERVAL, fill)
+ *             At 1 FE (fill ≈ 0): fires rarely  (~80 ticks apart)
+ *             At full (fill = 1): fires often    (~5 ticks apart)
+ *
+ *   Count:    lerp(MIN_COUNT, MAX_COUNT, fill)
+ *             At empty: 1 particle per event
+ *             At full:  6 particles per event
+ *
+ *   Rarity:   lerp(MIN_RARITY, MAX_RARITY, fill)
+ *             At empty: 10% chance the event actually fires
+ *             At full:  100% chance
+ *
+ * Each conduit has its own independent next-fire tick so they
+ * don't all spark in unison.
  */
 @SideOnly(Side.CLIENT)
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
@@ -28,21 +45,22 @@ public class ConduitSparkHandler {
 
     private static final Random RAND = new Random();
 
-    // Spark intensity parameters
-    private static final int INT_MAX  = 80; // ticks between sparks at 0% fill
-    private static final int INT_MIN  = 2;  // ticks between sparks at 100% fill
-    private static final int CNT_MIN  = 1;  // particles per event at 0% fill
-    private static final int CNT_MAX  = 6;  // particles per event at 100% fill
+    // Interval bounds (ticks between scheduled events)
+    private static final int INTERVAL_MAX = 80;  // near-empty
+    private static final int INTERVAL_MIN = 5;   // full
 
-    /** Returns spark interval in ticks for fill fraction [0,1], 0 = no sparks. */
-    private static int sparkInterval(float fill) {
-        if (fill <= 0.01f) return 0;
-        return Math.max(INT_MIN, (int)(INT_MAX - fill * (INT_MAX - INT_MIN)));
-    }
+    // Particle count bounds
+    private static final int COUNT_MIN = 1;
+    private static final int COUNT_MAX = 2;
 
-    private static int sparkCount(float fill) {
-        return CNT_MIN + (int)(fill * (CNT_MAX - CNT_MIN));
-    }
+    // Rarity (chance event actually fires) bounds
+    private static final double RARITY_MIN = 0.10;
+    private static final double RARITY_MAX = 1.00;
+
+    /** Next fire tick per conduit position — each conduit independent. */
+    private static final Map<BlockPos, Integer> nextFireTick = new HashMap<>();
+
+    private static int clientTick = 0;
 
     @SubscribeEvent
     @SideOnly(Side.CLIENT)
@@ -52,9 +70,12 @@ public class ConduitSparkHandler {
         Minecraft mc = Minecraft.getMinecraft();
         World world = mc.world;
         if (world == null || mc.isGamePaused()) return;
+        if (!ForgeConfigHandler.conduit.enableSparks) return;
 
-        BlockPos playerPos = mc.player.getPosition();
+        clientTick++;
+
         int range = 24;
+        BlockPos playerPos = mc.player.getPosition();
 
         for (BlockPos pos : BlockPos.getAllInBox(
                 playerPos.add(-range, -range, -range),
@@ -64,18 +85,29 @@ public class ConduitSparkHandler {
             if (!(block instanceof BlockConduit)) continue;
 
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
-            if (network == null) continue;
+            if (network == null || network.getBufferStored() <= 0) {
+                nextFireTick.remove(pos);
+                continue;
+            }
 
-            int stored   = network.getBufferStored();
-            int capacity = network.getBufferCapacity();
-            if (capacity <= 0 || stored <= 0) continue;
+            // fill: 0.0 = 1 FE stored, 1.0 = buffer completely full
+            float fill = Math.min(1f, (float) network.getBufferStored() / network.getBufferCapacity());
 
-            float fill = Math.min(1f, (float) stored / capacity);
-            int interval = sparkInterval(fill);
-            if (interval == 0) continue;
-            if (RAND.nextInt(interval) != 0) continue;
+            // Schedule initial fire tick lazily
+            int fireTick = nextFireTick.computeIfAbsent(pos, k -> clientTick + nextInterval(fill));
 
-            int count = sparkCount(fill);
+            if (clientTick < fireTick) continue;
+
+            // Always reschedule next event based on current fill
+            nextFireTick.put(pos, clientTick + nextInterval(fill));
+
+            // Rarity check — scales from 10% at empty to 100% at full
+            double rarity = lerp(RARITY_MIN, RARITY_MAX, fill);
+            if (RAND.nextDouble() >= rarity) continue;
+
+            // Particle count — scales from 1 at empty to 6 at full
+            int count = (int) Math.round(lerp(COUNT_MIN, COUNT_MAX, fill));
+
             for (int i = 0; i < count; i++) {
                 double x = pos.getX() + 0.2 + RAND.nextDouble() * 0.6;
                 double y = pos.getY() + 0.2 + RAND.nextDouble() * 0.6;
@@ -86,5 +118,18 @@ public class ConduitSparkHandler {
                 world.spawnParticle(EnumParticleTypes.CRIT, x, y, z, vx, vy, vz);
             }
         }
+    }
+
+    /** Random interval in ticks, lerped between MAX and MIN based on fill. */
+    private static int nextInterval(float fill) {
+        int base = (int) Math.round(lerp(INTERVAL_MAX, INTERVAL_MIN, fill));
+        // ±20% jitter so conduits drift out of sync naturally
+        int jitter = (int) (base * 0.2f);
+        if (jitter < 1) jitter = 1;
+        return Math.max(1, base + RAND.nextInt(jitter * 2 + 1) - jitter);
+    }
+
+    private static double lerp(double a, double b, float t) {
+        return a + (b - a) * t;
     }
 }

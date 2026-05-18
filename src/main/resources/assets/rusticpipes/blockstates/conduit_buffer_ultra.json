@@ -1,0 +1,6 @@
+{
+    "variants": {
+        "normal": { "model": "rusticpipes:conduit_buffer_ultra" },
+        "inventory": { "model": "rusticpipes:conduit_buffer_ultra" }
+    }
+}
