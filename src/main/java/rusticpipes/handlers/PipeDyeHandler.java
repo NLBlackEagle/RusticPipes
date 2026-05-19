@@ -8,6 +8,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -85,8 +86,8 @@ public class PipeDyeHandler {
         }
 
         if (RusticPipes.DEBUG) {
-            player.sendMessage(new net.minecraft.util.text.TextComponentString(
-                    "Pipe dyed: " + targetColor.displayName));
+            player.sendMessage(new TextComponentTranslation(
+                    "rusticpipes.message.pipe.dyed", targetColor.displayName));
         }
 
         // Broadcast arm swing to all nearby clients

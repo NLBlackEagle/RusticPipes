@@ -30,8 +30,13 @@ public class ConduitNetwork {
      * which the spark handler uses instead of the raw instantaneous fill.
      * Alpha=0.05 gives ~20 tick smoothing window.
      */
+    /**
+     * Exponential moving average of FE throughput per tick (0.0-1.0 relative to buffer capacity).
+     * Tracks how much FE actually moved through the network each tick — works correctly
+     * even when the buffer fills and drains in the same tick (raw fill would always be 0).
+     */
     private float smoothedFill = 0f;
-    private static final float SMOOTH_ALPHA = 0.05f;
+    private static final float SMOOTH_ALPHA = 0.15f;
 
     // -----------------------------------------------------------------------
     // Constructor / buffer
@@ -125,6 +130,7 @@ public class ConduitNetwork {
 
     public void tick(World world) {
         int stored = sharedBuffer.getEnergyStored();
+        int tickThroughput = 0; // FE pulled into network this tick
 
         int bufferRoom = sharedBuffer.getMaxEnergyStored() - sharedBuffer.getEnergyStored();
 
@@ -147,6 +153,7 @@ public class ConduitNetwork {
                     if (extracted > 0) {
                         sharedBuffer.receiveEnergy(extracted, false);
                         bufferRoom -= extracted;
+                        tickThroughput += extracted;
                     }
                 }
             }
@@ -169,7 +176,10 @@ public class ConduitNetwork {
                             sharedBuffer.getEnergyStored());
                     if (toSend <= 0) break;
                     int accepted = st.receiveEnergy(toSend, false);
-                    if (accepted > 0) sharedBuffer.extractEnergy(accepted, false);
+                    if (accepted > 0) {
+                        sharedBuffer.extractEnergy(accepted, false);
+                        tickThroughput += accepted;
+                    }
                 }
             }
         }
@@ -181,11 +191,13 @@ public class ConduitNetwork {
             if (lossFe > 0) sharedBuffer.extractEnergy(lossFe, false);
         }
 
-        // Update smoothed fill EMA — gives spark handler a stable value
-        float currentFill = sharedBuffer.getMaxEnergyStored() > 0
-                ? (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored()
+        // Update smoothed throughput EMA — fraction of capacity that moved through this tick
+        // Using throughput rather than buffer fill so it stays accurate when buffer
+        // fills and drains in the same tick (which would make fill always read 0)
+        float currentThroughput = sharedBuffer.getMaxEnergyStored() > 0
+                ? Math.min(1f, (float) tickThroughput / sharedBuffer.getMaxEnergyStored())
                 : 0f;
-        smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
+        smoothedFill = SMOOTH_ALPHA * currentThroughput + (1f - SMOOTH_ALPHA) * smoothedFill;
 
         // Notify client re-render only when tier bracket changes
         int tier = tierFromStored(sharedBuffer.getEnergyStored());

@@ -28,12 +28,12 @@ public class ForgeConfigHandler {
         parsedFeCost   = new int[tiers.length];
 
         String[] raw = {
-            pipes.tierSlow, pipes.tierNormal, pipes.tierFast,
-            pipes.tierTurbo, pipes.tierHyper, pipes.tierUltra
+                pipes.tierSlow, pipes.tierNormal, pipes.tierFast,
+                pipes.tierTurbo, pipes.tierHyper, pipes.tierUltra
         };
         int[][] defaults = {
-            {100, 1, 0}, {60, 1, 100}, {40, 2, 500},
-            {40, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
+                {100, 1, 0}, {60, 1, 100}, {40, 2, 500},
+                {40, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
         };
 
         for (int i = 0; i < tiers.length; i++) {
@@ -145,6 +145,12 @@ public class ForgeConfigHandler {
         @Config.Comment("Conduits spark when powered.")
         @Config.Name("Conduits Spark When Powered")
         public boolean enableSparks = true;
+
+        @Config.Comment("Multiplier for spark particle rarity (0.0-1.0).\n"
+                + "1.0 = full rarity, 0.1 = 1/10th as many sparks.\n"
+                + "At 0.1 the max chance at full power is ~2.5%.")
+        @Config.Name("Spark Rarity Multiplier")
+        public double sparkRarityMultiplier = 0.1;
 
         @Config.Comment("Enable the conduit crafting recipe.")
         @Config.Name("Enable Conduit Recipe")

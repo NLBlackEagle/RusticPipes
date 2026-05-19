@@ -19,13 +19,13 @@ import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.client.model.PipeModel;
 import net.minecraft.world.World;
-import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.RusticPipes;
 import rusticpipes.tileentity.FaceMode;
+import rusticpipes.tileentity.TileEntityConduit;
+import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 import javax.annotation.Nullable;
@@ -39,7 +39,6 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
     public static final int CON_PIPE       = 1;
     public static final int CON_INV_OUTPUT = 2;
     public static final int CON_INV_INPUT  = 3;
-    public static final int CON_CONDUIT    = 4;
     public static final int CON_FE_SOURCE  = 5;
 
     private static final float CORE_MIN = 4f / 16f;
@@ -117,13 +116,10 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
                 && ((BlockItemPipe) neighbour).pipeColor == this.pipeColor) {
             return CON_PIPE;
         }
-        if (neighbour instanceof BlockConduit) {
-            return CON_CONDUIT;
-        }
+        // Conduits connect via motors (BlockConduitBuffer) — no direct pipe-to-conduit connection
         TileEntity neighbourTE = world.getTileEntity(pos.offset(face));
-        if (neighbourTE != null
-                && neighbourTE.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite())
-                && !neighbourTE.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite())) {
+        // Only connect to pipe motors — nothing else
+        if (neighbourTE instanceof TileEntityConduitBuffer) {
             return CON_FE_SOURCE;
         }
         if (neighbourTE != null

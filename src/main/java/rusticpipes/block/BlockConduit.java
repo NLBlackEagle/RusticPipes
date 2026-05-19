@@ -9,6 +9,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
@@ -19,10 +20,8 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.energy.IEnergyStorage;
 import rusticpipes.client.model.ConduitModel;
 import rusticpipes.network.ConduitNetwork;
-import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.TileEntityConduit;
 
 import javax.annotation.Nullable;
@@ -31,10 +30,12 @@ import java.util.List;
 
 public class BlockConduit extends Block implements ITileEntityProvider {
 
+    /** Tracks last tick a player received a conduit message — prevents double sends. */
+    private static final java.util.Map<java.util.UUID, Long> lastMessageTick = new java.util.HashMap<>();
+
     public static final int CON_NONE      = 0;
     public static final int CON_CONDUIT   = 1;
     public static final int CON_FE_SOURCE = 2;
-    public static final int CON_PIPE_NET  = 3;
 
     private static final float CORE_MIN = 6f / 16f;
     private static final float CORE_MAX = 10f / 16f;
@@ -75,17 +76,11 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         // Read tier directly from the TE's energy capability — works client-side
         // because the capability is populated via the normal chunk load packet.
         // notifyBlockUpdate(flag=2) triggers a re-render when tier changes.
+        // Tier always 0 — conduit has no tier of its own
         int tier = 0;
-        TileEntity te = world.getTileEntity(pos);
-        if (te != null) {
-            IEnergyStorage storage = te.getCapability(CapabilityEnergy.ENERGY, null);
-            if (storage != null && storage.getMaxEnergyStored() > 0) {
-                tier = ConduitNetwork.tierFromStored(storage.getEnergyStored());
-            }
-        }
 
         ext = ext.withProperty(ConduitModel.BLOCK_POS, pos)
-                 .withProperty(ConduitModel.CONDUIT_TIER, tier);
+                .withProperty(ConduitModel.CONDUIT_TIER, tier);
 
         for (EnumFacing face : EnumFacing.VALUES)
             ext = ext.withProperty(ConduitModel.getConProperty(face),
@@ -96,8 +91,8 @@ public class BlockConduit extends Block implements ITileEntityProvider {
 
     private int computeConnection(IBlockAccess world, BlockPos pos, EnumFacing face) {
         Block neighbour = world.getBlockState(pos.offset(face)).getBlock();
-        if (neighbour instanceof BlockConduit)  return CON_CONDUIT;
-        if (neighbour instanceof BlockItemPipe) return CON_PIPE_NET;
+        if (neighbour instanceof BlockConduit) return CON_CONDUIT;
+        // Pipes connect via motors — no direct conduit-to-pipe visual connection
         TileEntity nte = world.getTileEntity(pos.offset(face));
         if (nte != null && nte.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite()))
             return CON_FE_SOURCE;
@@ -119,14 +114,34 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand,
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
+        // Return false when holding a block so placement is not cancelled
+        if (!player.getHeldItem(hand).isEmpty()) return false;
+
+        // Show info on any click if this conduit has at least one FE source connection
         if (!world.isRemote) {
-            ConduitNetwork network = ConduitNetwork.getNetwork(pos);
-            if (network != null)
-                player.sendMessage(new net.minecraft.util.text.TextComponentString(
-                        "Conduit [" + network.getMemberCount() + " blocks] "
-                        + network.getBufferStored() + "/" + network.getBufferCapacity() + " FE"));
+            boolean hasFESource = false;
+            for (net.minecraft.util.EnumFacing f : net.minecraft.util.EnumFacing.VALUES) {
+                if (computeConnection(world, pos, f) == CON_FE_SOURCE) { hasFESource = true; break; }
+            }
+            if (hasFESource) {
+                // Cooldown — one message per player per tick to prevent double sends
+                long tick = world.getTotalWorldTime();
+                Long last = lastMessageTick.get(player.getUniqueID());
+                if (last == null || last != tick) {
+                    lastMessageTick.put(player.getUniqueID(), tick);
+                    ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+                    if (network != null) {
+                        int capacity = network.getBufferCapacity();
+                        int displayStored = (int) (network.getSmoothedFill() * capacity);
+                        int pct = capacity > 0 ? (int)(network.getSmoothedFill() * 100) : 0;
+                        player.sendMessage(new TextComponentTranslation(
+                                "rusticpipes.message.conduit.info",
+                                network.getMemberCount(), displayStored, capacity, pct));
+                    }
+                }
+            }
         }
-        return true;
+        return false;
     }
 
     @Override

@@ -19,26 +19,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * Spark particle handler.
- *
- * Spark behaviour scales continuously with buffer fill fraction (0–1):
- *
- *   Interval: lerp(MAX_INTERVAL, MIN_INTERVAL, fill)
- *             At 1 FE (fill ≈ 0): fires rarely  (~80 ticks apart)
- *             At full (fill = 1): fires often    (~5 ticks apart)
- *
- *   Count:    lerp(MIN_COUNT, MAX_COUNT, fill)
- *             At empty: 1 particle per event
- *             At full:  6 particles per event
- *
- *   Rarity:   lerp(MIN_RARITY, MAX_RARITY, fill)
- *             At empty: 10% chance the event actually fires
- *             At full:  100% chance
- *
- * Each conduit has its own independent next-fire tick so they
- * don't all spark in unison.
- */
 @SideOnly(Side.CLIENT)
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
 public class ConduitSparkHandler {
@@ -46,18 +26,18 @@ public class ConduitSparkHandler {
     private static final Random RAND = new Random();
 
     // Interval bounds (ticks between scheduled events)
-    private static final int INTERVAL_MAX = 80;  // near-empty
-    private static final int INTERVAL_MIN = 5;   // full
+    private static final int INTERVAL_MAX = 80;
+    private static final int INTERVAL_MIN = 5;
 
     // Particle count bounds
     private static final int COUNT_MIN = 1;
     private static final int COUNT_MAX = 2;
 
-    // Rarity (chance event actually fires) bounds
+    // Rarity bounds — max capped at 40%
     private static final double RARITY_MIN = 0.10;
-    private static final double RARITY_MAX = 1.00;
+    private static final double RARITY_MAX = 0.25; // max 25% chance at full
 
-    /** Next fire tick per conduit position — each conduit independent. */
+    /** Next spark fire tick per conduit position. */
     private static final Map<BlockPos, Integer> nextFireTick = new HashMap<>();
 
     private static int clientTick = 0;
@@ -90,45 +70,38 @@ public class ConduitSparkHandler {
                 continue;
             }
 
-            // Use smoothed fill — averages over ~20 ticks so fast-cycling buffers
-            // still show stable spark intensity rather than flickering on/off
             float fill = network.getSmoothedFill();
             if (fill <= 0.01f) {
                 nextFireTick.remove(pos);
                 continue;
             }
 
-            // Schedule initial fire tick lazily
             int fireTick = nextFireTick.computeIfAbsent(pos, k -> clientTick + nextInterval(fill));
-
             if (clientTick < fireTick) continue;
 
-            // Always reschedule next event based on current fill
             nextFireTick.put(pos, clientTick + nextInterval(fill));
 
-            // Rarity check — scales from 10% at empty to 100% at full
-            double rarity = lerp(RARITY_MIN, RARITY_MAX, fill);
+            double rarity = lerp(RARITY_MIN, RARITY_MAX, fill)
+                    * ForgeConfigHandler.conduit.sparkRarityMultiplier;
             if (RAND.nextDouble() >= rarity) continue;
 
-            // Particle count — scales from 1 at empty to 6 at full
             int count = (int) Math.round(lerp(COUNT_MIN, COUNT_MAX, fill));
-
             for (int i = 0; i < count; i++) {
                 double x = pos.getX() + 0.2 + RAND.nextDouble() * 0.6;
                 double y = pos.getY() + 0.2 + RAND.nextDouble() * 0.6;
                 double z = pos.getZ() + 0.2 + RAND.nextDouble() * 0.6;
-                double vx = (RAND.nextDouble() - 0.5) * 0.2;
-                double vy = (RAND.nextDouble() - 0.5) * 0.2;
-                double vz = (RAND.nextDouble() - 0.5) * 0.2;
-                world.spawnParticle(EnumParticleTypes.CRIT, x, y, z, vx, vy, vz);
+                // Randomly mix red and near-white for an electrical spark effect
+                if (RAND.nextBoolean()) {
+                    world.spawnParticle(EnumParticleTypes.REDSTONE, x, y, z, 1.0, 0.1, 0.1);   // red
+                } else {
+                    world.spawnParticle(EnumParticleTypes.REDSTONE, x, y, z, 1.0, 0.9, 0.85);  // near-white
+                }
             }
         }
     }
 
-    /** Random interval in ticks, lerped between MAX and MIN based on fill. */
     private static int nextInterval(float fill) {
         int base = (int) Math.round(lerp(INTERVAL_MAX, INTERVAL_MIN, fill));
-        // ±20% jitter so conduits drift out of sync naturally
         int jitter = (int) (base * 0.2f);
         if (jitter < 1) jitter = 1;
         return Math.max(1, base + RAND.nextInt(jitter * 2 + 1) - jitter);

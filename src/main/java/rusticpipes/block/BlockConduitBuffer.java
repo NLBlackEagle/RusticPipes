@@ -7,6 +7,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -36,9 +37,9 @@ public class BlockConduitBuffer extends Block implements ITileEntityProvider {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityConduitBuffer) {
                 TileEntityConduitBuffer buf = (TileEntityConduitBuffer) te;
-                player.sendMessage(new net.minecraft.util.text.TextComponentString(
-                        "Buffer [" + tier.name() + "] "
-                        + buf.getStored() + "/" + buf.getCapacity() + " FE"));
+                player.sendMessage(new TextComponentTranslation(
+                        "rusticpipes.message.motor.info",
+                        tier.name(), buf.getStored(), buf.getCapacity()));
             }
         }
         return true;

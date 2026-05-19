@@ -1,3 +1,4 @@
+# Item Pipes
 tile.white_pipe.name=White Item Pipe
 tile.orange_pipe.name=Orange Item Pipe
 tile.magenta_pipe.name=Magenta Item Pipe
@@ -14,11 +15,27 @@ tile.brown_pipe.name=Brown Item Pipe
 tile.green_pipe.name=Green Item Pipe
 tile.red_pipe.name=Red Item Pipe
 tile.black_pipe.name=Black Item Pipe
-itemGroup.rusticpipes=Rustic Pipes
+
+# Conduit
 tile.conduit.name=Power Cord
+
+# Conduit Buffer Motors
 tile.conduit_buffer_slow.name=Basic Pipe Motor
 tile.conduit_buffer_normal.name=Refined Pipe Motor
 tile.conduit_buffer_fast.name=Efficient Pipe Motor
 tile.conduit_buffer_turbo.name=Advanced Pipe Motor
 tile.conduit_buffer_hyper.name=Reinforced Pipe Motor
 tile.conduit_buffer_ultra.name=Overclocked Pipe Motor
+
+# Creative Tab
+itemGroup.rusticpipes=Rustic Pipes
+
+# Messages
+# %1$s = member count, %2$s = stored FE, %3$s = capacity FE, %4$s = avg throughput %
+rusticpipes.message.conduit.info=Power Cord [%1$s blocks] %2$s/%3$s FE (%4$s%% avg throughput)
+
+# %1$s = tier name, %2$s = stored FE, %3$s = capacity FE
+rusticpipes.message.motor.info=Pipe Motor [%1$s] %2$s/%3$s FE
+
+# %1$s = color name
+rusticpipes.message.pipe.dyed=Pipe dyed: %1$s

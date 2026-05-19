@@ -136,7 +136,25 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
 
     @Override @Nullable
     public <T> T getCapability(Capability<T> capability, @Nullable EnumFacing facing) {
-        if (capability == CapabilityEnergy.ENERGY) return CapabilityEnergy.ENERGY.cast(buffer);
+        if (capability == CapabilityEnergy.ENERGY) {
+            // Only expose extraction on faces adjacent to a pipe network,
+            // so the conduit cannot pull back from the motor buffer
+            if (facing != null && world != null) {
+                net.minecraft.block.Block neighbour = world.getBlockState(
+                        pos.offset(facing)).getBlock();
+                if (neighbour instanceof rusticpipes.block.BlockConduit) {
+                    // Conduit side — receive only, no extraction
+                    return CapabilityEnergy.ENERGY.cast(new net.minecraftforge.energy.EnergyStorage(
+                            buffer.getMaxEnergyStored(), buffer.getMaxEnergyStored(), 0) {
+                        @Override public int getEnergyStored() { return buffer.getEnergyStored(); }
+                        @Override public int receiveEnergy(int maxReceive, boolean simulate) {
+                            return buffer.receiveEnergy(maxReceive, simulate);
+                        }
+                    });
+                }
+            }
+            return CapabilityEnergy.ENERGY.cast(buffer);
+        }
         return super.getCapability(capability, facing);
     }
 
