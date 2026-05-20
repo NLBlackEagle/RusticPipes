@@ -57,7 +57,7 @@ public class ClientModRegistry {
         ModelLoader.setCustomModelResourceLocation(
                 Item.getItemFromBlock(ModRegistry.CONDUIT), 0, CONDUIT_MODEL);
 
-        // Buffer blocks — simple full-cube models, one per tier
+        // Buffer blocks — full-cube models, on/off texture driven by POWERED blockstate
         BlockConduitBuffer[] buffers = {
             ModRegistry.BUFFER_SLOW, ModRegistry.BUFFER_NORMAL,
             ModRegistry.BUFFER_FAST, ModRegistry.BUFFER_TURBO,
@@ -69,12 +69,15 @@ public class ClientModRegistry {
             "conduit_buffer_hyper", "conduit_buffer_ultra"
         };
         for (int i = 0; i < buffers.length; i++) {
-            final ModelResourceLocation loc = new ModelResourceLocation(
-                    RusticPipes.MODID + ":" + bufNames[i], "normal");
+            final String name = bufNames[i];
             ModelLoader.setCustomStateMapper(buffers[i], new StateMapperBase() {
                 @Override
                 protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
-                    return loc;
+                    // Route to the on or off model based on the POWERED property
+                    boolean powered = state.getValue(BlockConduitBuffer.POWERED);
+                    return new ModelResourceLocation(
+                            RusticPipes.MODID + ":" + name,
+                            powered ? "powered=true" : "powered=false");
                 }
             });
             ModelLoader.setCustomModelResourceLocation(

@@ -1,6 +1,7 @@
 package rusticpipes.tileentity;
 
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.block.state.IBlockState;
 import rusticpipes.block.BlockConduitBuffer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -26,6 +27,14 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
     private final PipeNetwork.SpeedTier tier;
     private EnergyStorage buffer;
 
+    /**
+     * Set to true any tick that FE enters the buffer (either pulled from an
+     * adjacent conduit by update(), or pushed in externally via receiveEnergy()
+     * by the conduit network capability). Cleared at the start of each tick.
+     * Used to decide whether to apply the idle drain.
+     */
+    private boolean receivedFeThisTick = false;
+
     public TileEntityConduitBuffer(PipeNetwork.SpeedTier tier) {
         this.tier = tier;
         initBuffer();
@@ -37,10 +46,20 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
         this.buffer = new EnergyStorage(100, 100, 100); // placeholder
     }
 
-    private void initBuffer() {
-        int cap = ForgeConfigHandler.motors.getBuffer(tier);
+    private void initBuffer() { initBuffer(tier); }
+
+    private void initBuffer(PipeNetwork.SpeedTier t) {
+        int cap = ForgeConfigHandler.motors.getBuffer(t);
         int stored = buffer != null ? Math.min(buffer.getEnergyStored(), cap) : 0;
-        buffer = new EnergyStorage(cap, cap, cap);
+        // Subclass tracks whether any FE entered this tick, for idle-drain detection.
+        buffer = new EnergyStorage(cap, cap, cap) {
+            @Override
+            public int receiveEnergy(int maxReceive, boolean simulate) {
+                int accepted = super.receiveEnergy(maxReceive, simulate);
+                if (!simulate && accepted > 0) receivedFeThisTick = true;
+                return accepted;
+            }
+        };
         if (stored > 0) buffer.receiveEnergy(stored, false);
     }
 
@@ -50,13 +69,7 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
         if (world != null) {
             net.minecraft.block.Block block = world.getBlockState(pos).getBlock();
             if (block instanceof BlockConduitBuffer) {
-                // Use reflection-free field trick: re-assign via a local shadow
-                // Since tier is final we rebuild the buffer using the block's tier
-                PipeNetwork.SpeedTier blockTier = ((BlockConduitBuffer) block).tier;
-                int cap = ForgeConfigHandler.motors.getBuffer(blockTier);
-                int stored = Math.min(buffer.getEnergyStored(), cap);
-                buffer = new EnergyStorage(cap, cap, cap);
-                if (stored > 0) buffer.receiveEnergy(stored, false);
+                initBuffer(((BlockConduitBuffer) block).tier);
             }
         }
     }
@@ -77,18 +90,49 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
     public void update() {
         if (world.isRemote) return;
 
+        // Reset input flag — will be set to true if any FE enters the buffer this tick,
+        // either via our own pull below or via an external receiveEnergy() capability call.
+        receivedFeThisTick = false;
+
         // Only draw from conduit if the local buffer has room
         int room = buffer.getMaxEnergyStored() - buffer.getEnergyStored();
-        if (room <= 0) return;
+        if (room > 0) {
+            IEnergyStorage conduitStorage = findAdjacentConduit();
+            if (conduitStorage != null) {
+                int available = conduitStorage.getEnergyStored();
+                int cost = highestAffordableCost(available);
+                if (cost > 0 && cost <= room) {
+                    int drawn = conduitStorage.extractEnergy(cost, false);
+                    if (drawn > 0) buffer.receiveEnergy(drawn, false);
+                }
+            }
+        }
 
-        IEnergyStorage conduitStorage = findAdjacentConduit();
-        if (conduitStorage == null) return;
+        // Idle drain — if no FE entered the buffer this tick, bleed off the remainder.
+        // This clears residual charge left when the motor is disconnected from its source
+        // (e.g. 5000 FE sitting indefinitely after pipes have stopped drawing).
+        if (!receivedFeThisTick && buffer.getEnergyStored() > 0) {
+            double rate = ForgeConfigHandler.motors.bufferDrainRatePerTick;
+            if (rate > 0.0) {
+                int drain = (int) Math.ceil(buffer.getEnergyStored() * rate);
+                buffer.extractEnergy(drain, false);
+            }
+        }
 
-        int available = conduitStorage.getEnergyStored();
-        int cost = highestAffordableCost(available);
-        if (cost > 0 && cost <= room) {
-            int drawn = conduitStorage.extractEnergy(cost, false);
-            if (drawn > 0) buffer.receiveEnergy(drawn, false);
+        // Sync the block's POWERED meta to the actual buffer state.
+        // We compare against the block's STORED state (from meta) rather than
+        // a within-tick snapshot, because the buffer can fill via an external
+        // receiveEnergy() call (from the conduit network push) BEFORE update()
+        // runs — meaning wasPowered would already be true and the transition
+        // would never be detected.
+        boolean isPowered = buffer.getEnergyStored() > 0;
+        IBlockState current = world.getBlockState(pos);
+        if (current.getBlock() instanceof BlockConduitBuffer) {
+            boolean metaPowered = current.getValue(BlockConduitBuffer.POWERED);
+            if (isPowered != metaPowered) {
+                world.setBlockState(pos, current.withProperty(BlockConduitBuffer.POWERED, isPowered), 3);
+                markDirty();
+            }
         }
     }
 
