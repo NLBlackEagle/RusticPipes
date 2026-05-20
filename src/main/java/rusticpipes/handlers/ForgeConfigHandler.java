@@ -112,13 +112,13 @@ public class ForgeConfigHandler {
         public String tierFast   = "20, 2, 500";
 
         @Config.Name("Turbo/Advanced")
-        public String tierTurbo  = "20, 4, 2500";
+        public String tierTurbo  = "20, 4, 1000";
 
         @Config.Name("Hyper/Reinforced")
-        public String tierHyper  = "20, 16, 5000";
+        public String tierHyper  = "20, 16, 2500";
 
         @Config.Name("Ultra/Overclocked")
-        public String tierUltra  = "20, 64, 10000";
+        public String tierUltra  = "20, 64, 5000";
 
         @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slightly slower.")
         @Config.RangeInt(min = 0, max = 20)
@@ -131,12 +131,12 @@ public class ForgeConfigHandler {
         @Config.Comment("Total FE buffer for the entire conduit network.")
         @Config.RangeInt(min = 100, max = 1000000)
         @Config.Name("Network Buffer Capacity (FE)")
-        public int networkBufferCapacity = 1000;
+        public int networkBufferCapacity = 5000;
 
         @Config.Comment("Maximum FE/tick pushed or pulled through any single conduit face.")
         @Config.RangeInt(min = 1, max = 100000)
         @Config.Name("Max FE/tick per face")
-        public int maxFePerTickPerFace = 10000;
+        public int maxFePerTickPerFace = 5000;
 
         @Config.Comment("Percentage of stored FE lost per tick, voided. 0.0 = disabled.")
         @Config.Name("Power Loss Per Tick (%)")
@@ -189,6 +189,12 @@ public class ForgeConfigHandler {
         @Config.RangeInt(min = 1, max = 1000000)
         @Config.Name("Ultra Motor Buffer (FE)")
         public int bufferUltra  = 25000;
+
+        @Config.Comment("Percentage of remaining buffer drained per tick when no conduit is connected.\n"
+                + "e.g. 0.05 = 5% per tick (drains fully in ~60 ticks / 3 seconds).\n"
+                + "Uses ceil so at least 1 FE is always drained per tick.")
+        @Config.Name("Buffer Drain Rate (% per tick, no conduit)")
+        public double bufferDrainRatePerTick = 0.05;
 
         public int getBuffer(rusticpipes.network.PipeNetwork.SpeedTier tier) {
             switch (tier) {

@@ -129,10 +129,13 @@ public class ConduitNetwork {
     // -----------------------------------------------------------------------
 
     public void tick(World world) {
-        int stored = sharedBuffer.getEnergyStored();
-        int tickThroughput = 0; // FE pulled into network this tick
-
         int bufferRoom = sharedBuffer.getMaxEnergyStored() - sharedBuffer.getEnergyStored();
+
+        // Track positions we pulled from this tick so we never push back into them.
+        // Without this, a source that is both canExtract() and canReceive() (e.g. a
+        // battery or capacitor) would have energy pulled out and immediately pushed
+        // back in the same tick, keeping the conduit buffer permanently empty.
+        Set<BlockPos> pulledFrom = new HashSet<>();
 
         // Pull from adjacent energy sources (e.g. batteries/capacitors that don't push)
         if (bufferRoom > 0) {
@@ -148,23 +151,27 @@ public class ConduitNetwork {
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
                     if (st == null || !st.canExtract()) continue;
                     int toTake = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace, bufferRoom);
-                    if (toTake <= 0) break;
+                    if (toTake <= 0) continue;
                     int extracted = st.extractEnergy(toTake, false);
                     if (extracted > 0) {
                         sharedBuffer.receiveEnergy(extracted, false);
                         bufferRoom -= extracted;
-                        tickThroughput += extracted;
+                        pulledFrom.add(np); // mark so we don't push back this tick
                     }
                 }
             }
         }
 
-        // Push to adjacent machines (e.g. machines that don't pull themselves)
+        // Push to adjacent machines (e.g. machines that don't pull themselves).
+        // Skip any position we just pulled from — those are sources, not consumers.
+        // Also skip pure-source tiles (canExtract but not canReceive) to avoid
+        // accidentally back-feeding generators that incorrectly accept energy.
         if (sharedBuffer.getEnergyStored() > 0) {
             for (BlockPos memberPos : members) {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
                 for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos np = memberPos.offset(face);
+                    if (pulledFrom.contains(np)) continue; // never push back into a source
                     Block nb = world.getBlockState(np).getBlock();
                     if (nb instanceof BlockConduit || nb instanceof BlockItemPipe) continue;
                     TileEntity nte = world.getTileEntity(np);
@@ -174,11 +181,10 @@ public class ConduitNetwork {
                     if (st == null || !st.canReceive()) continue;
                     int toSend = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace,
                             sharedBuffer.getEnergyStored());
-                    if (toSend <= 0) break;
+                    if (toSend <= 0) continue;
                     int accepted = st.receiveEnergy(toSend, false);
                     if (accepted > 0) {
                         sharedBuffer.extractEnergy(accepted, false);
-                        tickThroughput += accepted;
                     }
                 }
             }
@@ -191,13 +197,15 @@ public class ConduitNetwork {
             if (lossFe > 0) sharedBuffer.extractEnergy(lossFe, false);
         }
 
-        // Update smoothed throughput EMA — fraction of capacity that moved through this tick
-        // Using throughput rather than buffer fill so it stays accurate when buffer
-        // fills and drains in the same tick (which would make fill always read 0)
-        float currentThroughput = sharedBuffer.getMaxEnergyStored() > 0
-                ? Math.min(1f, (float) tickThroughput / sharedBuffer.getMaxEnergyStored())
+        // Update smoothed fill EMA — use ACTUAL stored/capacity ratio, not throughput.
+        // Previously this tracked tickThroughput (FE moved by tick() only), which meant
+        // energy pushed in externally by generators (via receiveEnergy capability calls
+        // outside of tick()) was invisible: smoothedFill stayed 0 even when the buffer
+        // was full, causing the display to always read "0/5000 FE (0%)".
+        float currentFill = sharedBuffer.getMaxEnergyStored() > 0
+                ? Math.min(1f, (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored())
                 : 0f;
-        smoothedFill = SMOOTH_ALPHA * currentThroughput + (1f - SMOOTH_ALPHA) * smoothedFill;
+        smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
 
         // Notify client re-render only when tier bracket changes
         int tier = tierFromStored(sharedBuffer.getEnergyStored());

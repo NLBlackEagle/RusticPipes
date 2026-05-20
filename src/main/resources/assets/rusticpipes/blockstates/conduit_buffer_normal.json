@@ -1,6 +1,7 @@
 {
     "variants": {
-        "normal": { "model": "rusticpipes:conduit_buffer_normal" },
-        "inventory": { "model": "rusticpipes:conduit_buffer_normal" }
+        "powered=true":  { "model": "rusticpipes:conduit_buffer_normal" },
+        "powered=false": { "model": "rusticpipes:conduit_buffer_normal_off" },
+        "inventory":     { "model": "rusticpipes:conduit_buffer_normal" }
     }
 }

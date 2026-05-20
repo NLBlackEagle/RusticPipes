@@ -40,8 +40,8 @@ public class ConduitRainHandler {
 
             ConduitNetwork network = ConduitNetwork.getNetwork(pos);
             if (network == null) continue;
-            // Only strike if network has meaningful energy stored
-            if (network.getBufferStored() <= 0) continue;
+            // Only strike powered conduits — use smoothed fill to avoid false positives
+            if (network.getSmoothedFill() < 0.01f) continue;
 
             if (tickCounter - lastStrikeTick < STRIKE_COOLDOWN) continue;
             lastStrikeTick = tickCounter;

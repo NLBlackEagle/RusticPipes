@@ -1,0 +1,6 @@
+{
+    "parent": "block/cube_all",
+    "textures": {
+        "all": "rusticpipes:blocks/conduit_buffer_fast_off"
+    }
+}

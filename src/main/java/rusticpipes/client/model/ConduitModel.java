@@ -89,10 +89,10 @@ public class ConduitModel implements IModel {
                             Function<ResourceLocation, TextureAtlasSprite> getter) {
         TextureAtlasSprite bodyTex = getter.apply(BODY);
         return new ConduitBakedModel(
-                bodyTex,               getter.apply(CAP),
-                getter.apply(SLOW),    getter.apply(NORMAL),
-                getter.apply(FAST),    getter.apply(TURBO),
-                getter.apply(HYPER),   getter.apply(ULTRA),
+                getter.apply(BODY),            getter.apply(CAP),
+                getter.apply(SLOW),            getter.apply(NORMAL),
+                getter.apply(FAST),            getter.apply(TURBO),
+                getter.apply(HYPER),           getter.apply(ULTRA),
                 getOrFallback(getter, CON_FACE,   BODY),
                 getOrFallback(getter, CON_UP_T,   BODY),
                 getOrFallback(getter, CON_DOWN_T, BODY),
@@ -127,9 +127,10 @@ public class ConduitModel implements IModel {
                                  TextureAtlasSprite slow,  TextureAtlasSprite normal,
                                  TextureAtlasSprite fast,  TextureAtlasSprite turbo,
                                  TextureAtlasSprite hyper, TextureAtlasSprite ultra,
-                                 TextureAtlasSprite conFace, TextureAtlasSprite conUp,
-                                 TextureAtlasSprite conDown, TextureAtlasSprite conOne,
-                                 TextureAtlasSprite conTwo) {
+                                 TextureAtlasSprite conFace,    TextureAtlasSprite conUp,
+                                 TextureAtlasSprite conDown,    TextureAtlasSprite conOne,
+                                 TextureAtlasSprite conTwo
+                                 ) {
             this.body = body; this.cap = cap;
             this.tierSlow = slow; this.tierNormal = normal;
             this.tierFast = fast; this.tierTurbo = turbo;
@@ -168,10 +169,10 @@ public class ConduitModel implements IModel {
             addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, body);
             if (north > 0) { addArm(quads, EnumFacing.NORTH, body); addCap(quads, EnumFacing.NORTH, north); }
             if (south > 0) { addArm(quads, EnumFacing.SOUTH, body); addCap(quads, EnumFacing.SOUTH, south); }
-            if (east  > 0) { addArm(quads, EnumFacing.EAST,  body); addCap(quads, EnumFacing.EAST,  east);  }
-            if (west  > 0) { addArm(quads, EnumFacing.WEST,  body); addCap(quads, EnumFacing.WEST,  west);  }
-            if (up    > 0) { addArm(quads, EnumFacing.UP,    body); addCap(quads, EnumFacing.UP,    up);    }
-            if (down  > 0) { addArm(quads, EnumFacing.DOWN,  body); addCap(quads, EnumFacing.DOWN,  down);  }
+            if (east  > 0) { addArm(quads, EnumFacing.EAST,  body); addCap(quads, EnumFacing.EAST,  east); }
+            if (west  > 0) { addArm(quads, EnumFacing.WEST,  body); addCap(quads, EnumFacing.WEST,  west); }
+            if (up    > 0) { addArm(quads, EnumFacing.UP,    body); addCap(quads, EnumFacing.UP, up); }
+            if (down  > 0) { addArm(quads, EnumFacing.DOWN,  body); addCap(quads, EnumFacing.DOWN,  down); }
             return quads;
         }
 
@@ -210,75 +211,80 @@ public class ConduitModel implements IModel {
          *           conOne = one pair of sides, conTwo = other pair.
          */
         private void addCollar(List<BakedQuad> q, EnumFacing dir) {
+            TextureAtlasSprite cFace = conFace;
+            TextureAtlasSprite cUp   = conUp;
+            TextureAtlasSprite cDown = conDown;
+            TextureAtlasSprite cOne  = conOne;
+            TextureAtlasSprite cTwo  = conTwo;
             switch (dir) {
                 case DOWN: {
                     // Collar extends from y=0 inward to y=COL_D
                     float x1=COL_MIN, z1=COL_MIN, x2=COL_MAX, z2=COL_MAX;
                     float y1=0f, y2=COL_D;
                     // outward face (DOWN = y=0)
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conFace);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cFace);
                     // inner face (UP = y=COL_D)
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conDown);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cDown);
                     // sides
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conOne);
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conOne);
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conTwo);
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cOne);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cOne);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cTwo);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cTwo);
                     break;
                 }
                 case UP: {
                     float x1=COL_MIN, z1=COL_MIN, x2=COL_MAX, z2=COL_MAX;
                     float y1=1f-COL_D, y2=1f;
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conFace);
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conUp);
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conOne);
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conOne);
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conTwo);
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cFace);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cUp);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cOne);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cOne);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cTwo);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cTwo);
                     break;
                 }
                 case NORTH: {
                     float x1=COL_MIN, y1=COL_MIN, x2=COL_MAX, y2=COL_MAX;
                     float z1=0f, z2=COL_D;
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conFace);
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conDown);
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conUp);
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conDown);
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conOne);
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cFace);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cDown);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cUp);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cDown);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cOne);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cTwo);
                     break;
                 }
                 case SOUTH: {
                     float x1=COL_MIN, y1=COL_MIN, x2=COL_MAX, y2=COL_MAX;
                     float z1=1f-COL_D, z2=1f;
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conFace);
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conDown);
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conUp);
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conDown);
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conOne);
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cFace);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cDown);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cUp);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cDown);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cOne);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cTwo);
                     break;
                 }
                 case WEST: {
                     float y1=COL_MIN, z1=COL_MIN, y2=COL_MAX, z2=COL_MAX;
                     float x1=0f, x2=COL_D;
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conFace);
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conDown);
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conUp);
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conDown);
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conOne);
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cFace);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cDown);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cUp);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cDown);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cOne);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cTwo);
                     break;
                 }
                 case EAST: {
                     float y1=COL_MIN, z1=COL_MIN, y2=COL_MAX, z2=COL_MAX;
                     float x1=1f-COL_D, x2=1f;
-                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, conFace);
-                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, conDown);
-                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, conUp);
-                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, conDown);
-                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, conOne);
-                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, conTwo);
+                    addQuad(q,EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, cFace);
+                    addQuad(q,EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, cDown);
+                    addQuad(q,EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, cUp);
+                    addQuad(q,EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, cDown);
+                    addQuad(q,EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, cOne);
+                    addQuad(q,EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, cTwo);
                     break;
                 }
             }
