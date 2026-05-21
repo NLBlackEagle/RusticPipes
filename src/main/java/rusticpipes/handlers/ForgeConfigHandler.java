@@ -159,6 +159,13 @@ public class ForgeConfigHandler {
         @Config.Comment("Powered conduits exposed to the sky are struck by lightning during rain.")
         @Config.Name("Enable Rain Lightning Damage")
         public boolean enableRainDamage = true;
+
+        @Config.Comment("IndustrialCraft 2 EU to FE conversion ratio.\n"
+                + "1 EU = this many FE. Only used when IC2 is installed.\n"
+                + "Community standard is 4 FE per EU.")
+        @Config.RangeInt(min = 1, max = 1000)
+        @Config.Name("IC2 EU to FE Ratio")
+        public int ic2FeRatio = 4;
     }
 
     public static class MotorConfig {

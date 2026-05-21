@@ -12,6 +12,7 @@ import net.minecraftforge.energy.IEnergyStorage;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockConduit;
 import rusticpipes.block.BlockItemPipe;
+import rusticpipes.compat.IC2Compat;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.TileEntityConduit;
 
@@ -156,6 +157,8 @@ public class ConduitNetwork {
                     if (nte == null) continue;
                     IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
+                    // IC2 soft-dependency fallback: wrap EU sources as FE
+                    if (st == null) st = IC2Compat.wrapSource(nte, face.getOpposite());
                     if (st == null || !st.canExtract()) continue;
                     int toTake = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace, bufferRoom);
                     if (toTake <= 0) continue;
@@ -187,6 +190,8 @@ public class ConduitNetwork {
                     if (nte == null) continue;
                     IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
+                    // IC2 soft-dependency fallback: wrap EU sinks as FE
+                    if (st == null) st = IC2Compat.wrapSink(nte, face.getOpposite());
                     if (st == null || !st.canReceive()) continue;
                     int toSend = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace,
                             availableToPush);
