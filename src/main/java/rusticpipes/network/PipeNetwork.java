@@ -251,21 +251,29 @@ public class PipeNetwork {
                 ItemStack stack = source.extractItem(slot, maxTransfer, true);
                 if (stack.isEmpty()) continue;
 
-                for (int attempt = 0; attempt < outputs.size(); attempt++) {
+                // How many items we still want to move from this slot this tick.
+                int toMove = stack.getCount();
+
+                for (int attempt = 0; attempt < outputs.size() && toMove > 0; attempt++) {
                     BlockPos destPos = outputs.get(rrPointer % outputs.size());
                     rrPointer++;
 
                     IItemHandler dest = getInventoryAtPos(world, destPos);
                     if (dest == null) continue;
 
-                    for (int outSlot = 0; outSlot < dest.getSlots(); outSlot++) {
-                        ItemStack remaining = dest.insertItem(outSlot, stack, true);
-                        if (remaining.isEmpty()) {
-                            source.extractItem(slot, stack.getCount(), false);
-                            dest.insertItem(outSlot, stack, false);
-                            attempt = outputs.size();
-                            break;
-                        }
+                    for (int outSlot = 0; outSlot < dest.getSlots() && toMove > 0; outSlot++) {
+                        // Simulate inserting however many we still need to move.
+                        ItemStack toInsert = stack.copy();
+                        toInsert.setCount(toMove);
+                        ItemStack remaining = dest.insertItem(outSlot, toInsert, true);
+                        int accepted = toMove - remaining.getCount();
+                        if (accepted <= 0) continue;
+
+                        // Commit: extract exactly what the slot accepted, then insert.
+                        ItemStack actuallyExtracted = source.extractItem(slot, accepted, false);
+                        if (actuallyExtracted.isEmpty()) continue;
+                        dest.insertItem(outSlot, actuallyExtracted, false);
+                        toMove -= actuallyExtracted.getCount();
                     }
                 }
                 break;
