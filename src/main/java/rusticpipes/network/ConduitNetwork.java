@@ -9,6 +9,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.energy.IEnergyStorage;
+import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockConduit;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.handlers.ForgeConfigHandler;
@@ -129,7 +130,13 @@ public class ConduitNetwork {
     // -----------------------------------------------------------------------
 
     public void tick(World world) {
-        int bufferRoom = sharedBuffer.getMaxEnergyStored() - sharedBuffer.getEnergyStored();
+        // Snapshot how much was stored BEFORE pulling this tick.
+        // Push is capped to this amount so energy that arrives this tick
+        // can only leave on the next tick, giving the buffer one full tick
+        // to accumulate before anything drains it. The delay is one tick
+        // (~50 ms at 20 TPS) — imperceptible to players.
+        int storedBefore = sharedBuffer.getEnergyStored();
+        int bufferRoom = sharedBuffer.getMaxEnergyStored() - storedBefore;
 
         // Track positions we pulled from this tick so we never push back into them.
         // Without this, a source that is both canExtract() and canReceive() (e.g. a
@@ -166,7 +173,9 @@ public class ConduitNetwork {
         // Skip any position we just pulled from — those are sources, not consumers.
         // Also skip pure-source tiles (canExtract but not canReceive) to avoid
         // accidentally back-feeding generators that incorrectly accept energy.
-        if (sharedBuffer.getEnergyStored() > 0) {
+        // Cap push to storedBefore — energy pulled in this tick stays until next tick.
+        int availableToPush = Math.min(sharedBuffer.getEnergyStored(), storedBefore);
+        if (availableToPush > 0) {
             for (BlockPos memberPos : members) {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
                 for (EnumFacing face : EnumFacing.VALUES) {
@@ -180,11 +189,12 @@ public class ConduitNetwork {
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
                     if (st == null || !st.canReceive()) continue;
                     int toSend = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace,
-                            sharedBuffer.getEnergyStored());
+                            availableToPush);
                     if (toSend <= 0) continue;
                     int accepted = st.receiveEnergy(toSend, false);
                     if (accepted > 0) {
                         sharedBuffer.extractEnergy(accepted, false);
+                        availableToPush -= accepted;
                     }
                 }
             }
@@ -206,15 +216,22 @@ public class ConduitNetwork {
                 ? Math.min(1f, (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored())
                 : 0f;
         smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
-
         // Notify client re-render only when tier bracket changes
         int tier = tierFromStored(sharedBuffer.getEnergyStored());
         if (tier != lastTier) {
             lastTier = tier;
+            boolean powered = sharedBuffer.getEnergyStored() > 0;
             for (BlockPos memberPos : members) {
                 IBlockState bs = world.getBlockState(memberPos);
                 // Flag 2 = send update to clients only, no neighbour cascade, no chunk save
                 world.notifyBlockUpdate(memberPos, bs, bs, 2);
+                // Sync power state to clients so getExtendedState can pick the
+                // correct connector texture on a dedicated server.
+                RusticPipes.NET.sendToAllAround(
+                        new PacketConduitPower(memberPos, powered),
+                        new net.minecraftforge.fml.common.network.NetworkRegistry.TargetPoint(
+                                world.provider.getDimension(),
+                                memberPos.getX(), memberPos.getY(), memberPos.getZ(), 64));
             }
         }
     }

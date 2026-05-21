@@ -21,6 +21,7 @@ import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.energy.CapabilityEnergy;
 import rusticpipes.client.model.ConduitModel;
+import rusticpipes.network.ConduitClientState;
 import rusticpipes.network.ConduitNetwork;
 import rusticpipes.tileentity.TileEntityConduit;
 
@@ -61,7 +62,8 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                         ConduitModel.CONDUIT_TIER,
                         ConduitModel.CON_NORTH, ConduitModel.CON_SOUTH,
                         ConduitModel.CON_EAST,  ConduitModel.CON_WEST,
-                        ConduitModel.CON_UP,    ConduitModel.CON_DOWN
+                        ConduitModel.CON_UP,    ConduitModel.CON_DOWN,
+                        ConduitModel.POWERED
                 });
     }
 
@@ -85,6 +87,20 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         for (EnumFacing face : EnumFacing.VALUES)
             ext = ext.withProperty(ConduitModel.getConProperty(face),
                     computeConnection(world, pos, face));
+
+        // Determine powered state: prefer live network data (integrated server / SSP),
+        // fall back to the packet-synced client map (dedicated server).
+        // Use getBufferStored() > 0 directly — smoothedFill is an EMA that lags
+        // behind reality by ~30 ticks, causing the powered texture to linger
+        // after the buffer empties.
+        boolean powered;
+        ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+        if (network != null) {
+            powered = network.getBufferStored() > 0;
+        } else {
+            powered = ConduitClientState.isPowered(pos);
+        }
+        ext = ext.withProperty(ConduitModel.POWERED, powered);
 
         return ext;
     }
