@@ -46,6 +46,7 @@ repositories {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    compileOnly "curse.maven:industrial-craft-242638:3838713"
 }
 
 
