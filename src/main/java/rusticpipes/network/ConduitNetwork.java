@@ -38,6 +38,9 @@ public class ConduitNetwork {
      * even when the buffer fills and drains in the same tick (raw fill would always be 0).
      */
     private float smoothedFill = 0f;
+    /** Smoothed FE throughput per tick — EMA of FE actually pushed to machines each tick. */
+    private float smoothedThroughput = 0f;
+    private static final float THROUGHPUT_ALPHA = 0.2f;
     private static final float SMOOTH_ALPHA = 0.15f;
 
     // -----------------------------------------------------------------------
@@ -137,6 +140,7 @@ public class ConduitNetwork {
         // to accumulate before anything drains it. The delay is one tick
         // (~50 ms at 20 TPS) — imperceptible to players.
         int storedBefore = sharedBuffer.getEnergyStored();
+        int tickPushed = 0;
         int bufferRoom = sharedBuffer.getMaxEnergyStored() - storedBefore;
 
         // Track positions we pulled from this tick so we never push back into them.
@@ -200,6 +204,7 @@ public class ConduitNetwork {
                     if (accepted > 0) {
                         sharedBuffer.extractEnergy(accepted, false);
                         availableToPush -= accepted;
+                        tickPushed += accepted;
                     }
                 }
             }
@@ -211,6 +216,12 @@ public class ConduitNetwork {
             int lossFe = (int) Math.ceil(sharedBuffer.getEnergyStored() * loss);
             if (lossFe > 0) sharedBuffer.extractEnergy(lossFe, false);
         }
+
+        // Update smoothed throughput EMA
+        float throughputFraction = sharedBuffer.getMaxEnergyStored() > 0
+                ? Math.min(1f, (float) tickPushed / sharedBuffer.getMaxEnergyStored())
+                : 0f;
+        smoothedThroughput = THROUGHPUT_ALPHA * throughputFraction + (1f - THROUGHPUT_ALPHA) * smoothedThroughput;
 
         // Update smoothed fill EMA — use ACTUAL stored/capacity ratio, not throughput.
         // Previously this tracked tickThroughput (FE moved by tick() only), which meant
@@ -255,6 +266,9 @@ public class ConduitNetwork {
 
     /** Smoothed fill fraction 0.0-1.0 — use this for spark effects. */
     public float getSmoothedFill() { return smoothedFill; }
+    public int getSmoothedThroughput() {
+        return (int)(smoothedThroughput * sharedBuffer.getMaxEnergyStored());
+    }
     public int getBufferStored()   { return sharedBuffer.getEnergyStored(); }
     public int getBufferCapacity() { return ForgeConfigHandler.conduit.networkBufferCapacity; }
     public Set<BlockPos> getMembers() { return Collections.unmodifiableSet(members); }

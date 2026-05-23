@@ -151,13 +151,13 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                     ConduitNetwork network = ConduitNetwork.getNetwork(pos);
                     if (network != null) {
                         int capacity = network.getBufferCapacity();
-                        int displayStored = (int) (network.getSmoothedFill() * capacity);
+                        int throughput = network.getSmoothedThroughput();
                         double lossRate = rusticpipes.handlers.ForgeConfigHandler.conduit.powerLossPerConduitPerTick;
-                        int lossPerCable = (int) Math.round(displayStored * lossRate);
+                        int lossPerCable = (int) Math.round(throughput * lossRate);
                         int totalLoss = lossPerCable * network.getMemberCount();
                         player.sendMessage(new TextComponentTranslation(
                                 "rusticpipes.message.conduit.info",
-                                displayStored, capacity, lossPerCable, totalLoss));
+                                throughput, capacity, lossPerCable, totalLoss));
                     }
                 }
             }
