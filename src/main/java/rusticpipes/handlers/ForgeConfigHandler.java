@@ -140,7 +140,7 @@ public class ForgeConfigHandler {
 
         @Config.Comment("Percentage of stored FE lost per tick, voided. 0.0 = disabled.")
         @Config.Name("Power Loss Per Tick (%)")
-        public double powerLossPerConduitPerTick = 0.0;
+        public double powerLossPerConduitPerTick = 0.005;
 
         @Config.Comment("Conduits spark when powered.")
         @Config.Name("Conduits Spark When Powered")
