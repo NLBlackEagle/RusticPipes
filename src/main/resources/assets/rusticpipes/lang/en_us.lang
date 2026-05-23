@@ -31,8 +31,8 @@ tile.conduit_buffer_ultra.name=Overclocked Pipe Motor
 itemGroup.rusticpipes=Rustic Pipes
 
 # Messages
-# %1$s = stored FE, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
-rusticpipes.message.conduit.info=[Power Cord] %1$s/%2$s FE · %3$s FE loss/cable (%4$s total)
+# %1$s = throughput FE/t, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
+rusticpipes.message.conduit.info=[Power Cord] %1$s FE/t · %3$s FE loss/cable (%4$s total)
 
 # %1$s = tier name, %2$s = stored FE, %3$s = capacity FE
 rusticpipes.message.motor.info=Pipe Motor [%1$s] %2$s/%3$s FE
@@ -87,3 +87,54 @@ rusticpipes.tooltip.pipemotor.hyper.description=Place this Reinforced pipe motor
 
 rusticpipes.tooltip.pipemotor.ultra.data=[Ultra] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
 rusticpipes.tooltip.pipemotor.ultra.description=Place this Ultra/Overclocked pipe motor block next to one or multiple item pipe networks to make item transfer between containers faster but also consume more energy.
+
+# Fluid Pipes
+tile.fluid_white_pipe.name=White Fluid Pipe
+tile.fluid_orange_pipe.name=Orange Fluid Pipe
+tile.fluid_magenta_pipe.name=Magenta Fluid Pipe
+tile.fluid_light_blue_pipe.name=Light Blue Fluid Pipe
+tile.fluid_yellow_pipe.name=Yellow Fluid Pipe
+tile.fluid_lime_pipe.name=Lime Fluid Pipe
+tile.fluid_pink_pipe.name=Pink Fluid Pipe
+tile.fluid_gray_pipe.name=Gray Fluid Pipe
+tile.fluid_light_gray_pipe.name=Light Gray Fluid Pipe
+tile.fluid_cyan_pipe.name=Cyan Fluid Pipe
+tile.fluid_purple_pipe.name=Purple Fluid Pipe
+tile.fluid_blue_pipe.name=Blue Fluid Pipe
+tile.fluid_brown_pipe.name=Brown Fluid Pipe
+tile.fluid_green_pipe.name=Green Fluid Pipe
+tile.fluid_red_pipe.name=Red Fluid Pipe
+tile.fluid_black_pipe.name=Black Fluid Pipe
+
+# Fluid Tank
+tile.fluid_tank.name=Fluid Tank
+
+# Messages
+# %1$s = fluid name, %2$s = stored mB, %3$s = capacity mB
+rusticpipes.message.tank.info=[Tank] %1$s %2$s/%3$s mB
+rusticpipes.message.tank.empty=[Tank] Empty (capacity: %1$s mB)
+
+# Tooltips — Fluid Pipes
+# %1$s = flow rate mB, %2$s = tick rate
+rusticpipes.tooltip.fluidpipe.data=Transfers %1$s mB every %2$s tick(s).
+rusticpipes.tooltip.fluidpipe.description.fluid_white_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_orange_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_magenta_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_light_blue_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_yellow_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_lime_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_pink_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_gray_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_light_gray_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_cyan_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_purple_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_blue_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_brown_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_green_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_red_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+rusticpipes.tooltip.fluidpipe.description.fluid_black_pipe=Place these fluid pipes between fluid containers to transfer fluids. Configure each connection as input or output by right-clicking the pipe flange. Pipes of different colors do not connect, allowing isolated fluid networks.
+
+# Tooltips — Fluid Tank
+# %1$s = capacity per block mB
+rusticpipes.tooltip.fluidtank.data=Capacity: %1$s mB per block. Total scales with structure size.
+rusticpipes.tooltip.fluidtank.description=Build a hollow rectangular tank structure (1x1 to 4x4 base, up to 7 blocks tall) to store fluids. Connect fluid pipes to the top for input and the sides of the bottom layer for output. Right-click to check contents. A single block acts as a small fluid buffer.

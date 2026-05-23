@@ -7,6 +7,10 @@ import rusticpipes.network.PipeNetwork;
 
 public class CommonProxy {
 
+    public void init() {}
+
+    public void postInit() {}
+
     public void preInit() {
         MinecraftForge.EVENT_BUS.register(this);
     }

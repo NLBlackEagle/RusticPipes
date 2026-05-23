@@ -46,7 +46,13 @@ public class RusticPipes {
     }
 
     @Mod.EventHandler
+    public void init(net.minecraftforge.fml.common.event.FMLInitializationEvent event) {
+        PROXY.init();
+    }
+
+    @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
+        PROXY.postInit();
         completedLoading = true;
     }
 }

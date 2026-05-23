@@ -22,6 +22,10 @@ import rusticpipes.block.BlockConduitBuffer;
 import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.TileEntityConduit;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
+import rusticpipes.block.BlockFluidPipe;
+import rusticpipes.block.BlockFluidTank;
+import rusticpipes.tileentity.TileEntityFluidPipe;
+import rusticpipes.tileentity.TileEntityFluidTank;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 
@@ -37,17 +41,24 @@ public class ModRegistry {
     };
 
     /** One block instance per color, indexed by {@link PipeColor#ordinal()}. */
-    public static final BlockItemPipe[] PIPES = new BlockItemPipe[PipeColor.values().length];
+    public static final BlockItemPipe[]  PIPES       = new BlockItemPipe[PipeColor.values().length];
+    public static final BlockFluidPipe[] FLUID_PIPES = new BlockFluidPipe[PipeColor.values().length];
+    public static final BlockFluidTank   FLUID_TANK  = new BlockFluidTank();
 
     static {
         for (PipeColor color : PipeColor.values()) {
-            PIPES[color.ordinal()] = new BlockItemPipe(color);
+            PIPES[color.ordinal()]       = new BlockItemPipe(color);
+            FLUID_PIPES[color.ordinal()] = new BlockFluidPipe(color);
         }
     }
 
     /** Convenience accessor. */
     public static BlockItemPipe getPipe(PipeColor color) {
         return PIPES[color.ordinal()];
+    }
+
+    public static BlockFluidPipe getFluidPipe(PipeColor color) {
+        return FLUID_PIPES[color.ordinal()];
     }
 
     public static final BlockConduit CONDUIT = new BlockConduit();
@@ -60,7 +71,9 @@ public class ModRegistry {
     public static final BlockConduitBuffer BUFFER_ULTRA  = new BlockConduitBuffer(PipeNetwork.SpeedTier.ULTRA);
 
     public static void init() {
-        GameRegistry.registerTileEntity(TileEntityItemPipe.class, RusticPipes.MODID + ":item_pipe");
+        GameRegistry.registerTileEntity(TileEntityItemPipe.class,  RusticPipes.MODID + ":item_pipe");
+        GameRegistry.registerTileEntity(TileEntityFluidPipe.class, RusticPipes.MODID + ":fluid_pipe");
+        GameRegistry.registerTileEntity(TileEntityFluidTank.class, RusticPipes.MODID + ":fluid_tank");
         GameRegistry.registerTileEntity(TileEntityConduit.class,       RusticPipes.MODID + ":conduit");
         GameRegistry.registerTileEntity(TileEntityConduitBuffer.class, RusticPipes.MODID + ":conduit_buffer");
     }
@@ -74,6 +87,21 @@ public class ModRegistry {
             pipe.setCreativeTab(CREATIVE_TAB);
             event.getRegistry().register(pipe);
         }
+        // Fluid pipes
+        for (PipeColor color : PipeColor.values()) {
+            BlockFluidPipe fp = FLUID_PIPES[color.ordinal()];
+            fp.setRegistryName(RusticPipes.MODID, "fluid_" + color.registryName);
+            fp.setTranslationKey("fluid_" + color.registryName);
+            fp.setCreativeTab(CREATIVE_TAB);
+            event.getRegistry().register(fp);
+        }
+
+        // Fluid tank
+        FLUID_TANK.setRegistryName(RusticPipes.MODID, "fluid_tank");
+        FLUID_TANK.setTranslationKey("fluid_tank");
+        FLUID_TANK.setCreativeTab(CREATIVE_TAB);
+        event.getRegistry().register(FLUID_TANK);
+
         CONDUIT.setRegistryName(RusticPipes.MODID, "conduit");
         CONDUIT.setTranslationKey("conduit");
         CONDUIT.setCreativeTab(CREATIVE_TAB);
@@ -97,6 +125,19 @@ public class ModRegistry {
             ib.setRegistryName(pipe.getRegistryName());
             event.getRegistry().register(ib);
         }
+        // Fluid pipe items
+        for (PipeColor color : PipeColor.values()) {
+            BlockFluidPipe fp = FLUID_PIPES[color.ordinal()];
+            ItemBlock ib = new ItemBlock(fp);
+            ib.setRegistryName(fp.getRegistryName());
+            event.getRegistry().register(ib);
+        }
+
+        // Fluid tank item
+        ItemBlock tankItem = new ItemBlock(FLUID_TANK);
+        tankItem.setRegistryName(FLUID_TANK.getRegistryName());
+        event.getRegistry().register(tankItem);
+
         net.minecraft.item.ItemBlock conduitItem = new net.minecraft.item.ItemBlock(CONDUIT);
         conduitItem.setRegistryName(CONDUIT.getRegistryName());
         event.getRegistry().register(conduitItem);

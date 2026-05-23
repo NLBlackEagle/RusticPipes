@@ -313,6 +313,29 @@ public class ForgeConfigHandler {
         public boolean enableInWorldDyeing = true;
     }
 
+    @Config.Comment("Fluid Pipe and Tank Options")
+    @Config.Name("Fluid Options")
+    public static final FluidConfig fluid = new FluidConfig();
+
+    public static class FluidConfig {
+
+        @Config.Comment("Fluid transfer rate per tick in millibuckets (mB).")
+        @Config.RangeInt(min = 1, max = 10000)
+        @Config.Name("Flow Rate Per Tick (mB)")
+        public int flowRatePerTick = 100;
+
+        @Config.Comment("How often fluid pipes transfer, in ticks.")
+        @Config.RangeInt(min = 1, max = 100)
+        @Config.Name("Flow Tick Rate")
+        public int flowTickRate = 4;
+
+        @Config.Comment("Fluid capacity per tank block in millibuckets (mB).\n"
+                + "Total capacity = blockCount x this value.")
+        @Config.RangeInt(min = 1, max = 1000000)
+        @Config.Name("Capacity Per Tank Block (mB)")
+        public int capacityPerTankBlock = 8000;
+    }
+
     public static class ClientConfig {
 
         @Config.Comment("Show pipe network debug info when sneaking.")

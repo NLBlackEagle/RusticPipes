@@ -111,6 +111,42 @@ public final class TooltipHandler {
     }
 
     // -----------------------------------------------------------------------
+    // Fluid pipe tooltip
+    // -----------------------------------------------------------------------
+
+    public static void addFluidPipeTooltip(ItemStack stack, List<String> tooltip,
+                                           rusticpipes.block.PipeColor color) {
+        int flowRate = ForgeConfigHandler.fluid.flowRatePerTick;
+        int tickRate = ForgeConfigHandler.fluid.flowTickRate;
+        tooltip.add(TextFormatting.GRAY
+                + I18n.format("rusticpipes.tooltip.fluidpipe.data", flowRate, tickRate));
+
+        if (isShiftHeld()) {
+            String descKey = "rusticpipes.tooltip.fluidpipe.description." + color.registryName;
+            tooltip.add(TextFormatting.DARK_GREEN + I18n.format(descKey));
+        } else {
+            tooltip.add(SHIFT_HINT);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Fluid tank tooltip
+    // -----------------------------------------------------------------------
+
+    public static void addFluidTankTooltip(ItemStack stack, List<String> tooltip) {
+        int capacity = ForgeConfigHandler.fluid.capacityPerTankBlock;
+        tooltip.add(TextFormatting.GRAY
+                + I18n.format("rusticpipes.tooltip.fluidtank.data", capacity));
+
+        if (isShiftHeld()) {
+            tooltip.add(TextFormatting.DARK_GREEN
+                    + I18n.format("rusticpipes.tooltip.fluidtank.description"));
+        } else {
+            tooltip.add(SHIFT_HINT);
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------------
 

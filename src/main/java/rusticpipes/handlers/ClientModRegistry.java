@@ -19,6 +19,12 @@ import rusticpipes.block.PipeColor;
 import rusticpipes.client.color.PipeBlockColor;
 import rusticpipes.client.color.PipeItemColor;
 import rusticpipes.client.model.ConduitModelLoader;
+import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
+import rusticpipes.block.BlockFluidPipe;
+import rusticpipes.block.BlockFluidTank;
+import rusticpipes.client.FluidTankRenderer;
+import rusticpipes.client.model.FluidPipeModelLoader;
+import rusticpipes.tileentity.TileEntityFluidTank;
 import rusticpipes.client.model.PipeModelLoader;
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
@@ -27,7 +33,17 @@ public class ClientModRegistry {
     public static void preInit() {
         ModelLoaderRegistry.registerLoader(PipeModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(ConduitModelLoader.INSTANCE);
+        ModelLoaderRegistry.registerLoader(FluidPipeModelLoader.INSTANCE);
         // Buffer blocks use vanilla full-cube models — no custom loader needed
+    }
+
+    public static void init() {}
+
+    public static void postInit() {
+        // TESR registration in postInit ensures all other mods have finished
+        // their texture/init setup before we bind our renderer.
+        net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
+                TileEntityFluidTank.class, new FluidTankRenderer());
     }
 
     @SubscribeEvent
@@ -44,6 +60,28 @@ public class ClientModRegistry {
                 }
             });
             ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(pipe), 0, INVENTORY);
+        }
+
+        // Fluid pipe models — reuse the same item_pipe model loader
+        final ModelResourceLocation FLUID_MODEL     = new ModelResourceLocation(RusticPipes.MODID + ":fluid_pipe", "normal");
+        final ModelResourceLocation FLUID_INVENTORY = new ModelResourceLocation(RusticPipes.MODID + ":fluid_pipe", "inventory");
+
+        for (PipeColor color : PipeColor.values()) {
+            BlockFluidPipe fp = ModRegistry.getFluidPipe(color);
+            ModelLoader.setCustomStateMapper(fp, new StateMapperBase() {
+                @Override
+                protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+                    return FLUID_MODEL;
+                }
+            });
+            ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(fp), 0, FLUID_INVENTORY);
+        }
+
+        // Fluid tank — vanilla blockstate model, role property drives texture
+        for (rusticpipes.block.BlockFluidTank.TankRole role : rusticpipes.block.BlockFluidTank.TankRole.values()) {
+            ModelLoader.setCustomModelResourceLocation(
+                    Item.getItemFromBlock(ModRegistry.FLUID_TANK), 0,
+                    new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank", "inventory"));
         }
 
         // Conduit model
