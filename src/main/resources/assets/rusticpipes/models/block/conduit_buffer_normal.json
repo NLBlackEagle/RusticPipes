@@ -1,6 +1,6 @@
 {
     "parent": "block/cube_all",
     "textures": {
-        "all": "rusticpipes:blocks/conduit_normal"
+        "all": "rusticpipes:blocks/motors/conduit_buffer_normal_on"
     }
 }

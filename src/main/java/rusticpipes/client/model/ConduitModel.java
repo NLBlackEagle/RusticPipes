@@ -57,24 +57,24 @@ public class ConduitModel implements IModel {
     // Textures
     // -----------------------------------------------------------------------
 
-    private static final ResourceLocation BODY       = new ResourceLocation("rusticpipes:blocks/conduit_body");
-    private static final ResourceLocation CAP        = new ResourceLocation("rusticpipes:blocks/conduit_cap");
-    private static final ResourceLocation SLOW       = new ResourceLocation("rusticpipes:blocks/conduit_slow");
-    private static final ResourceLocation NORMAL     = new ResourceLocation("rusticpipes:blocks/conduit_normal");
-    private static final ResourceLocation FAST       = new ResourceLocation("rusticpipes:blocks/conduit_fast");
-    private static final ResourceLocation TURBO      = new ResourceLocation("rusticpipes:blocks/conduit_turbo");
-    private static final ResourceLocation HYPER      = new ResourceLocation("rusticpipes:blocks/conduit_hyper");
-    private static final ResourceLocation ULTRA      = new ResourceLocation("rusticpipes:blocks/conduit_ultra");
+    private static final ResourceLocation BODY       = new ResourceLocation("rusticpipes:blocks/conduit/conduit_body");
+    private static final ResourceLocation CAP        = new ResourceLocation("rusticpipes:blocks/conduit/conduit_cap");
+    private static final ResourceLocation SLOW       = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_slow_on");
+    private static final ResourceLocation NORMAL     = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_normal_on");
+    private static final ResourceLocation FAST       = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_fast_on");
+    private static final ResourceLocation TURBO      = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_turbo_on");
+    private static final ResourceLocation HYPER      = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_hyper_on");
+    private static final ResourceLocation ULTRA      = new ResourceLocation("rusticpipes:blocks/motors/conduit_buffer_ultra_on");
     // Connector collar textures
-    private static final ResourceLocation CON_FACE   = new ResourceLocation("rusticpipes:blocks/conduit_connector_face");
-    private static final ResourceLocation CON_UP_T   = new ResourceLocation("rusticpipes:blocks/conduit_connector_up");
-    private static final ResourceLocation CON_DOWN_T = new ResourceLocation("rusticpipes:blocks/conduit_connector_down");
-    private static final ResourceLocation CON_ONE    = new ResourceLocation("rusticpipes:blocks/conduit_connector_one");
-    private static final ResourceLocation CON_ONE_OFF  = new ResourceLocation("rusticpipes:blocks/conduit_connector_one_off");
-    private static final ResourceLocation CON_TWO      = new ResourceLocation("rusticpipes:blocks/conduit_connector_two");
-    private static final ResourceLocation CON_TWO_OFF  = new ResourceLocation("rusticpipes:blocks/conduit_connector_two_off");
-    private static final ResourceLocation CON_UP_T_OFF  = new ResourceLocation("rusticpipes:blocks/conduit_connector_up_off");
-    private static final ResourceLocation CON_DOWN_T_OFF = new ResourceLocation("rusticpipes:blocks/conduit_connector_down_off");
+    private static final ResourceLocation CON_FACE   = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_face");
+    private static final ResourceLocation CON_UP_T   = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_up");
+    private static final ResourceLocation CON_DOWN_T = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_down");
+    private static final ResourceLocation CON_ONE    = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_one");
+    private static final ResourceLocation CON_ONE_OFF  = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_one_off");
+    private static final ResourceLocation CON_TWO      = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_two");
+    private static final ResourceLocation CON_TWO_OFF  = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_two_off");
+    private static final ResourceLocation CON_UP_T_OFF  = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_up_off");
+    private static final ResourceLocation CON_DOWN_T_OFF = new ResourceLocation("rusticpipes:blocks/conduit/conduit_connector_down_off");
 
     private static TextureAtlasSprite getOrFallback(
             Function<ResourceLocation, TextureAtlasSprite> getter,

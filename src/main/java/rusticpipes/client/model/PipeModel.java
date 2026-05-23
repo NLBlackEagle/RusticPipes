@@ -76,28 +76,28 @@ public class PipeModel implements IModel {
     // Texture resource locations
     // -----------------------------------------------------------------------
 
-    private static final ResourceLocation PIPE_CAP          = new ResourceLocation("rusticpipes:blocks/pipe_cap");
-    private static final ResourceLocation PIPE_FLANGE        = new ResourceLocation("rusticpipes:blocks/pipe_flange");
-    private static final ResourceLocation PIPE_FLANGE_OUTER         = new ResourceLocation("rusticpipes:blocks/pipe_flange_outer");
-    private static final ResourceLocation PIPE_FLANGE_INNER         = new ResourceLocation("rusticpipes:blocks/pipe_flange_inner");
-    private static final ResourceLocation PIPE_FLANGE_OUTER_OUTPUT  = new ResourceLocation("rusticpipes:blocks/pipe_flange_outer_output");
-    private static final ResourceLocation PIPE_FLANGE_INNER_OUTPUT  = new ResourceLocation("rusticpipes:blocks/pipe_flange_inner_output");
-    private static final ResourceLocation PIPE_FLANGE_OUTER_INPUT   = new ResourceLocation("rusticpipes:blocks/pipe_flange_outer_input");
-    private static final ResourceLocation PIPE_FLANGE_INNER_INPUT   = new ResourceLocation("rusticpipes:blocks/pipe_flange_inner_input");
-    private static final ResourceLocation PIPE_CAP_OUTPUT_EAST  = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_east");
-    private static final ResourceLocation PIPE_CAP_OUTPUT_WEST  = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_west");
-    private static final ResourceLocation PIPE_CAP_OUTPUT_NORTH = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_north");
-    private static final ResourceLocation PIPE_CAP_OUTPUT_SOUTH = new ResourceLocation("rusticpipes:blocks/pipe_cap_output_south");
-    private static final ResourceLocation PIPE_CAP_INPUT_EAST   = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_east");
-    private static final ResourceLocation PIPE_CAP_INPUT_WEST   = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_west");
-    private static final ResourceLocation PIPE_CAP_INPUT_NORTH  = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_north");
-    private static final ResourceLocation PIPE_CAP_INPUT_SOUTH  = new ResourceLocation("rusticpipes:blocks/pipe_cap_input_south");
+    private static final ResourceLocation PIPE_CAP          = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap");
+    private static final ResourceLocation PIPE_FLANGE        = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange");
+    private static final ResourceLocation PIPE_FLANGE_OUTER         = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_outer");
+    private static final ResourceLocation PIPE_FLANGE_INNER         = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_inner");
+    private static final ResourceLocation PIPE_FLANGE_OUTER_OUTPUT  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_outer_output");
+    private static final ResourceLocation PIPE_FLANGE_INNER_OUTPUT  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_inner_output");
+    private static final ResourceLocation PIPE_FLANGE_OUTER_INPUT   = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_outer_input");
+    private static final ResourceLocation PIPE_FLANGE_INNER_INPUT   = new ResourceLocation("rusticpipes:blocks/pipes/pipe_flange_inner_input");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_EAST  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_output_east");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_WEST  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_output_west");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_NORTH = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_output_north");
+    private static final ResourceLocation PIPE_CAP_OUTPUT_SOUTH = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_output_south");
+    private static final ResourceLocation PIPE_CAP_INPUT_EAST   = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_input_east");
+    private static final ResourceLocation PIPE_CAP_INPUT_WEST   = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_input_west");
+    private static final ResourceLocation PIPE_CAP_INPUT_NORTH  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_input_north");
+    private static final ResourceLocation PIPE_CAP_INPUT_SOUTH  = new ResourceLocation("rusticpipes:blocks/pipes/pipe_cap_input_south");
 
     @Override
     public Collection<ResourceLocation> getTextures() {
         List<ResourceLocation> textures = new ArrayList<>();
         for (int i = 1; i <= 20; i++) {
-            textures.add(new ResourceLocation("rusticpipes:blocks/pipe_body_" + String.format("%02d", i)));
+            textures.add(new ResourceLocation("rusticpipes:blocks/pipes/pipe_body_" + String.format("%02d", i)));
         }
         textures.add(PIPE_CAP);
         textures.add(PIPE_FLANGE);
@@ -117,7 +117,7 @@ public class PipeModel implements IModel {
         TextureAtlasSprite[] bodySprites = new TextureAtlasSprite[20];
         for (int i = 0; i < 20; i++) {
             bodySprites[i] = bakedTextureGetter.apply(
-                    new ResourceLocation("rusticpipes:blocks/pipe_body_" + String.format("%02d", i + 1)));
+                    new ResourceLocation("rusticpipes:blocks/pipes/pipe_body_" + String.format("%02d", i + 1)));
         }
         return new PipeBakedModel(
                 bodySprites,
