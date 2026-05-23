@@ -112,28 +112,16 @@ public class ModRegistry {
     @SubscribeEvent
     public static void registerRecipes(RegistryEvent.Register<IRecipe> event) {
         // ── Base pipe recipe ──────────────────────────────────────────────────
-        // Shaped: hollow 3x3 ring of iron ingots → N white pipes
-        //   I I I
-        //   I   I
-        //   I I I
         if (ForgeConfigHandler.recipes.enableBasePipeRecipe) {
-            ItemStack whitePipeOutput = new ItemStack(
-                    getPipe(PipeColor.WHITE), ForgeConfigHandler.recipes.basePipeRecipeOutput);
-            ShapedOreRecipe basePipeRecipe = new ShapedOreRecipe(
-                    null,
-                    whitePipeOutput,
-                    "III",
-                    "I I",
-                    "III",
-                    'I', "ingotIron"
-            );
-            basePipeRecipe.setRegistryName(RusticPipes.MODID, "white_pipe");
-            event.getRegistry().register(basePipeRecipe);
+            net.minecraft.item.crafting.IRecipe basePipeRecipe =
+                    rusticpipes.util.RecipeParser.parse(
+                            ForgeConfigHandler.recipes.basePipeRecipe,
+                            new net.minecraft.util.ResourceLocation(RusticPipes.MODID, "white_pipe"),
+                            new ItemStack(getPipe(PipeColor.WHITE), 1));
+            if (basePipeRecipe != null) event.getRegistry().register(basePipeRecipe);
         }
 
         // ── Dye conversion recipes ────────────────────────────────────────────
-        // Shapeless: any pipe + matching ore-dict dye → dyed pipe (1 output)
-        // Ore dictionary dye names match EnumDyeColor ordinals exactly.
         if (ForgeConfigHandler.recipes.enableDyeRecipes) {
             String[] oreNames = {
                     "dyeWhite", "dyeOrange", "dyeMagenta", "dyeLightBlue",
@@ -148,7 +136,6 @@ public class ModRegistry {
                 String dyeOreName = oreNames[i];
                 ItemStack output = new ItemStack(getPipe(targetColor), 1);
 
-                // Register a conversion recipe from every other pipe color to this color
                 for (PipeColor sourceColor : colors) {
                     if (sourceColor == targetColor) continue;
                     ShapelessOreRecipe dyeRecipe = new ShapelessOreRecipe(
@@ -163,24 +150,45 @@ public class ModRegistry {
                 }
             }
         }
-        // ── Conduit recipe ──────────────────────────────────────────────────
-        // Shaped: gold ingots on sides, redstone in center, iron ingots on corners
-        //   I G I
-        //   G R G
-        //   I G I
+
+        // ── Conduit recipe ────────────────────────────────────────────────────
         if (ForgeConfigHandler.conduit.enableConduitRecipe) {
-            ShapedOreRecipe conduitRecipe = new ShapedOreRecipe(
-                    null,
-                    new ItemStack(CONDUIT, 4),
-                    "IGI",
-                    "GRG",
-                    "IGI",
-                    'I', "ingotIron",
-                    'G', "ingotGold",
-                    'R', "dustRedstone"
-            );
-            conduitRecipe.setRegistryName(RusticPipes.MODID, "conduit");
-            event.getRegistry().register(conduitRecipe);
+            net.minecraft.item.crafting.IRecipe conduitRecipe =
+                    rusticpipes.util.RecipeParser.parse(
+                            ForgeConfigHandler.conduit.conduitRecipe,
+                            new net.minecraft.util.ResourceLocation(RusticPipes.MODID, "conduit"),
+                            new ItemStack(CONDUIT, 1));
+            if (conduitRecipe != null) event.getRegistry().register(conduitRecipe);
+        }
+
+        // ── Motor recipes ─────────────────────────────────────────────────────
+        BlockConduitBuffer[] buffers   = { BUFFER_SLOW, BUFFER_NORMAL, BUFFER_FAST, BUFFER_TURBO, BUFFER_HYPER, BUFFER_ULTRA };
+        String[]             recipeIds = { "motor_slow", "motor_normal", "motor_fast", "motor_turbo", "motor_hyper", "motor_ultra" };
+        boolean[]            enabled   = {
+                ForgeConfigHandler.motors.enableMotorSlowRecipe,
+                ForgeConfigHandler.motors.enableMotorNormalRecipe,
+                ForgeConfigHandler.motors.enableMotorFastRecipe,
+                ForgeConfigHandler.motors.enableMotorTurboRecipe,
+                ForgeConfigHandler.motors.enableMotorHyperRecipe,
+                ForgeConfigHandler.motors.enableMotorUltraRecipe
+        };
+        String[] recipeStrings = {
+                ForgeConfigHandler.motors.motorSlowRecipe,
+                ForgeConfigHandler.motors.motorNormalRecipe,
+                ForgeConfigHandler.motors.motorFastRecipe,
+                ForgeConfigHandler.motors.motorTurboRecipe,
+                ForgeConfigHandler.motors.motorHyperRecipe,
+                ForgeConfigHandler.motors.motorUltraRecipe
+        };
+
+        for (int i = 0; i < buffers.length; i++) {
+            if (!enabled[i]) continue;
+            net.minecraft.item.crafting.IRecipe motorRecipe =
+                    rusticpipes.util.RecipeParser.parse(
+                            recipeStrings[i],
+                            new net.minecraft.util.ResourceLocation(RusticPipes.MODID, recipeIds[i]),
+                            new ItemStack(buffers[i], 1));
+            if (motorRecipe != null) event.getRegistry().register(motorRecipe);
         }
     }
 }

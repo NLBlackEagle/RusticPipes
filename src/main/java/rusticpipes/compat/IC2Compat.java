@@ -124,17 +124,53 @@ public final class IC2Compat {
 
     // -----------------------------------------------------------------------
     // Adapter: IC2 IEnergySink → FE IEnergyStorage (receive-only)
+    //
+    // injectEnergy is called via reflection to avoid a compile-time dependency
+    // on ForgeDirection (used in older IC2 API jars, removed in 1.7+).
+    // We find the method once and cache it; if lookup fails we fall back to
+    // treating the sink as accepting all demanded energy (optimistic simulate).
     // -----------------------------------------------------------------------
 
     private static final class SinkWrapper implements IEnergyStorage {
 
         private final ic2.api.energy.tile.IEnergySink sink;
 
+        // Cached reflection handle for injectEnergy — resolved once on first use.
+        private static java.lang.reflect.Method injectEnergyMethod = null;
+        private static boolean injectEnergyResolved = false;
+
         SinkWrapper(ic2.api.energy.tile.IEnergySink sink) {
             this.sink = sink;
         }
 
         private int ratio() { return Math.max(1, ForgeConfigHandler.conduit.ic2FeRatio); }
+
+        /**
+         * Calls sink.injectEnergy(...) reflectively, handling both the old
+         * ForgeDirection signature and the modern EnumFacing signature.
+         * Returns leftover EU (same contract as the real method).
+         */
+        private double injectEnergy(double amount) {
+            if (!injectEnergyResolved) {
+                injectEnergyResolved = true;
+                for (java.lang.reflect.Method m : sink.getClass().getMethods()) {
+                    if (m.getName().equals("injectEnergy") && m.getParameterCount() == 3) {
+                        injectEnergyMethod = m;
+                        break;
+                    }
+                }
+            }
+            if (injectEnergyMethod == null) return 0; // can't inject — treat as fully consumed
+            try {
+                // Both signatures are (direction, amount, voltage) — pass null for direction
+                // (IC2 ignores it for most machines) and use tier as voltage.
+                Object result = injectEnergyMethod.invoke(sink, null, amount, (double) sink.getSinkTier());
+                return result instanceof Number ? ((Number) result).doubleValue() : 0;
+            } catch (Exception e) {
+                RusticPipes.LOGGER.debug("[RusticPipes] IC2 injectEnergy reflection failed: {}", e.getMessage());
+                return 0;
+            }
+        }
 
         @Override
         public int receiveEnergy(int maxReceiveFe, boolean simulate) {
@@ -143,8 +179,7 @@ public final class IC2Compat {
             double demanded = Math.min(sink.getDemandedEnergy(), maxEu);
             if (demanded <= 0) return 0;
             if (!simulate) {
-                // injectEnergy returns leftover EU; consumed = demanded - leftover
-                double leftover = sink.injectEnergy(null, demanded, sink.getSinkTier());
+                double leftover = injectEnergy(demanded);
                 double consumed = demanded - leftover;
                 return (int) (consumed * ratio);
             }

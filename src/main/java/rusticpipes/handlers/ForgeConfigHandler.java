@@ -156,6 +156,15 @@ public class ForgeConfigHandler {
         @Config.Name("Enable Conduit Recipe")
         public boolean enableConduitRecipe = true;
 
+        @Config.Comment("Shaped recipe for the conduit.\n"
+                + "Format: {[slot1],...,[slot9]} * count\n"
+                + "Slots: use [modid:itemname], [ore:oreName], or [minecraft:air] for empty.")
+        @Config.Name("Conduit Recipe")
+        public String conduitRecipe =
+                "{[minecraft:wool],[minecraft:wool],[minecraft:wool],"
+                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
+                + "[minecraft:wool],[minecraft:wool],[minecraft:wool]} * 4";
+
         @Config.Comment("Powered conduits exposed to the sky are struck by lightning during rain.")
         @Config.Name("Enable Rain Lightning Damage")
         public boolean enableRainDamage = true;
@@ -203,6 +212,70 @@ public class ForgeConfigHandler {
         @Config.Name("Buffer Drain Rate (% per tick, no conduit)")
         public double bufferDrainRatePerTick = 0.05;
 
+        // ── Motor crafting recipes ───────────────────────────────────────────
+        // Format: {[slot1],...,[slot9]} * count
+        // Slots: [modid:itemname], [ore:oreName], or [minecraft:air] for empty.
+
+        @Config.Comment("Enable crafting recipe for the Basic Pipe Motor.")
+        @Config.Name("Enable Basic Motor Recipe")
+        public boolean enableMotorSlowRecipe = true;
+
+        @Config.Name("Basic Pipe Motor Recipe")
+        public String motorSlowRecipe =
+                "{[ore:ingotIron],[rusticpipes:white_pipe],[ore:ingotIron],"
+                + "[ore:ingotIron],[minecraft:air],[ore:ingotIron],"
+                + "[ore:ingotIron],[rusticpipes:conduit],[ore:ingotIron]} * 1";
+
+        @Config.Comment("Enable crafting recipe for the Refined Pipe Motor.")
+        @Config.Name("Enable Refined Motor Recipe")
+        public boolean enableMotorNormalRecipe = true;
+
+        @Config.Name("Refined Pipe Motor Recipe")
+        public String motorNormalRecipe =
+                "{[ore:ingotIron],[minecraft:redstone],[ore:ingotIron],"
+                + "[ore:ingotIron],[rusticpipes:conduit_buffer_slow],[ore:ingotIron],"
+                + "[ore:ingotIron],[minecraft:dropper],[ore:ingotIron]} * 1";
+
+        @Config.Comment("Enable crafting recipe for the Efficient Pipe Motor.")
+        @Config.Name("Enable Efficient Motor Recipe")
+        public boolean enableMotorFastRecipe = true;
+
+        @Config.Name("Efficient Pipe Motor Recipe")
+        public String motorFastRecipe =
+                "{[ore:ingotGold],[rusticpipes:white_pipe],[ore:ingotGold],"
+                + "[ore:ingotGold],[rusticpipes:conduit_buffer_normal],[ore:ingotGold],"
+                + "[ore:ingotGold],[minecraft:comparator],[ore:ingotGold]} * 1";
+
+        @Config.Comment("Enable crafting recipe for the Advanced Pipe Motor.")
+        @Config.Name("Enable Advanced Motor Recipe")
+        public boolean enableMotorTurboRecipe = true;
+
+        @Config.Name("Advanced Pipe Motor Recipe")
+        public String motorTurboRecipe =
+                "{[ore:ingotIron],[minecraft:hopper],[ore:ingotIron],"
+                + "[ore:ingotIron],[rusticpipes:conduit_buffer_fast],[ore:ingotIron],"
+                + "[ore:ingotIron],[minecraft:hopper],[ore:ingotIron]} * 1";
+
+        @Config.Comment("Enable crafting recipe for the Reinforced Pipe Motor.")
+        @Config.Name("Enable Reinforced Motor Recipe")
+        public boolean enableMotorHyperRecipe = true;
+
+        @Config.Name("Reinforced Pipe Motor Recipe")
+        public String motorHyperRecipe =
+                "{[ore:ingotIron],[minecraft:iron_block],[ore:ingotIron],"
+                + "[ore:ingotIron],[rusticpipes:conduit_buffer_turbo],[ore:ingotIron],"
+                + "[ore:ingotIron],[minecraft:iron_block],[ore:ingotIron]} * 1";
+
+        @Config.Comment("Enable crafting recipe for the Overclocked Pipe Motor.")
+        @Config.Name("Enable Overclocked Motor Recipe")
+        public boolean enableMotorUltraRecipe = true;
+
+        @Config.Name("Overclocked Pipe Motor Recipe")
+        public String motorUltraRecipe =
+                "{[ore:ingotIron],[minecraft:gold_block],[ore:ingotIron],"
+                + "[ore:ingotIron],[rusticpipes:conduit_buffer_hyper],[ore:ingotIron],"
+                + "[ore:ingotIron],[minecraft:gold_block],[ore:ingotIron]} * 1";
+
         public int getBuffer(rusticpipes.network.PipeNetwork.SpeedTier tier) {
             switch (tier) {
                 case NORMAL: return bufferNormal;
@@ -221,9 +294,15 @@ public class ForgeConfigHandler {
         @Config.Name("Enable Base Pipe Recipe")
         public boolean enableBasePipeRecipe = true;
 
-        @Config.RangeInt(min = 1, max = 64)
-        @Config.Name("Base Pipe Recipe Output Count")
-        public int basePipeRecipeOutput = 4;
+        @Config.Comment("Shaped recipe for the white (base) pipe.\n"
+                + "Format: {[slot1],...,[slot9]} * count\n"
+                + "Slots: use [modid:itemname], [ore:oreName], or [minecraft:air] for empty.\n"
+                + "Slots are read left-to-right, top-to-bottom (3x3 grid).")
+        @Config.Name("Base Pipe Recipe")
+        public String basePipeRecipe =
+                "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
+                + "[minecraft:iron_ingot],[minecraft:air],[minecraft:iron_ingot],"
+                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
 
         @Config.Comment("Enable shapeless dye conversion recipes.")
         @Config.Name("Enable Dye Conversion Recipes")
