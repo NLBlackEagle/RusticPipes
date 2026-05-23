@@ -232,17 +232,17 @@ public class ConduitNetwork {
                 ? Math.min(1f, (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored())
                 : 0f;
         smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
-        // Notify client re-render only when tier bracket changes
-        int tier = tierFromStored(sharedBuffer.getEnergyStored());
-        if (tier != lastTier) {
-            lastTier = tier;
-            boolean powered = sharedBuffer.getEnergyStored() > 0;
+        // Notify client re-render when powered state changes.
+        // Use throughput rather than stored FE — the buffer drains instantly
+        // when energy passes straight through, so stored is always near 0
+        // even when the conduit is actively transferring.
+        boolean powered = smoothedThroughput > 0.001f || sharedBuffer.getEnergyStored() > 0;
+        int poweredInt = powered ? 1 : 0;
+        if (poweredInt != lastTier) {
+            lastTier = poweredInt;
             for (BlockPos memberPos : members) {
                 IBlockState bs = world.getBlockState(memberPos);
-                // Flag 2 = send update to clients only, no neighbour cascade, no chunk save
                 world.notifyBlockUpdate(memberPos, bs, bs, 2);
-                // Sync power state to clients so getExtendedState can pick the
-                // correct connector texture on a dedicated server.
                 RusticPipes.NET.sendToAllAround(
                         new PacketConduitPower(memberPos, powered),
                         new net.minecraftforge.fml.common.network.NetworkRegistry.TargetPoint(

@@ -99,7 +99,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         boolean powered;
         ConduitNetwork network = ConduitNetwork.getNetwork(pos);
         if (network != null) {
-            powered = network.getBufferStored() > 0;
+            powered = network.getBufferStored() > 0 || network.getSmoothedThroughput() > 0;
         } else {
             powered = ConduitClientState.isPowered(pos);
         }
@@ -151,13 +151,13 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                     ConduitNetwork network = ConduitNetwork.getNetwork(pos);
                     if (network != null) {
                         int capacity = network.getBufferCapacity();
-                        int throughput = network.getSmoothedThroughput();
+                        int displayFe = Math.max(network.getBufferStored(), network.getSmoothedThroughput());
                         double lossRate = rusticpipes.handlers.ForgeConfigHandler.conduit.powerLossPerConduitPerTick;
-                        int lossPerCable = (int) Math.round(throughput * lossRate);
+                        int lossPerCable = (int) Math.round(displayFe * lossRate);
                         int totalLoss = lossPerCable * network.getMemberCount();
                         player.sendMessage(new TextComponentTranslation(
                                 "rusticpipes.message.conduit.info",
-                                throughput, capacity, lossPerCable, totalLoss));
+                                displayFe, capacity, lossPerCable, totalLoss));
                     }
                 }
             }

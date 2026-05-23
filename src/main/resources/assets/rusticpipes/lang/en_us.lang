@@ -31,8 +31,8 @@ tile.conduit_buffer_ultra.name=Overclocked Pipe Motor
 itemGroup.rusticpipes=Rustic Pipes
 
 # Messages
-# %1$s = throughput FE/t, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
-rusticpipes.message.conduit.info=[Power Cord] %1$s FE/t · %3$s FE loss/cable (%4$s total)
+# %1$s = max(buffer, throughput) FE, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
+rusticpipes.message.conduit.info=[Power Cord] %1$s FE · %3$s FE loss/cable (%4$s total)
 
 # %1$s = tier name, %2$s = stored FE, %3$s = capacity FE
 rusticpipes.message.motor.info=Pipe Motor [%1$s] %2$s/%3$s FE
