@@ -28,6 +28,9 @@ import rusticpipes.tileentity.TileEntityConduit;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+import rusticpipes.handlers.TooltipHandler;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
@@ -286,4 +289,11 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
         }
         super.breakBlock(world, pos, state);
     }
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void addInformation(net.minecraft.item.ItemStack stack, net.minecraft.world.World world,
+                               List<String> tooltip, net.minecraft.client.util.ITooltipFlag flag) {
+        TooltipHandler.addPipeTooltip(stack, tooltip, pipeColor);
+    }
+
 }

@@ -16,6 +16,10 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
+import rusticpipes.handlers.TooltipHandler;
+import java.util.List;
+import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.relauncher.Side;
 
 public class BlockConduitBuffer extends Block implements ITileEntityProvider {
 
@@ -85,4 +89,11 @@ public class BlockConduitBuffer extends Block implements ITileEntityProvider {
             world.notifyBlockUpdate(pos, state, state, 3);
         super.breakBlock(world, pos, state);
     }
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void addInformation(net.minecraft.item.ItemStack stack, net.minecraft.world.World world,
+                               java.util.List<String> tooltip, net.minecraft.client.util.ITooltipFlag flag) {
+        TooltipHandler.addMotorTooltip(stack, tooltip, tier);
+    }
+
 }

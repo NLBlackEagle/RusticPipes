@@ -28,6 +28,9 @@ import rusticpipes.tileentity.TileEntityConduit;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import rusticpipes.handlers.TooltipHandler;
+import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.relauncher.Side;
 
 public class BlockConduit extends Block implements ITileEntityProvider {
 
@@ -149,10 +152,12 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                     if (network != null) {
                         int capacity = network.getBufferCapacity();
                         int displayStored = (int) (network.getSmoothedFill() * capacity);
-                        int pct = capacity > 0 ? (int)(network.getSmoothedFill() * 100) : 0;
+                        double lossRate = rusticpipes.handlers.ForgeConfigHandler.conduit.powerLossPerConduitPerTick;
+                        int lossPerCable = (int) Math.round(displayStored * lossRate);
+                        int totalLoss = lossPerCable * network.getMemberCount();
                         player.sendMessage(new TextComponentTranslation(
                                 "rusticpipes.message.conduit.info",
-                                network.getMemberCount(), displayStored, capacity, pct));
+                                displayStored, capacity, lossPerCable, totalLoss));
                     }
                 }
             }
@@ -206,4 +211,11 @@ public class BlockConduit extends Block implements ITileEntityProvider {
     public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess source, BlockPos pos) {
         return FULL_BLOCK_AABB;
     }
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void addInformation(net.minecraft.item.ItemStack stack, net.minecraft.world.World world,
+                               java.util.List<String> tooltip, net.minecraft.client.util.ITooltipFlag flag) {
+        TooltipHandler.addConduitTooltip(stack, tooltip);
+    }
+
 }
