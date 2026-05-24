@@ -1,6 +1,6 @@
 {
   "parent": "block/cube_all",
   "textures": {
-    "all": "rusticpipes:blocks/fluid_tank/fluid_tank_corner"
+    "all": "rusticpipes:blocks/fluid_tank/fluid_tank_viewport"
   }
 }

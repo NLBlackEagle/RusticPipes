@@ -11,6 +11,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.client.model.IModel;
 import net.minecraftforge.common.model.IModelState;
 import net.minecraftforge.common.model.TRSRTransformation;
+import net.minecraft.util.BlockRenderLayer;
+import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.common.property.IUnlistedProperty;
 import rusticpipes.block.PipeColor;
@@ -101,9 +103,8 @@ public class FluidPipeModel implements IModel {
         TextureAtlasSprite[] body = new TextureAtlasSprite[20];
         TextureAtlasSprite water = getter.apply(PIPE_WATER);
         for (int i = 0; i < 20; i++) {
-            // Only the center slot (index 10) uses the viewport sprite
-            body[i] = (i == 10) ? water
-                    : getter.apply(new ResourceLocation(ROOT + "pipe_body_" + String.format("%02d", i + 1)));
+            // All slots are solid — waterSprite is used separately via vp* flags
+            body[i] = getter.apply(new ResourceLocation(ROOT + "pipe_body_" + String.format("%02d", i + 1)));
         }
         return new FluidPipeBakedModel(
                 body, water,
@@ -236,6 +237,8 @@ public class FluidPipeModel implements IModel {
                     ? Math.abs((pos.getX() * 73856093) ^ (pos.getY() * 19349663) ^ (pos.getZ() * 83492791))
                     : 0;
 
+            // Per-face viewport: 30% of N/S/E/W faces show pipe_water_01.
+            // Top/bottom are never viewports. Each face is independent.
             int idxN = (texBase + 3)  % 20;
             int idxS = (texBase + 7)  % 20;
             int idxE = (texBase + 11) % 20;
@@ -243,42 +246,68 @@ public class FluidPipeModel implements IModel {
             int idxU = (texBase + 17) % 20;
             int idxD = (texBase + 19) % 20;
 
-            TextureAtlasSprite bodyN = bodySprites[idxN];
-            TextureAtlasSprite bodyS = bodySprites[idxS];
-            TextureAtlasSprite bodyE = bodySprites[idxE];
-            TextureAtlasSprite bodyW = bodySprites[idxW];
+            boolean vpN = idxN % 10 < 3;
+            boolean vpS = idxS % 10 < 3;
+            boolean vpE = idxE % 10 < 3;
+            boolean vpW = idxW % 10 < 3;
+
+            // Core face sprites — viewport faces use waterSprite, arms always solid
+            TextureAtlasSprite bodyN = vpN ? waterSprite : bodySprites[idxN];
+            TextureAtlasSprite bodyS = vpS ? waterSprite : bodySprites[idxS];
+            TextureAtlasSprite bodyE = vpE ? waterSprite : bodySprites[idxE];
+            TextureAtlasSprite bodyW = vpW ? waterSprite : bodySprites[idxW];
             TextureAtlasSprite bodyU = bodySprites[idxU];
             TextureAtlasSprite bodyD = bodySprites[idxD];
+            // Arm sprites — always solid, bodySprites never contains waterSprite
+            TextureAtlasSprite solidN = bodySprites[idxN];
+            TextureAtlasSprite solidS = bodySprites[idxS];
+            TextureAtlasSprite solidE = bodySprites[idxE];
+            TextureAtlasSprite solidW = bodySprites[idxW];
 
-            // Core cube
-            addCube(quads, CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX,
-                    bodyD, bodyU, bodyN, bodyS, bodyW, bodyE, BODY_TINT);
+            BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+            boolean isCutout = layer == BlockRenderLayer.CUTOUT_MIPPED;
+            boolean isSolid  = layer == null || layer == BlockRenderLayer.SOLID;
 
-            // Fluid color quad — always rendered on viewport faces so transparent
-            // pixels in pipe_water_01 have something behind them.
-            // Empty = dark grey, flowing = fluid color.
-            {
-                int packedColor = (fluidColor != 0)
-                        ? (0xFF000000 | (fluidColor & 0x00FFFFFF))
-                        : 0xFF222222; // dark empty viewport
-                float fi = CORE_MIN + 0.005f;
-                float fa = CORE_MAX - 0.005f;
-                // Only render on core faces with no arm — arms cover the core face
-                if (idxN == 10 && north == 0) addFluidQuad(quads, EnumFacing.NORTH, fi, fa, waterSprite, packedColor);
-                if (idxS == 10 && south == 0) addFluidQuad(quads, EnumFacing.SOUTH, fi, fa, waterSprite, packedColor);
-                if (idxE == 10 && east  == 0) addFluidQuad(quads, EnumFacing.EAST,  fi, fa, waterSprite, packedColor);
-                if (idxW == 10 && west  == 0) addFluidQuad(quads, EnumFacing.WEST,  fi, fa, waterSprite, packedColor);
-                if (idxU == 10 && up    == 0) addFluidQuad(quads, EnumFacing.UP,    fi, fa, waterSprite, packedColor);
-                if (idxD == 10 && down  == 0) addFluidQuad(quads, EnumFacing.DOWN,  fi, fa, waterSprite, packedColor);
+            if (isSolid) {
+                // SOLID pass — skip viewport faces, render solid on the rest
+                TextureAtlasSprite sN = vpN ? null : bodySprites[idxN];
+                TextureAtlasSprite sS = vpS ? null : bodySprites[idxS];
+                TextureAtlasSprite sE = vpE ? null : bodySprites[idxE];
+                TextureAtlasSprite sW = vpW ? null : bodySprites[idxW];
+                // Render each face individually to skip viewport faces
+                if (sN != null) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, sN, BODY_TINT);
+                if (sS != null) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, sS, BODY_TINT);
+                if (sE != null) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, sE, BODY_TINT);
+                if (sW != null) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, sW, BODY_TINT);
+                addQuad(quads, EnumFacing.UP,   CORE_MIN,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, bodyU, BODY_TINT);
+                addQuad(quads, EnumFacing.DOWN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MIN,CORE_MAX, bodyD, BODY_TINT);
             }
 
-            // Arms and flanges
-            if (north > 0) { addArm(quads, EnumFacing.NORTH, bodyN); addFlange(quads, EnumFacing.NORTH, north); }
-            if (south > 0) { addArm(quads, EnumFacing.SOUTH, bodyS); addFlange(quads, EnumFacing.SOUTH, south); }
-            if (east  > 0) { addArm(quads, EnumFacing.EAST,  bodyE); addFlange(quads, EnumFacing.EAST,  east); }
-            if (west  > 0) { addArm(quads, EnumFacing.WEST,  bodyW); addFlange(quads, EnumFacing.WEST,  west); }
-            if (up    > 0) { addArm(quads, EnumFacing.UP,    bodyU); addFlange(quads, EnumFacing.UP,    up); }
-            if (down  > 0) { addArm(quads, EnumFacing.DOWN,  bodyD); addFlange(quads, EnumFacing.DOWN,  down); }
+            if (isCutout) {
+                // CUTOUT_MIPPED pass — viewport faces only
+                if (vpN) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
+                if (vpS) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
+                if (vpE) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
+                if (vpW) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
+                // Fluid color quad just inside viewport faces when fluid flowing
+                if (fluidColor != 0) {
+                    int packedColor = 0xFF000000 | (fluidColor & 0x00FFFFFF);
+                    float fi = CORE_MIN + 0.005f, fa = CORE_MAX - 0.005f;
+                    if (vpN && north == 0) addFluidQuad(quads, EnumFacing.NORTH, fi, fa, waterSprite, packedColor);
+                    if (vpS && south == 0) addFluidQuad(quads, EnumFacing.SOUTH, fi, fa, waterSprite, packedColor);
+                    if (vpE && east  == 0) addFluidQuad(quads, EnumFacing.EAST,  fi, fa, waterSprite, packedColor);
+                    if (vpW && west  == 0) addFluidQuad(quads, EnumFacing.WEST,  fi, fa, waterSprite, packedColor);
+                }
+            }
+
+            if (!isSolid) return quads;
+            // Arms always use solid sprites — never the viewport texture
+            if (north > 0) { addArm(quads, EnumFacing.NORTH, solidN); addFlange(quads, EnumFacing.NORTH, north); }
+            if (south > 0) { addArm(quads, EnumFacing.SOUTH, solidS); addFlange(quads, EnumFacing.SOUTH, south); }
+            if (east  > 0) { addArm(quads, EnumFacing.EAST,  solidE); addFlange(quads, EnumFacing.EAST,  east); }
+            if (west  > 0) { addArm(quads, EnumFacing.WEST,  solidW); addFlange(quads, EnumFacing.WEST,  west); }
+            if (up    > 0) { addArm(quads, EnumFacing.UP,    bodyU);  addFlange(quads, EnumFacing.UP,    up); }
+            if (down  > 0) { addArm(quads, EnumFacing.DOWN,  bodyD);  addFlange(quads, EnumFacing.DOWN,  down); }
 
             return quads;
         }

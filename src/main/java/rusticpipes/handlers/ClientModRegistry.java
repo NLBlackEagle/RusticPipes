@@ -24,6 +24,7 @@ import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockFluidTank;
 import rusticpipes.client.FluidTankRenderer;
 import rusticpipes.client.model.FluidPipeModelLoader;
+import rusticpipes.client.model.FluidTankModelLoader;
 import rusticpipes.tileentity.TileEntityFluidTank;
 import rusticpipes.client.model.PipeModelLoader;
 
@@ -34,6 +35,7 @@ public class ClientModRegistry {
         ModelLoaderRegistry.registerLoader(PipeModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(ConduitModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(FluidPipeModelLoader.INSTANCE);
+        ModelLoaderRegistry.registerLoader(FluidTankModelLoader.INSTANCE);
         // Buffer blocks use vanilla full-cube models — no custom loader needed
     }
 
@@ -44,6 +46,8 @@ public class ClientModRegistry {
         // their texture/init setup before we bind our renderer.
         net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
                 TileEntityFluidTank.class, new FluidTankRenderer());
+        net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
+                rusticpipes.tileentity.TileEntityFluidPipe.class, new rusticpipes.client.FluidPipeRenderer());
     }
 
     @SubscribeEvent
