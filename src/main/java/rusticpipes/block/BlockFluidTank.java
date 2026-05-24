@@ -143,7 +143,12 @@ public class BlockFluidTank extends Block implements ITileEntityProvider {
 
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
-        return layer == BlockRenderLayer.CUTOUT_MIPPED;
+        TankRole role = state.getValue(ROLE);
+        if (role == TankRole.TOP || role == TankRole.BOTTOM) {
+            return layer == BlockRenderLayer.SOLID;
+        }
+        // single/wall/corner/edge — solid top/bottom + cutout sides
+        return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
     }
 
     @Override

@@ -12,6 +12,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.client.renderer.OpenGlHelper;
 import org.lwjgl.opengl.GL11;
 import rusticpipes.multiblock.TankMultiblock;
 import rusticpipes.tileentity.TileEntityFluidTank;
@@ -23,20 +24,18 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
     public void render(TileEntityFluidTank te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
 
-        // Only render from the controller, and only if we have fluid
+        // Only render from the controller (or single block)
         if (!te.isController() && te.isPartOfMultiblock()) return;
 
         FluidStack fluid = te.getFluid();
-        if (fluid == null || fluid.amount <= 0) return;
+        float fill = (fluid != null && fluid.amount > 0) ? te.getFillFraction() : 0f;
 
-        float fill = te.getFillFraction();
-        if (fill <= 0.001f) return;
-
-        // Get fluid texture
-        TextureAtlasSprite sprite = Minecraft.getMinecraft()
-                .getTextureMapBlocks()
-                .getAtlasSprite(fluid.getFluid().getStill(fluid).toString());
-        if (sprite == null) return;
+        // Get fluid texture (may be null if tank is empty)
+        TextureAtlasSprite sprite = null;
+        if (fluid != null && fluid.getFluid() != null) {
+            sprite = Minecraft.getMinecraft().getTextureMapBlocks()
+                    .getAtlasSprite(fluid.getFluid().getStill(fluid).toString());
+        }
 
         // Determine the interior bounds of the tank
         // For a single block: small interior (0.125 – 0.875)
@@ -84,11 +83,21 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
             maxY = minY + (innerMaxY - innerMinY - 0.02) * fill;
         } else {
             // Single block
-            minX = 0.125; maxX = 0.875;
-            minZ = 0.125; maxZ = 0.875;
-            minY = 0.125;
-            maxY = minY + (0.75 * fill);
+            minX = 0.18; maxX = 0.82;
+            minZ = 0.18; maxZ = 0.82;
+            minY = 0.04;
+            maxY = minY + (0.68 * fill);
         }
+
+        // Get tank textures for inner walls
+        TextureAtlasSprite wallSprite = Minecraft.getMinecraft()
+                .getTextureMapBlocks()
+                .getAtlasSprite("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
+        if (wallSprite == null) wallSprite = Minecraft.getMinecraft().getTextureMapBlocks().getMissingSprite();
+        TextureAtlasSprite solidSprite = Minecraft.getMinecraft()
+                .getTextureMapBlocks()
+                .getAtlasSprite("rusticpipes:blocks/fluid_tank/fluid_tank_solid");
+        if (solidSprite == null) solidSprite = wallSprite;
 
         // Render
         GlStateManager.pushMatrix();
@@ -101,6 +110,53 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         GlStateManager.disableLighting();
         GlStateManager.disableCull();
 
+        // ---- Inner walls — always rendered ----
+        float wu0 = wallSprite.getMinU(), wu1 = wallSprite.getMaxU();
+        float wv0 = wallSprite.getMinV(), wv1 = wallSprite.getMaxV();
+
+        Tessellator tessellator = Tessellator.getInstance();
+        BufferBuilder buf = tessellator.getBuffer();
+        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
+
+        float wx1 = (float)minX, wx2 = (float)maxX;
+        float wy1 = (float)minY, wy2 = (float)(minY + (maxX - minX)); // full height
+        float wz1 = (float)minZ, wz2 = (float)maxZ;
+        // Use full interior height for walls
+        double fullMaxY = te.isPartOfMultiblock()
+                ? maxY / fill * 1.0  // approximate
+                : minY + 0.75;
+        float wTop = (float)(te.isPartOfMultiblock() ? (minY + (maxX - minX)) : 0.99); // flush with exterior top
+
+        // Bottom — solid texture, both faces
+        float su0 = solidSprite.getMinU(), su1 = solidSprite.getMaxU();
+        float sv0 = solidSprite.getMinV(), sv1 = solidSprite.getMaxV();
+        putQuad(buf, wx1,wy1,wz1, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
+        putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
+        // Top — solid texture
+        putQuad(buf, wx1,wTop,wz1, wx2,wTop,wz1, wx2,wTop,wz2, wx1,wTop,wz2, su0,sv0,su1,sv1, 1f,1f,1f,1f);
+        // North (inward-facing = faces toward +Z, so South winding)
+        putQuad(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
+        // South (inward-facing)
+        putQuad(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
+        // West (inward-facing)
+        putQuad(buf, wx1,wy1,wz2, wx1,wy1,wz1, wx1,wTop,wz1, wx1,wTop,wz2, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
+        // East (inward-facing)
+        putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx2,wTop,wz2, wx2,wTop,wz1, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
+        tessellator.draw();
+
+        GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
+        // Force full brightness for fluid rendering
+        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
+
+        // ---- Fluid ----
+        if (fluid == null || fluid.amount <= 0) {
+            GlStateManager.enableCull();
+            GlStateManager.enableLighting();
+            GlStateManager.disableBlend();
+            GlStateManager.popMatrix();
+            return;
+        }
+
         int color = fluid.getFluid().getColor(fluid);
         float r = ((color >> 16) & 0xFF) / 255f;
         float g = ((color >> 8)  & 0xFF) / 255f;
@@ -108,48 +164,51 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         float a = ((color >> 24) & 0xFF) / 255f;
         if (a == 0f) a = 0.8f; // default alpha if fluid has no alpha channel
 
+        // Fluid bounds — inset from inner walls to avoid z-fighting
+        double fMinX = minX + 0.02, fMaxX = maxX - 0.02;
+        double fMinZ = minZ + 0.02, fMaxZ = maxZ - 0.02;
+        double fMinY = minY + 0.01;
+
         float u1 = sprite.getMinU(), u2 = sprite.getMaxU();
         float v1 = sprite.getMinV(), v2 = sprite.getMaxV();
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buf = tessellator.getBuffer();
         buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
 
         // Top face
-        buf.pos(minX, maxY, minZ).tex(u1, v1).color(r, g, b, a).endVertex();
-        buf.pos(minX, maxY, maxZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, maxZ).tex(u2, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, minZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY, fMinZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY, fMaxZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY, fMaxZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY, fMinZ).tex(u2, v1).color(r, g, b, a).endVertex();
 
         // Bottom face
-        buf.pos(minX, minY, maxZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(minX, minY, minZ).tex(u1, v1).color(r, g, b, a).endVertex();
-        buf.pos(maxX, minY, minZ).tex(u2, v1).color(r, g, b, a).endVertex();
-        buf.pos(maxX, minY, maxZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMaxZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMinZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMinZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMaxZ).tex(u2, v2).color(r, g, b, a).endVertex();
 
         // North face
-        buf.pos(maxX, minY, minZ).tex(u2, v2).color(r, g, b, a).endVertex();
-        buf.pos(minX, minY, minZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(minX, maxY, minZ).tex(u1, v1).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, minZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMinZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMinZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY,  fMinZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY,  fMinZ).tex(u2, v1).color(r, g, b, a).endVertex();
 
         // South face
-        buf.pos(minX, minY, maxZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, minY, maxZ).tex(u2, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, maxZ).tex(u2, v1).color(r, g, b, a).endVertex();
-        buf.pos(minX, maxY, maxZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMaxZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMaxZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY,  fMaxZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY,  fMaxZ).tex(u1, v1).color(r, g, b, a).endVertex();
 
         // West face
-        buf.pos(minX, minY, minZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(minX, minY, maxZ).tex(u2, v2).color(r, g, b, a).endVertex();
-        buf.pos(minX, maxY, maxZ).tex(u2, v1).color(r, g, b, a).endVertex();
-        buf.pos(minX, maxY, minZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMinZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, fMinY, fMaxZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY,  fMaxZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMinX, maxY,  fMinZ).tex(u1, v1).color(r, g, b, a).endVertex();
 
         // East face
-        buf.pos(maxX, minY, maxZ).tex(u1, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, minY, minZ).tex(u2, v2).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, minZ).tex(u2, v1).color(r, g, b, a).endVertex();
-        buf.pos(maxX, maxY, maxZ).tex(u1, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMaxZ).tex(u1, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, fMinY, fMinZ).tex(u2, v2).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY,  fMinZ).tex(u2, v1).color(r, g, b, a).endVertex();
+        buf.pos(fMaxX, maxY,  fMaxZ).tex(u1, v1).color(r, g, b, a).endVertex();
 
         tessellator.draw();
 
@@ -158,4 +217,17 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
     }
+    private void putQuad(BufferBuilder buf,
+                         float x1, float y1, float z1,
+                         float x2, float y2, float z2,
+                         float x3, float y3, float z3,
+                         float x4, float y4, float z4,
+                         float u0, float v0, float u1, float v1,
+                         float r, float g, float b, float a) {
+        buf.pos(x1,y1,z1).tex(u0,v1).color(r,g,b,a).endVertex();
+        buf.pos(x2,y2,z2).tex(u1,v1).color(r,g,b,a).endVertex();
+        buf.pos(x3,y3,z3).tex(u1,v0).color(r,g,b,a).endVertex();
+        buf.pos(x4,y4,z4).tex(u0,v0).color(r,g,b,a).endVertex();
+    }
+
 }

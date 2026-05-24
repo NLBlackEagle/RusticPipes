@@ -14,6 +14,8 @@ public class FluidTankModelLoader implements ICustomModelLoader {
     public boolean accepts(ResourceLocation modelLocation) {
         if (!modelLocation.getNamespace().equals(RusticPipes.MODID)) return false;
         String path = modelLocation.getPath();
+        // Top and bottom use vanilla cube_all with solid texture — skip those
+        if (path.equals("fluid_tank_top") || path.equals("fluid_tank_bottom")) return false;
         return path.startsWith("fluid_tank") || path.equals("item/fluid_tank");
     }
 

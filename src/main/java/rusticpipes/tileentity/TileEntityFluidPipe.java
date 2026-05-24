@@ -180,7 +180,15 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         FluidNetwork network = FluidNetwork.getNetwork(world, pos);
         if (network == null) return;
 
-        // Master = smallest pos in network
+        // Drain visual buffer if no fluid has passed through recently — runs on all pipes
+        ticksSinceFlow++;
+        if (ticksSinceFlow > DRAIN_AFTER_TICKS && fluidColor != 0) {
+            buffer = null;
+            fluidColor = 0;
+            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+        }
+
+        // Only master pipe drives transfer
         BlockPos master = null;
         for (BlockPos p : network.getMembers()) {
             if (master == null || p.toLong() < master.toLong()) master = p;
@@ -190,14 +198,6 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         int tickRate = rusticpipes.handlers.ForgeConfigHandler.fluid.flowTickRate;
         if (world.getTotalWorldTime() % tickRate == 0) {
             network.transferFluids(world);
-        }
-
-        // Drain visual buffer if no fluid has passed through recently
-        ticksSinceFlow++;
-        if (ticksSinceFlow > DRAIN_AFTER_TICKS && fluidColor != 0) {
-            buffer = null;
-            fluidColor = 0;
-            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
     }
 }

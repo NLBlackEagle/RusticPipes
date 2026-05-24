@@ -26,18 +26,22 @@ public class FluidTankModel implements IModel {
 
     public static final FluidTankModel INSTANCE = new FluidTankModel();
 
-    private static final ResourceLocation TEXTURE =
+    private static final ResourceLocation TEXTURE_VIEWPORT =
             new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_viewport");
+    private static final ResourceLocation TEXTURE_SOLID =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_solid");
+    private static final ResourceLocation TEXTURE_INNER_VIEWPORT =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
 
     @Override
     public Collection<ResourceLocation> getTextures() {
-        return Collections.singletonList(TEXTURE);
+        return java.util.Arrays.asList(TEXTURE_VIEWPORT, TEXTURE_SOLID, TEXTURE_INNER_VIEWPORT);
     }
 
     @Override
     public IBakedModel bake(IModelState state, VertexFormat format,
                             Function<ResourceLocation, TextureAtlasSprite> getter) {
-        return new BakedTankModel(getter.apply(TEXTURE));
+        return new BakedTankModel(getter.apply(TEXTURE_VIEWPORT), getter.apply(TEXTURE_SOLID));
     }
 
     @Override public IModelState getDefaultState() { return TRSRTransformation.identity(); }
@@ -45,11 +49,13 @@ public class FluidTankModel implements IModel {
 
     public static final class BakedTankModel implements IBakedModel {
 
-        private final TextureAtlasSprite sprite;
+        private final TextureAtlasSprite viewport;
+        private final TextureAtlasSprite solid;
         private static final int NO_TINT = -1;
 
-        BakedTankModel(TextureAtlasSprite sprite) {
-            this.sprite = sprite;
+        BakedTankModel(TextureAtlasSprite viewport, TextureAtlasSprite solid) {
+            this.viewport = viewport;
+            this.solid = solid;
         }
 
         @Override
@@ -57,22 +63,30 @@ public class FluidTankModel implements IModel {
             if (side != null) return Collections.emptyList();
 
             BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
-            // In-world: only render in CUTOUT_MIPPED so transparent pixels show through.
-            // Inventory (state==null, layer==null): always render.
-            if (state != null && layer != BlockRenderLayer.CUTOUT_MIPPED) {
-                return Collections.emptyList();
-            }
+            boolean isInventory = state == null;
+            boolean isSolid  = isInventory || layer == BlockRenderLayer.SOLID;
+            boolean isCutout = isInventory || layer == BlockRenderLayer.CUTOUT_MIPPED;
+            if (!isSolid && !isCutout) return Collections.emptyList();
 
             List<BakedQuad> quads = new ArrayList<>();
-            float u0 = sprite.getMinU(), v0 = sprite.getMinV();
-            float u1 = sprite.getMaxU(), v1 = sprite.getMaxV();
 
-            addQuad(quads, EnumFacing.DOWN,  0,0,0, 1,0,0, 1,0,1, 0,0,1, u0,v0,u1,v1);
-            addQuad(quads, EnumFacing.UP,    0,1,1, 1,1,1, 1,1,0, 0,1,0, u0,v0,u1,v1);
-            addQuad(quads, EnumFacing.NORTH, 1,0,0, 0,0,0, 0,1,0, 1,1,0, u0,v0,u1,v1);
-            addQuad(quads, EnumFacing.SOUTH, 0,0,1, 1,0,1, 1,1,1, 0,1,1, u0,v0,u1,v1);
-            addQuad(quads, EnumFacing.WEST,  0,0,0, 0,0,1, 0,1,1, 0,1,0, u0,v0,u1,v1);
-            addQuad(quads, EnumFacing.EAST,  1,0,1, 1,0,0, 1,1,0, 1,1,1, u0,v0,u1,v1);
+            // Top and bottom — solid texture
+            if (isSolid) {
+                float su0 = solid.getMinU(), sv0 = solid.getMinV();
+                float su1 = solid.getMaxU(), sv1 = solid.getMaxV();
+                addQuad(quads, EnumFacing.DOWN, 0,0,0, 1,0,0, 1,0,1, 0,0,1, su0,sv0,su1,sv1, solid);
+                addQuad(quads, EnumFacing.UP,   0,1,1, 1,1,1, 1,1,0, 0,1,0, su0,sv0,su1,sv1, solid);
+            }
+
+            // Side faces — viewport texture
+            if (isCutout) {
+                float vu0 = viewport.getMinU(), vv0 = viewport.getMinV();
+                float vu1 = viewport.getMaxU(), vv1 = viewport.getMaxV();
+                addQuad(quads, EnumFacing.NORTH, 1,0,0, 0,0,0, 0,1,0, 1,1,0, vu0,vv0,vu1,vv1, viewport);
+                addQuad(quads, EnumFacing.SOUTH, 0,0,1, 1,0,1, 1,1,1, 0,1,1, vu0,vv0,vu1,vv1, viewport);
+                addQuad(quads, EnumFacing.WEST,  0,0,0, 0,0,1, 0,1,1, 0,1,0, vu0,vv0,vu1,vv1, viewport);
+                addQuad(quads, EnumFacing.EAST,  1,0,1, 1,0,0, 1,1,0, 1,1,1, vu0,vv0,vu1,vv1, viewport);
+            }
 
             return quads;
         }
@@ -80,7 +94,8 @@ public class FluidTankModel implements IModel {
         private void addQuad(List<BakedQuad> quads, EnumFacing face,
                 float x1, float y1, float z1, float x2, float y2, float z2,
                 float x3, float y3, float z3, float x4, float y4, float z4,
-                float u0, float v0, float u1, float v1) {
+                float u0, float v0, float u1, float v1,
+                TextureAtlasSprite sprite) {
             int[] data = new int[28];
             putVertex(data, 0,  x1,y1,z1, u0,v1, face);
             putVertex(data, 7,  x2,y2,z2, u1,v1, face);
@@ -110,7 +125,7 @@ public class FluidTankModel implements IModel {
         @Override public boolean isAmbientOcclusion()  { return true; }
         @Override public boolean isGui3d()              { return true; }
         @Override public boolean isBuiltInRenderer()    { return false; }
-        @Override public TextureAtlasSprite getParticleTexture() { return sprite; }
+        @Override public TextureAtlasSprite getParticleTexture() { return solid; }
         @Override public ItemOverrideList getOverrides()         { return ItemOverrideList.NONE; }
         @Override public ItemCameraTransforms getItemCameraTransforms() { return ItemCameraTransforms.DEFAULT; }
     }

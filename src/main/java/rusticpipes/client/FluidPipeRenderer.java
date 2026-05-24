@@ -19,18 +19,22 @@ import rusticpipes.tileentity.TileEntityFluidPipe;
 @SideOnly(Side.CLIENT)
 public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluidPipe> {
 
-    // Inner bore dimensions — slightly inset from the pipe core
-    private static final float BORE_MIN = 5f / 16f;
-    private static final float BORE_MAX = 11f / 16f;
+    // Inner bore dimensions — inset enough from pipe core (4/16) to avoid z-fighting
+    private static final float BORE_MIN = 6f / 16f;
+    private static final float BORE_MAX = 10f / 16f;
 
     @Override
     public void render(TileEntityFluidPipe te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
         BlockPos pos = te.getPos();
 
-        // Only render on viewport pipes — same hash as FluidPipeModel
+        // Check if any face is a viewport — same logic as FluidPipeModel
         int texBase = Math.abs((pos.getX() * 73856093) ^ (pos.getY() * 19349663) ^ (pos.getZ() * 83492791));
-        if (texBase % 10 >= 3) return; // not a viewport pipe
+        boolean vpN = ((texBase + 3)  % 20) % 10 < 3;
+        boolean vpS = ((texBase + 7)  % 20) % 10 < 3;
+        boolean vpE = ((texBase + 11) % 20) % 10 < 3;
+        boolean vpW = ((texBase + 13) % 20) % 10 < 3;
+        if (!vpN && !vpS && !vpE && !vpW) return; // no viewport faces
 
         // Get the body sprite this pipe uses on its north face (most visible)
         int idxN = (texBase + 3) % 20;
