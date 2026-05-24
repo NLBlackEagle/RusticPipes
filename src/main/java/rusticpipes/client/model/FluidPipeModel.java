@@ -71,6 +71,8 @@ public class FluidPipeModel implements IModel {
     private static final ResourceLocation PIPE_CAP_INPUT_NORTH     = rl("pipe_cap_input_north");
     private static final ResourceLocation PIPE_CAP_INPUT_SOUTH     = rl("pipe_cap_input_south");
     private static final ResourceLocation PIPE_WATER               = rl("pipe_water_01");
+    private static final ResourceLocation PIPE_BODY_INNER          = rl("pipe_body_inner");
+    private static final ResourceLocation PIPE_VP_INNER            = rl("pipe_viewport_inner");
 
     private static ResourceLocation rl(String name) { return new ResourceLocation(ROOT + name); }
 
@@ -94,6 +96,8 @@ public class FluidPipeModel implements IModel {
         textures.add(PIPE_CAP_INPUT_EAST);      textures.add(PIPE_CAP_INPUT_WEST);
         textures.add(PIPE_CAP_INPUT_NORTH);     textures.add(PIPE_CAP_INPUT_SOUTH);
         textures.add(PIPE_WATER);
+        textures.add(PIPE_BODY_INNER);
+        textures.add(PIPE_VP_INNER);
         return textures;
     }
 

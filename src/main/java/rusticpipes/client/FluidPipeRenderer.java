@@ -19,9 +19,10 @@ import rusticpipes.tileentity.TileEntityFluidPipe;
 @SideOnly(Side.CLIENT)
 public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluidPipe> {
 
-    // Inner bore dimensions — inset enough from pipe core (4/16) to avoid z-fighting
-    private static final float BORE_MIN = 6f / 16f;
-    private static final float BORE_MAX = 10f / 16f;
+    private static final float BORE_MIN  = 4f / 16f + 0.002f;  // inner walls, as close as possible without z-fighting
+    private static final float BORE_MAX  = 12f / 16f - 0.002f;
+    private static final float FLUID_MIN = 4f / 16f + 0.01f;   // fluid, just inside inner walls
+    private static final float FLUID_MAX = 12f / 16f - 0.01f;
 
     @Override
     public void render(TileEntityFluidPipe te, double x, double y, double z,
@@ -66,29 +67,60 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
 
         float bMin = BORE_MIN, bMax = BORE_MAX;
 
+        // ---- Inner pipe walls ----
+        TextureAtlasSprite bodyInner = Minecraft.getMinecraft().getTextureMapBlocks()
+                .getAtlasSprite("rusticpipes:blocks/fluid_pipes/pipe_body_inner");
+        TextureAtlasSprite vpInner = Minecraft.getMinecraft().getTextureMapBlocks()
+                .getAtlasSprite("rusticpipes:blocks/fluid_pipes/pipe_viewport_inner");
+        if (bodyInner == null) bodyInner = Minecraft.getMinecraft().getTextureMapBlocks().getMissingSprite();
+        if (vpInner == null)   vpInner   = bodyInner;
+
+        // Per-face: viewport face gets vpInner, solid face gets bodyInner
+        // Top/bottom always use bodyInner
+        TextureAtlasSprite sprN = vpN ? vpInner : bodyInner;
+        TextureAtlasSprite sprS = vpS ? vpInner : bodyInner;
+        TextureAtlasSprite sprE = vpE ? vpInner : bodyInner;
+        TextureAtlasSprite sprW = vpW ? vpInner : bodyInner;
+
+        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
+        // North inner wall (faces inward toward +Z)
+        putQuad(buf, bMin,bMin,bMin, bMax,bMin,bMin, bMax,bMax,bMin, bMin,bMax,bMin,
+                sprN.getMinU(),sprN.getMinV(),sprN.getMaxU(),sprN.getMaxV(), 1f,1f,1f,1f);
+        // South inner wall
+        putQuad(buf, bMax,bMin,bMax, bMin,bMin,bMax, bMin,bMax,bMax, bMax,bMax,bMax,
+                sprS.getMinU(),sprS.getMinV(),sprS.getMaxU(),sprS.getMaxV(), 1f,1f,1f,1f);
+        // West inner wall
+        putQuad(buf, bMin,bMin,bMax, bMin,bMin,bMin, bMin,bMax,bMin, bMin,bMax,bMax,
+                sprW.getMinU(),sprW.getMinV(),sprW.getMaxU(),sprW.getMaxV(), 1f,1f,1f,1f);
+        // East inner wall
+        putQuad(buf, bMax,bMin,bMin, bMax,bMin,bMax, bMax,bMax,bMax, bMax,bMax,bMin,
+                sprE.getMinU(),sprE.getMinV(),sprE.getMaxU(),sprE.getMaxV(), 1f,1f,1f,1f);
+        // Bottom inner wall
+        putQuad(buf, bMin,bMin,bMax, bMax,bMin,bMax, bMax,bMin,bMin, bMin,bMin,bMin,
+                bodyInner.getMinU(),bodyInner.getMinV(),bodyInner.getMaxU(),bodyInner.getMaxV(), 1f,1f,1f,1f);
+        // Top inner wall
+        putQuad(buf, bMin,bMax,bMin, bMax,bMax,bMin, bMax,bMax,bMax, bMin,bMax,bMax,
+                bodyInner.getMinU(),bodyInner.getMinV(),bodyInner.getMaxU(),bodyInner.getMaxV(), 1f,1f,1f,1f);
+        tess.draw();
+
         // ---- Fluid level ----
-        if (fillFraction > 0.01f) {
-            if (buffer == null || buffer.getFluid() == null) return;
+        if (fillFraction > 0.01f && buffer != null && buffer.getFluid() != null) {
+            float fMin = FLUID_MIN, fMax = FLUID_MAX;
             TextureAtlasSprite fluidSprite = Minecraft.getMinecraft().getTextureMapBlocks()
                     .getAtlasSprite(buffer.getFluid().getStill(buffer).toString());
             if (fluidSprite == null) fluidSprite = Minecraft.getMinecraft()
                     .getTextureMapBlocks().getMissingSprite();
 
-            float fluidTop = bMin + (bMax - bMin) * fillFraction;
+            float fluidTop = fMin + (fMax - fMin) * fillFraction;
             float fu0 = fluidSprite.getMinU(), fv0 = fluidSprite.getMinV();
             float fu1 = fluidSprite.getMaxU(), fv1 = fluidSprite.getMaxV();
 
             buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-            // Top surface of fluid
-            putQuad(buf, bMin,fluidTop,bMax, bMax,fluidTop,bMax, bMax,fluidTop,bMin, bMin,fluidTop,bMin, fu0,fv0,fu1,fv1, fr,fg,fb,fa2);
-            // North face of fluid
-            putQuad(buf, bMax,bMin,bMin, bMin,bMin,bMin, bMin,fluidTop,bMin, bMax,fluidTop,bMin, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
-            // South face of fluid
-            putQuad(buf, bMin,bMin,bMax, bMax,bMin,bMax, bMax,fluidTop,bMax, bMin,fluidTop,bMax, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
-            // West face of fluid
-            putQuad(buf, bMin,bMin,bMin, bMin,bMin,bMax, bMin,fluidTop,bMax, bMin,fluidTop,bMin, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
-            // East face of fluid
-            putQuad(buf, bMax,bMin,bMax, bMax,bMin,bMin, bMax,fluidTop,bMin, bMax,fluidTop,bMax, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
+            putQuad(buf, fMin,fluidTop,fMax, fMax,fluidTop,fMax, fMax,fluidTop,fMin, fMin,fluidTop,fMin, fu0,fv0,fu1,fv1, fr,fg,fb,fa2);
+            putQuad(buf, fMax,fMin,fMin, fMin,fMin,fMin, fMin,fluidTop,fMin, fMax,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
+            putQuad(buf, fMin,fMin,fMax, fMax,fMin,fMax, fMax,fluidTop,fMax, fMin,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
+            putQuad(buf, fMin,fMin,fMin, fMin,fMin,fMax, fMin,fluidTop,fMax, fMin,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
+            putQuad(buf, fMax,fMin,fMax, fMax,fMin,fMin, fMax,fluidTop,fMin, fMax,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
             tess.draw();
         }
 

@@ -125,11 +125,10 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         buffer.amount = Math.min(buffer.amount, BUFFER_CAPACITY);
         int newColor = fluid.getFluid().getColor(fluid);
         if (newColor == 0xFFFFFFFF || newColor == 0) newColor = 0xFF4444FF; // default blue for colorless fluids
-        if (newColor != fluidColor) {
-            fluidColor = newColor;
-            if (world != null && !world.isRemote) {
-                world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-            }
+        fluidColor = newColor;
+        // Always sync to client so TESR has current buffer/fill data
+        if (world != null && !world.isRemote) {
+            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
         ticksSinceFlow = 0;
     }

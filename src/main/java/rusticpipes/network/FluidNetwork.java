@@ -174,6 +174,15 @@ public class FluidNetwork {
             FluidStack drained = source.drain(maxTransfer, false);
             if (drained == null || drained.amount <= 0) continue;
 
+            // Fill visual buffer on all pipes whenever fluid is available in the network,
+            // regardless of whether a destination accepts it.
+            for (BlockPos memberPos : members) {
+                net.minecraft.tileentity.TileEntity mte = world.getTileEntity(memberPos);
+                if (mte instanceof TileEntityFluidPipe) {
+                    ((TileEntityFluidPipe) mte).onFluidPassed(drained);
+                }
+            }
+
             int remaining = drained.amount;
 
             for (int attempt = 0; attempt < outputs.size() && remaining > 0; attempt++) {

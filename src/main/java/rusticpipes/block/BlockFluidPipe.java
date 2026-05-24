@@ -139,6 +139,25 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
 
         if (world.isRemote) return true;
 
+        // Debug info — only when RusticPipes.DEBUG is true
+        if (rusticpipes.RusticPipes.DEBUG) {
+            int texBase = Math.abs((pos.getX() * 73856093) ^ (pos.getY() * 19349663) ^ (pos.getZ() * 83492791));
+            boolean vpN = ((texBase + 3)  % 20) % 10 < 3;
+            boolean vpS = ((texBase + 7)  % 20) % 10 < 3;
+            boolean vpE = ((texBase + 11) % 20) % 10 < 3;
+            boolean vpW = ((texBase + 13) % 20) % 10 < 3;
+            rusticpipes.network.FluidNetwork network = rusticpipes.network.FluidNetwork.getNetwork(world, pos);
+            TileEntity dbgTe = world.getTileEntity(pos);
+            rusticpipes.tileentity.TileEntityFluidPipe dbgPipe = dbgTe instanceof rusticpipes.tileentity.TileEntityFluidPipe
+                    ? (rusticpipes.tileentity.TileEntityFluidPipe) dbgTe : null;
+            player.sendMessage(new net.minecraft.util.text.TextComponentString(
+                    "[FluidPipe] pos=" + pos + " color=" + pipeColor.registryName
+                    + " vp=N:" + vpN + " S:" + vpS + " E:" + vpE + " W:" + vpW
+                    + " network=" + (network != null ? network.getMembers().size() + " members" : "none")
+                    + " buffer=" + (dbgPipe != null && dbgPipe.getBuffer() != null ? dbgPipe.getBuffer().amount + "mB " + dbgPipe.getBuffer().getFluid().getName() : "empty")
+            ));
+        }
+
         EnumFacing clickedArm = getClickedArm(hitX, hitY, hitZ);
         if (clickedArm == null) return false;
 
