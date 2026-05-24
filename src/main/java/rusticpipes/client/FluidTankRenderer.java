@@ -111,9 +111,6 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         GlStateManager.disableCull();
 
         // ---- Inner walls — always rendered ----
-        float wu0 = wallSprite.getMinU(), wu1 = wallSprite.getMaxU();
-        float wv0 = wallSprite.getMinV(), wv1 = wallSprite.getMaxV();
-
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder buf = tessellator.getBuffer();
         buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
@@ -121,27 +118,28 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         float wx1 = (float)minX, wx2 = (float)maxX;
         float wy1 = (float)minY, wy2 = (float)(minY + (maxX - minX)); // full height
         float wz1 = (float)minZ, wz2 = (float)maxZ;
-        // Use full interior height for walls
-        double fullMaxY = te.isPartOfMultiblock()
-                ? maxY / fill * 1.0  // approximate
-                : minY + 0.75;
-        float wTop = (float)(te.isPartOfMultiblock() ? (minY + (maxX - minX)) : 0.99); // flush with exterior top
+        float wTop = (float)(te.isPartOfMultiblock() ? (minY + (maxX - minX)) : 0.99);
 
-        // Bottom — solid texture, both faces
+        // Per-face sprite: use solid if adjacent block is opaque, else inner_viewport
+        net.minecraft.world.World tankWorld = te.getWorld();
+        BlockPos tPos = te.getPos();
+        TextureAtlasSprite sprN = tankWorld.getBlockState(tPos.north()).isOpaqueCube() ? solidSprite : wallSprite;
+        TextureAtlasSprite sprS = tankWorld.getBlockState(tPos.south()).isOpaqueCube() ? solidSprite : wallSprite;
+        TextureAtlasSprite sprE = tankWorld.getBlockState(tPos.east()).isOpaqueCube()  ? solidSprite : wallSprite;
+        TextureAtlasSprite sprW = tankWorld.getBlockState(tPos.west()).isOpaqueCube()  ? solidSprite : wallSprite;
+
+
+
+        // Bottom and top — solid texture
         float su0 = solidSprite.getMinU(), su1 = solidSprite.getMaxU();
         float sv0 = solidSprite.getMinV(), sv1 = solidSprite.getMaxV();
         putQuad(buf, wx1,wy1,wz1, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
-        putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
-        // Top — solid texture
+putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
         putQuad(buf, wx1,wTop,wz1, wx2,wTop,wz1, wx2,wTop,wz2, wx1,wTop,wz2, su0,sv0,su1,sv1, 1f,1f,1f,1f);
-        // North (inward-facing = faces toward +Z, so South winding)
-        putQuad(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
-        // South (inward-facing)
-        putQuad(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
-        // West (inward-facing)
-        putQuad(buf, wx1,wy1,wz2, wx1,wy1,wz1, wx1,wTop,wz1, wx1,wTop,wz2, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
-        // East (inward-facing)
-        putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx2,wTop,wz2, wx2,wTop,wz1, wu0,wv0,wu1,wv1, 1f,1f,1f,1f);
+        putQuad(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, sprN.getMinU(),sprN.getMinV(),sprN.getMaxU(),sprN.getMaxV(), 1f,1f,1f,1f);
+        putQuad(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, sprS.getMinU(),sprS.getMinV(),sprS.getMaxU(),sprS.getMaxV(), 1f,1f,1f,1f);
+        putQuad(buf, wx1,wy1,wz2, wx1,wy1,wz1, wx1,wTop,wz1, wx1,wTop,wz2, sprW.getMinU(),sprW.getMinV(),sprW.getMaxU(),sprW.getMaxV(), 1f,1f,1f,1f);
+        putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx2,wTop,wz2, wx2,wTop,wz1, sprE.getMinU(),sprE.getMinV(),sprE.getMaxU(),sprE.getMaxV(), 1f,1f,1f,1f);
         tessellator.draw();
 
         GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);

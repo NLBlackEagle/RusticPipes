@@ -36,13 +36,6 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         boolean vpW = ((texBase + 13) % 20) % 10 < 3;
         if (!vpN && !vpS && !vpE && !vpW) return; // no viewport faces
 
-        // Get the body sprite this pipe uses on its north face (most visible)
-        int idxN = (texBase + 3) % 20;
-        String spriteName = "rusticpipes:blocks/fluid_pipes/pipe_body_" + String.format("%02d", idxN + 1);
-        TextureAtlasSprite bodySprite = Minecraft.getMinecraft()
-                .getTextureMapBlocks().getAtlasSprite(spriteName);
-        if (bodySprite == null) return;
-
         // Fluid state
         FluidStack buffer = te.getBuffer();
         float fillFraction = (buffer != null && buffer.amount > 0)
@@ -71,34 +64,15 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
 
-        // ---- Inner pipe walls ----
-        float u0 = bodySprite.getMinU(), v0 = bodySprite.getMinV();
-        float u1 = bodySprite.getMaxU(), v1 = bodySprite.getMaxV();
         float bMin = BORE_MIN, bMax = BORE_MAX;
-
-        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-
-        // North inner wall
-        putQuad(buf, bMax,bMin,bMin, bMin,bMin,bMin, bMin,bMax,bMin, bMax,bMax,bMin, u0,v0,u1,v1, 0.6f,0.6f,0.6f,1f);
-        // South inner wall
-        putQuad(buf, bMin,bMin,bMax, bMax,bMin,bMax, bMax,bMax,bMax, bMin,bMax,bMax, u0,v0,u1,v1, 0.6f,0.6f,0.6f,1f);
-        // West inner wall
-        putQuad(buf, bMin,bMin,bMin, bMin,bMin,bMax, bMin,bMax,bMax, bMin,bMax,bMin, u0,v0,u1,v1, 0.5f,0.5f,0.5f,1f);
-        // East inner wall
-        putQuad(buf, bMax,bMin,bMax, bMax,bMin,bMin, bMax,bMax,bMin, bMax,bMax,bMax, u0,v0,u1,v1, 0.5f,0.5f,0.5f,1f);
-        // Bottom inner wall
-        putQuad(buf, bMin,bMin,bMin, bMax,bMin,bMin, bMax,bMin,bMax, bMin,bMin,bMax, u0,v0,u1,v1, 0.4f,0.4f,0.4f,1f);
-        // Top inner wall
-        putQuad(buf, bMin,bMax,bMax, bMax,bMax,bMax, bMax,bMax,bMin, bMin,bMax,bMin, u0,v0,u1,v1, 0.8f,0.8f,0.8f,1f);
-
-        tess.draw();
 
         // ---- Fluid level ----
         if (fillFraction > 0.01f) {
-            TextureAtlasSprite fluidSprite = (buffer != null && buffer.getFluid() != null)
-                    ? Minecraft.getMinecraft().getTextureMapBlocks()
-                        .getAtlasSprite(buffer.getFluid().getStill(buffer).toString())
-                    : bodySprite;
+            if (buffer == null || buffer.getFluid() == null) return;
+            TextureAtlasSprite fluidSprite = Minecraft.getMinecraft().getTextureMapBlocks()
+                    .getAtlasSprite(buffer.getFluid().getStill(buffer).toString());
+            if (fluidSprite == null) fluidSprite = Minecraft.getMinecraft()
+                    .getTextureMapBlocks().getMissingSprite();
 
             float fluidTop = bMin + (bMax - bMin) * fillFraction;
             float fu0 = fluidSprite.getMinU(), fv0 = fluidSprite.getMinV();
