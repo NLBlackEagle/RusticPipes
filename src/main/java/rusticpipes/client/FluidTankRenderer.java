@@ -134,7 +134,6 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         float su0 = solidSprite.getMinU(), su1 = solidSprite.getMaxU();
         float sv0 = solidSprite.getMinV(), sv1 = solidSprite.getMaxV();
         putQuad(buf, wx1,wy1,wz1, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
-putQuad(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wy1,wz1, su0,sv0,su1,sv1, 1f,1f,1f,1f);
         putQuad(buf, wx1,wTop,wz1, wx2,wTop,wz1, wx2,wTop,wz2, wx1,wTop,wz2, su0,sv0,su1,sv1, 1f,1f,1f,1f);
         putQuad(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, sprN.getMinU(),sprN.getMinV(),sprN.getMaxU(),sprN.getMaxV(), 1f,1f,1f,1f);
         putQuad(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, sprS.getMinU(),sprS.getMinV(),sprS.getMaxU(),sprS.getMaxV(), 1f,1f,1f,1f);
