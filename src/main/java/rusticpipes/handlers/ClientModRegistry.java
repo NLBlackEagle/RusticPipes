@@ -39,6 +39,7 @@ public class ClientModRegistry {
         ModelLoaderRegistry.registerLoader(ConduitModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(FluidPipeModelLoader.INSTANCE);
         ModelLoaderRegistry.registerLoader(FluidTankModelLoader.INSTANCE);
+        ModelLoaderRegistry.registerLoader(rusticpipes.client.model.FluidTankMultiblockViewportModelLoader.INSTANCE);
         // Buffer blocks use vanilla full-cube models — no custom loader needed
     }
 
@@ -87,26 +88,22 @@ public class ClientModRegistry {
         }
 
         // Fluid tank multiblock — state mapper routes viewport enum to correct model
+        // All viewport states share one model; direction + row come from block state + TE extended state
         ModelLoader.setCustomStateMapper(ModRegistry.FLUID_TANK_MULTIBLOCK, new StateMapperBase() {
             @Override
             protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
                 rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face =
                         state.getValue(rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT);
-                return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock",
-                        "viewport=" + face.getName());
+                if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE) {
+                    return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "normal");
+                }
+                return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock_viewport", "normal");
             }
         });
-        // Pre-register all viewport variant models so Forge bakes them
-        for (rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face :
-                rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.values()) {
-            if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE) continue;
-            ModelLoader.registerItemVariants(net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK),
-                    new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "viewport=" + face.getName()));
-        }
         // Item uses the plain solid model
         net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                 net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK), 0,
-                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "viewport=none"));
+                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "normal"));
 
         // Register single tank item model
         ModelLoader.setCustomModelResourceLocation(

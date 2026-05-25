@@ -13,31 +13,28 @@ import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.FluidTankProperties;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
+import rusticpipes.block.BlockFluidTankMultiblock;
 import rusticpipes.multiblock.TankMultiblock;
 
 import javax.annotation.Nullable;
 
-/**
- * Tile entity for the multiblock fluid tank block.
- *
- * Controller = min-corner block. All members delegate fluid access to the controller.
- * Fill fraction is synced to all members every 10 ticks for rendering.
- */
 public class TileEntityFluidTankMultiblock extends TileEntity implements ITickable {
-
-    // -----------------------------------------------------------------------
-    // Multiblock state
-    // -----------------------------------------------------------------------
 
     @Nullable private BlockPos controllerPos = null;
     private TankMultiblock.Role role = TankMultiblock.Role.SINGLE;
     private int baseSize = 1;
     private int totalCapacity = rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
 
-    // Fluid — only stored on controller
-    @Nullable private FluidStack fluid = null;
+    /**
+     * Which row of the multiblock this block occupies.
+     * Stored in NBT and synced to the client. Read by
+     * BlockFluidTankMultiblock.getExtendedState() to drive texture selection
+     * in the custom baked model without using any meta bits.
+     */
+    private BlockFluidTankMultiblock.ViewportRow viewportRow =
+            BlockFluidTankMultiblock.ViewportRow.NONE;
 
-    // Fill fraction for rendering — synced to all members
+    @Nullable private FluidStack fluid = null;
     private float fillFraction = 0f;
 
     // -----------------------------------------------------------------------
@@ -45,11 +42,13 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     // -----------------------------------------------------------------------
 
     public void onMultiblockFormed(BlockPos controller, TankMultiblock.Role role,
-                                   int capacity, int baseSize) {
+                                   int capacity, int baseSize,
+                                   BlockFluidTankMultiblock.ViewportRow viewportRow) {
         this.controllerPos = controller;
-        this.role = role;
+        this.role          = role;
         this.totalCapacity = capacity;
-        this.baseSize = baseSize;
+        this.baseSize      = baseSize;
+        this.viewportRow   = viewportRow;
         markDirty();
         if (world != null && !world.isRemote)
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
@@ -57,28 +56,29 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
 
     public void invalidate() {
         controllerPos = null;
-        role = TankMultiblock.Role.SINGLE;
-        baseSize = 1;
+        role          = TankMultiblock.Role.SINGLE;
+        baseSize      = 1;
         totalCapacity = rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
-        fillFraction = 0f;
+        viewportRow   = BlockFluidTankMultiblock.ViewportRow.NONE;
+        fillFraction  = 0f;
         markDirty();
         if (world != null && !world.isRemote)
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
     }
 
-    /** Called when this block is broken — invalidates all other members. */
     public void onBreak() {
         if (world == null || world.isRemote) return;
         TankMultiblock.invalidateMultiblock(world, pos);
     }
 
-    public boolean isController() { return controllerPos != null && controllerPos.equals(pos); }
-    public boolean isPartOfMultiblock() { return controllerPos != null; }
-    public BlockPos getControllerPos() { return controllerPos; }
-    public TankMultiblock.Role getRole() { return role; }
-    public int getBaseSize() { return baseSize; }
-    public float getFillFraction() { return fillFraction; }
-    public int getCapacity() { return totalCapacity; }
+    public boolean isController()          { return controllerPos != null && controllerPos.equals(pos); }
+    public boolean isPartOfMultiblock()    { return controllerPos != null; }
+    public BlockPos getControllerPos()     { return controllerPos; }
+    public TankMultiblock.Role getRole()   { return role; }
+    public int getBaseSize()               { return baseSize; }
+    public float getFillFraction()         { return fillFraction; }
+    public int getCapacity()               { return totalCapacity; }
+    public BlockFluidTankMultiblock.ViewportRow getViewportRow() { return viewportRow; }
 
     @Nullable
     private TileEntityFluidTankMultiblock getController() {
@@ -95,7 +95,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     }
 
     // -----------------------------------------------------------------------
-    // Tick — sync fill fraction to all members
+    // Tick
     // -----------------------------------------------------------------------
 
     @Override
@@ -122,7 +122,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         public IFluidTankProperties[] getTankProperties() {
             TileEntityFluidTankMultiblock ctrl = getController();
             if (ctrl == null) return new IFluidTankProperties[0];
-            return new IFluidTankProperties[]{new FluidTankProperties(ctrl.fluid, ctrl.totalCapacity)};
+            return new IFluidTankProperties[]{ new FluidTankProperties(ctrl.fluid, ctrl.totalCapacity) };
         }
 
         @Override
@@ -155,8 +155,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
             TileEntityFluidTankMultiblock ctrl = getController();
             if (ctrl == null || ctrl.fluid == null || ctrl.fluid.amount <= 0) return null;
             int toDrain = Math.min(maxDrain, ctrl.fluid.amount);
-            FluidStack drained = ctrl.fluid.copy();
-            drained.amount = toDrain;
+            FluidStack drained = ctrl.fluid.copy(); drained.amount = toDrain;
             if (doDrain) {
                 ctrl.fluid.amount -= toDrain;
                 if (ctrl.fluid.amount <= 0) ctrl.fluid = null;
@@ -169,8 +168,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     @Override
     public boolean hasCapability(Capability<?> capability, @Nullable EnumFacing facing) {
         if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            if (facing == EnumFacing.UP)
-                return role == TankMultiblock.Role.TOP || role == TankMultiblock.Role.SINGLE;
+            if (facing == EnumFacing.UP)   return role == TankMultiblock.Role.TOP    || role == TankMultiblock.Role.SINGLE;
             if (facing == EnumFacing.DOWN) return false;
             return role == TankMultiblock.Role.BOTTOM || role == TankMultiblock.Role.SINGLE;
         }
@@ -186,7 +184,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     }
 
     // -----------------------------------------------------------------------
-    // Client sync / NBT
+    // NBT / sync
     // -----------------------------------------------------------------------
 
     @Override public NBTTagCompound getUpdateTag() { return writeToNBT(new NBTTagCompound()); }
@@ -211,6 +209,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         compound.setInteger("capacity", totalCapacity);
         compound.setInteger("baseSize", baseSize);
         compound.setFloat("fillFraction", fillFraction);
+        compound.setString("viewportRow", viewportRow.name());
         return compound;
     }
 
@@ -230,5 +229,9 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
                 : rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
         baseSize = compound.hasKey("baseSize") ? compound.getInteger("baseSize") : 1;
         fillFraction = compound.hasKey("fillFraction") ? compound.getFloat("fillFraction") : 0f;
+        if (compound.hasKey("viewportRow")) {
+            try { viewportRow = BlockFluidTankMultiblock.ViewportRow.valueOf(compound.getString("viewportRow")); }
+            catch (IllegalArgumentException e) { viewportRow = BlockFluidTankMultiblock.ViewportRow.NONE; }
+        }
     }
 }

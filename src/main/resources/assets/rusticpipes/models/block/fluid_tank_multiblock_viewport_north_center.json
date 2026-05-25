@@ -2,7 +2,7 @@
   "ambientocclusion": false,
   "parent": "block/cube",
   "textures": {
-    "north": "rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center",
+    "north": "rusticpipes:blocks/fluid_tank/fluid_tank_viewport",
     "south": "rusticpipes:blocks/fluid_tank/fluid_tank_solid",
     "east":  "rusticpipes:blocks/fluid_tank/fluid_tank_solid",
     "west":  "rusticpipes:blocks/fluid_tank/fluid_tank_solid",

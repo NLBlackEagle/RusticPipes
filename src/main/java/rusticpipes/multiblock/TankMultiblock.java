@@ -266,14 +266,33 @@ public class TankMultiblock {
         for (BlockPos p : structure.allPositions()) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
             if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
-            ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
-                    structure.controller, structure.roleOf(p), capacity, structure.baseSize);
             rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face =
                     viewportFaceFor(p, structure);
+            rusticpipes.block.BlockFluidTankMultiblock.ViewportRow row =
+                    viewportRowFor(p, structure);
+            ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
+                    structure.controller, structure.roleOf(p), capacity, structure.baseSize, row);
             IBlockState current = world.getBlockState(p);
             world.setBlockState(p, current.withProperty(
                     rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, face), 2);
         }
+    }
+
+    /** Computes the viewport row for a block in the structure. */
+    private static rusticpipes.block.BlockFluidTankMultiblock.ViewportRow viewportRowFor(
+            BlockPos p, Structure structure) {
+        rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face = viewportFaceFor(p, structure);
+        if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE)
+            return rusticpipes.block.BlockFluidTankMultiblock.ViewportRow.NONE;
+
+        int totalH = structure.max.getY() - structure.min.getY() + 1;
+        boolean isBottom = p.getY() == structure.min.getY();
+        boolean isTop    = p.getY() == structure.max.getY();
+
+        if (totalH == 1)   return rusticpipes.block.BlockFluidTankMultiblock.ViewportRow.SINGLE;
+        if (isBottom)      return rusticpipes.block.BlockFluidTankMultiblock.ViewportRow.BOTTOM;
+        if (isTop)         return rusticpipes.block.BlockFluidTankMultiblock.ViewportRow.TOP;
+        return rusticpipes.block.BlockFluidTankMultiblock.ViewportRow.CENTER;
     }
 
     /**
@@ -293,30 +312,22 @@ public class TankMultiblock {
         boolean isMaxX   = p.getX() == structure.max.getX();
         boolean isMinZ   = p.getZ() == structure.min.getZ();
         boolean isMaxZ   = p.getZ() == structure.max.getZ();
-        int totalH       = structure.max.getY() - structure.min.getY() + 1;
 
-        // Determine row: single layer uses bottom texture (same as bottom of multi-layer)
-        String row;
-        if (totalH == 1 || isBottom) { row = "bottom"; }
-        else if (isTop)              { row = "top"; }
-        else                         { row = "center"; }
-
-        // Determine direction (rightmost block per face from outside)
+        // Only wall blocks on the exterior get a viewport face (not top/bottom layer corners)
         String dir = null;
 
         if (structure.baseSize == 2) {
-            if (isMaxX && isMaxZ) dir = "south";
+            if      (isMaxX && isMaxZ) dir = "south";
             else if (isMinX && isMinZ) dir = "north";
             else if (isMaxX && isMinZ) dir = "east";
             else if (isMinX && isMaxZ) dir = "west";
         } else {
-            // Corners are solid
-            if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-            if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-            if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-            if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+            // Corners are solid for 3x3+
+            if ((isMinX && isMinZ) || (isMaxX && isMinZ)
+             || (isMinX && isMaxZ) || (isMaxX && isMaxZ))
+                return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
 
-            if (isMaxZ && p.getX() == structure.max.getX() - 1) dir = "south";
+            if      (isMaxZ && p.getX() == structure.max.getX() - 1) dir = "south";
             else if (isMinZ && p.getX() == structure.min.getX() + 1) dir = "north";
             else if (isMaxX && p.getZ() == structure.min.getZ() + 1) dir = "east";
             else if (isMinX && p.getZ() == structure.max.getZ() - 1) dir = "west";
@@ -324,13 +335,13 @@ public class TankMultiblock {
 
         if (dir == null) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
 
-        String name = dir + "_" + row;
         for (rusticpipes.block.BlockFluidTankMultiblock.ViewportFace f :
                 rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.values()) {
-            if (f.getName().equals(name)) return f;
+            if (f.getName().equals(dir)) return f;
         }
         return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
     }
+
 
     /** Invalidates all TileEntityFluidTankMultiblock members sharing the same controller. */
     public static void invalidateMultiblock(World world, BlockPos pos) {

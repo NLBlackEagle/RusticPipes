@@ -13,7 +13,11 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.IStringSerializable;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.BlockRenderLayer;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
+import net.minecraftforge.common.property.ExtendedBlockState;
+import net.minecraftforge.common.property.IExtendedBlockState;
+import net.minecraftforge.common.property.IUnlistedProperty;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.multiblock.TankMultiblock;
@@ -24,18 +28,36 @@ import java.util.List;
 
 public class BlockFluidTankMultiblock extends Block implements ITileEntityProvider {
 
+    /**
+     * Which face of this block shows the viewport.
+     * Only 5 values — fits easily in 3 meta bits (max meta = 15).
+     */
     public enum ViewportFace implements IStringSerializable {
-        NONE,
-        NORTH_BOTTOM, NORTH_CENTER, NORTH_TOP,
-        SOUTH_BOTTOM, SOUTH_CENTER, SOUTH_TOP,
-        EAST_BOTTOM,  EAST_CENTER,  EAST_TOP,
-        WEST_BOTTOM,  WEST_CENTER,  WEST_TOP;
+        NONE, NORTH, SOUTH, EAST, WEST;
+        @Override public String getName() { return name().toLowerCase(); }
+    }
 
+    /**
+     * Which row of the multiblock this block occupies.
+     * Stored in the TE and passed to the model via extended block state —
+     * never touches block metadata.
+     */
+    public enum ViewportRow implements IStringSerializable {
+        NONE, SINGLE, BOTTOM, CENTER, TOP;
         @Override public String getName() { return name().toLowerCase(); }
     }
 
     public static final PropertyEnum<ViewportFace> VIEWPORT =
             PropertyEnum.create("viewport", ViewportFace.class);
+
+    /** Unlisted property: row info from TE, read by the custom baked model. */
+    public static final IUnlistedProperty<ViewportRow> VIEWPORT_ROW =
+            new IUnlistedProperty<ViewportRow>() {
+                @Override public String getName()                  { return "viewport_row"; }
+                @Override public boolean isValid(ViewportRow v)    { return true; }
+                @Override public Class<ViewportRow> getType()      { return ViewportRow.class; }
+                @Override public String valueToString(ViewportRow v) { return v.getName(); }
+            };
 
     public BlockFluidTankMultiblock() {
         super(Material.IRON);
@@ -46,17 +68,32 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     protected BlockStateContainer createBlockState() {
-        return new BlockStateContainer(this, VIEWPORT);
+        return new ExtendedBlockState(this,
+                new net.minecraft.block.properties.IProperty[]{ VIEWPORT },
+                new IUnlistedProperty[]{ VIEWPORT_ROW });
     }
 
     @Override
     public IBlockState getStateFromMeta(int meta) {
-        return getDefaultState().withProperty(VIEWPORT, ViewportFace.values()[meta % ViewportFace.values().length]);
+        return getDefaultState().withProperty(VIEWPORT,
+                ViewportFace.values()[meta % ViewportFace.values().length]);
     }
 
     @Override
     public int getMetaFromState(IBlockState state) {
         return state.getValue(VIEWPORT).ordinal();
+    }
+
+    @Override
+    public IBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos) {
+        if (!(state instanceof IExtendedBlockState)) return state;
+        IExtendedBlockState ext = (IExtendedBlockState) state;
+        ViewportRow row = ViewportRow.NONE;
+        TileEntity te = world.getTileEntity(pos);
+        if (te instanceof TileEntityFluidTankMultiblock) {
+            row = ((TileEntityFluidTankMultiblock) te).getViewportRow();
+        }
+        return ext.withProperty(VIEWPORT_ROW, row);
     }
 
     @Override public boolean hasTileEntity(IBlockState state) { return true; }
@@ -99,7 +136,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             if (te instanceof TileEntityFluidTankMultiblock) {
                 ((TileEntityFluidTankMultiblock) te).invalidate();
             }
-            // Reset to solid when not part of a valid multiblock
             IBlockState current = world.getBlockState(pos);
             if (current.getValue(VIEWPORT) != ViewportFace.NONE) {
                 world.setBlockState(pos, current.withProperty(VIEWPORT, ViewportFace.NONE), 2);
@@ -109,8 +145,9 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+        // Viewport blocks render solid faces in SOLID and the viewport face in CUTOUT_MIPPED
         if (state.getValue(VIEWPORT) != ViewportFace.NONE) {
-            return layer == BlockRenderLayer.CUTOUT_MIPPED;
+            return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
         }
         return layer == BlockRenderLayer.SOLID;
     }
@@ -123,10 +160,8 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         TileEntity te = world.getTileEntity(pos);
         if (!(te instanceof TileEntityFluidTankMultiblock)) return false;
         TileEntityFluidTankMultiblock tank = (TileEntityFluidTankMultiblock) te;
-
         net.minecraftforge.fluids.FluidStack fluid = tank.getFluid();
         int capacity = tank.getCapacity();
-
         if (fluid == null || fluid.amount == 0) {
             player.sendMessage(new net.minecraft.util.text.TextComponentTranslation(
                     "rusticpipes.message.tank.empty", capacity));
