@@ -9,6 +9,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -93,6 +94,12 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     // -----------------------------------------------------------------------
     // Right-click info
     // -----------------------------------------------------------------------
+
+    @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+        // SOLID for the cube_all exterior + CUTOUT_MIPPED for viewport texture overlays
+        return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
+    }
 
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,

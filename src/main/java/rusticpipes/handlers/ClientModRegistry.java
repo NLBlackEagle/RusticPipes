@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.renderer.block.statemap.StateMapperBase;
 import net.minecraft.item.Item;
 import net.minecraftforge.client.event.ColorHandlerEvent;
+import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.event.ModelRegistryEvent;
 import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.client.model.ModelLoaderRegistry;
@@ -139,6 +140,21 @@ public class ClientModRegistry {
     @SubscribeEvent
     public static void registerBlockColors(ColorHandlerEvent.Block event) {
         event.getBlockColors().registerBlockColorHandler(PipeBlockColor.INSTANCE, ModRegistry.PIPES);
+    }
+
+    @SubscribeEvent
+    public static void onTextureStitch(TextureStitchEvent.Pre event) {
+        // Register multiblock tank viewport sprites for atlas stitching
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_solid"));
     }
 
     @SubscribeEvent

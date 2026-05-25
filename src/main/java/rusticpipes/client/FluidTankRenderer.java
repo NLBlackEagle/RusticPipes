@@ -55,9 +55,8 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         float wz1 = (float)minZ, wz2 = (float)maxZ;
         float wy1 = (float)minY;
 
-        // Bottom and top — solid
+        // Bottom inner face — solid
         putQ(buf, wx1,wy1,wz1, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy1,wz1, solidSpr);
-        putQ(buf, wx1,wTop,wz1, wx2,wTop,wz1, wx2,wTop,wz2, wx1,wTop,wz2, solidSpr);
         // Sides — inner viewport
         putQ(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, innerSpr);
         putQ(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, innerSpr);
