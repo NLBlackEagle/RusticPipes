@@ -112,7 +112,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
         if (state.getValue(VIEWPORT) != ViewportFace.NONE) {
-            return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
+            return layer == BlockRenderLayer.CUTOUT_MIPPED;
         }
         return layer == BlockRenderLayer.SOLID;
     }

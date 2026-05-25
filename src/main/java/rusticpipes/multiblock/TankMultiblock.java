@@ -216,11 +216,11 @@ public class TankMultiblock {
         while (!queue.isEmpty()) {
             BlockPos current = queue.poll();
             min = new BlockPos(Math.min(min.getX(), current.getX()),
-                               Math.min(min.getY(), current.getY()),
-                               Math.min(min.getZ(), current.getZ()));
+                    Math.min(min.getY(), current.getY()),
+                    Math.min(min.getZ(), current.getZ()));
             max = new BlockPos(Math.max(max.getX(), current.getX()),
-                               Math.max(max.getY(), current.getY()),
-                               Math.max(max.getZ(), current.getZ()));
+                    Math.max(max.getY(), current.getY()),
+                    Math.max(max.getZ(), current.getZ()));
             for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
                 BlockPos np = current.offset(face);
                 if (!visited.contains(np)
@@ -287,28 +287,38 @@ public class TankMultiblock {
      */
     private static rusticpipes.block.BlockFluidTankMultiblock.ViewportFace viewportFaceFor(
             BlockPos p, Structure structure) {
-        // Only exterior wall blocks get viewports (not top/bottom layers)
         boolean isBottom = p.getY() == structure.min.getY();
         boolean isTop    = p.getY() == structure.max.getY();
-        boolean singleLayer = structure.min.getY() == structure.max.getY();
-        if (!singleLayer && (isBottom || isTop)) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
 
         boolean isMinX = p.getX() == structure.min.getX();
         boolean isMaxX = p.getX() == structure.max.getX();
         boolean isMinZ = p.getZ() == structure.min.getZ();
         boolean isMaxZ = p.getZ() == structure.max.getZ();
 
-        // For 2x2: every block is a corner — pick one exterior face per corner
-        if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
-        if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
-        if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
-        if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+        // Viewport is on the rightmost block of each wall face (from outside looking in):
+        // South face (viewed from south): rightmost = maxX
+        // North face (viewed from north): rightmost = minX
+        // East face  (viewed from east):  rightmost = minZ
+        // West face  (viewed from west):  rightmost = maxZ
 
-        // For larger bases: non-corner wall blocks face outward on their exterior axis
-        if (isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
-        if (isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
-        if (isMinX) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
-        if (isMaxX) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+        // For 2x2 every block is a corner — assign based on which corner is rightmost per face
+        if (structure.baseSize == 2) {
+            if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
+            if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
+            if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+            if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
+        }
+
+        // For 3x3+: corners are solid, viewport goes on rightmost non-corner wall block
+        if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+        if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+        if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+        if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+
+        if (isMaxZ && p.getX() == structure.max.getX() - 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
+        if (isMinZ && p.getX() == structure.min.getX() + 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
+        if (isMaxX && p.getZ() == structure.min.getZ() + 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+        if (isMinX && p.getZ() == structure.max.getZ() - 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
 
         return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
     }
