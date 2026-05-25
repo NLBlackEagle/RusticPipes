@@ -3,6 +3,8 @@ package rusticpipes.block;
 import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.properties.PropertyBool;
+import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
@@ -30,10 +32,28 @@ import java.util.List;
  */
 public class BlockFluidTankMultiblock extends Block implements ITileEntityProvider {
 
+    public static final PropertyBool VIEWPORT = PropertyBool.create("viewport");
+
     public BlockFluidTankMultiblock() {
         super(Material.IRON);
         setHardness(2.5f);
         setResistance(10f);
+        setDefaultState(blockState.getBaseState().withProperty(VIEWPORT, false));
+    }
+
+    @Override
+    protected BlockStateContainer createBlockState() {
+        return new BlockStateContainer(this, VIEWPORT);
+    }
+
+    @Override
+    public IBlockState getStateFromMeta(int meta) {
+        return getDefaultState().withProperty(VIEWPORT, (meta & 1) == 1);
+    }
+
+    @Override
+    public int getMetaFromState(IBlockState state) {
+        return state.getValue(VIEWPORT) ? 1 : 0;
     }
 
     @Override public boolean hasTileEntity(IBlockState state) { return true; }
@@ -97,8 +117,10 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
-        // SOLID for the cube_all exterior + CUTOUT_MIPPED for viewport texture overlays
-        return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
+        if (state.getValue(VIEWPORT)) {
+            return layer == BlockRenderLayer.CUTOUT_MIPPED;
+        }
+        return layer == BlockRenderLayer.SOLID;
     }
 
     @Override

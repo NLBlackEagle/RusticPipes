@@ -1,5 +1,6 @@
 package rusticpipes.multiblock;
 
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import rusticpipes.block.BlockFluidTank;
@@ -262,11 +263,17 @@ public class TankMultiblock {
     public static void applyMultiblock(World world, Structure structure) {
         int capacity = structure.blockCount
                 * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
+        int vpColX = (structure.baseSize >= 3) ? structure.max.getX() - 1 : structure.max.getX();
+        int vpColZ = (structure.baseSize >= 3) ? structure.max.getZ() - 1 : structure.max.getZ();
         for (BlockPos p : structure.allPositions()) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
             if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
             ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
                     structure.controller, structure.roleOf(p), capacity, structure.baseSize);
+            boolean isViewport = (p.getX() == vpColX && p.getZ() == vpColZ);
+            IBlockState current = world.getBlockState(p);
+            world.setBlockState(p, current.withProperty(
+                    rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, isViewport), 2);
         }
     }
 
@@ -279,10 +286,18 @@ public class TankMultiblock {
         for (int x = controller.getX() - 4; x <= controller.getX() + 4; x++)
             for (int y = controller.getY(); y <= controller.getY() + 10; y++)
                 for (int z = controller.getZ() - 4; z <= controller.getZ() + 4; z++) {
-                    net.minecraft.tileentity.TileEntity m = world.getTileEntity(new BlockPos(x, y, z));
+                    BlockPos mp = new BlockPos(x, y, z);
+                    net.minecraft.tileentity.TileEntity m = world.getTileEntity(mp);
                     if (m instanceof TileEntityFluidTankMultiblock) {
                         TileEntityFluidTankMultiblock mt = (TileEntityFluidTankMultiblock) m;
-                        if (controller.equals(mt.getControllerPos())) mt.invalidate();
+                        if (controller.equals(mt.getControllerPos())) {
+                            mt.invalidate();
+                            IBlockState current = world.getBlockState(mp);
+                            if (current.getBlock() instanceof rusticpipes.block.BlockFluidTankMultiblock) {
+                                world.setBlockState(mp, current.withProperty(
+                                        rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, false), 2);
+                            }
+                        }
                     }
                 }
     }

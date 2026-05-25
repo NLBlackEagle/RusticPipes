@@ -1,5 +1,6 @@
 {
   "variants": {
-    "normal": { "model": "rusticpipes:fluid_tank_multiblock" }
+    "viewport=false": { "model": "rusticpipes:fluid_tank_multiblock" },
+    "viewport=true":  { "model": "rusticpipes:fluid_tank_multiblock_viewport" }
   }
 }

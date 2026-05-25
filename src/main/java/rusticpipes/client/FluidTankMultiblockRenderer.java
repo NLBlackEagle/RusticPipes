@@ -25,7 +25,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
                        float partialTicks, int destroyStage, float alpha) {
 
         if (!te.isController() && te.isPartOfMultiblock()) return;
-        if (!te.isPartOfMultiblock()) return; // standalone blocks don't use this renderer
+        if (!te.isPartOfMultiblock()) return;
 
         BlockPos pos = te.getPos();
         TankMultiblock.Structure st = TankMultiblock.validateMultiblock(getWorld(), pos);
@@ -38,25 +38,16 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (fluid != null && fluid.getFluid() != null)
             fluidSprite = spr(fluid.getFluid().getStill(fluid).toString());
 
-        // -----------------------------------------------------------------------
-        // Sprites
-        // -----------------------------------------------------------------------
-        TextureAtlasSprite solidSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_solid");
-        TextureAtlasSprite innerSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
         TextureAtlasSprite vpBotSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
         TextureAtlasSprite vpCtrSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
         TextureAtlasSprite vpTopSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
 
-        // -----------------------------------------------------------------------
-        // Interior bounds (local coords relative to controller)
-        // -----------------------------------------------------------------------
         BlockPos sMin = st.min, sMax = st.max;
         int sz = st.baseSize;
-        double minX, minY, minZ, maxX, maxZ, wallH;
 
+        double minX, minY, minZ, maxX, maxZ, wallH;
         boolean hollow = (sz >= 3) && (sMax.getY() - sMin.getY() >= 2);
         if (!hollow) {
-            // Fully solid footprint (2x2 any height, or 3x3+ with height < 3)
             minX = sMin.getX() - pos.getX() + 0.01;
             minZ = sMin.getZ() - pos.getZ() + 0.01;
             maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
@@ -64,7 +55,6 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
             minY = sMin.getY() - pos.getY() + 0.01;
             wallH = (sMax.getY() - sMin.getY() + 1) - 0.02;
         } else {
-            // Hollow interior (3x3+ with height >= 3)
             minX = sMin.getX() - pos.getX() + 1.0 + 0.01;
             minZ = sMin.getZ() - pos.getZ() + 1.0 + 0.01;
             maxX = sMax.getX() - pos.getX() - 0.01;
@@ -73,51 +63,34 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
             wallH = (sMax.getY() - sMin.getY() - 1) - 0.02;
         }
 
-        double wTop = minY + wallH;
         double maxY = minY + wallH * fill;
 
-        // Viewport column: max-1 for size>=3, max for size==2
+        // Viewport column is always the max-X / max-Z corner block
         int vpColX = (sz >= 3) ? sMax.getX() - 1 : sMax.getX();
         int vpColZ = (sz >= 3) ? sMax.getZ() - 1 : sMax.getZ();
+        int totalH = sMax.getY() - sMin.getY() + 1;
 
-        // -----------------------------------------------------------------------
-        // GL setup
-        // -----------------------------------------------------------------------
         GlStateManager.pushMatrix();
         GlStateManager.translate(x, y, z);
         Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
         GlStateManager.enableBlend();
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableLighting();
-        // Keep culling enabled — block model handles exterior, fluid only needs visible faces
+        GlStateManager.disableCull();
 
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
 
-        // -----------------------------------------------------------------------
-        // Viewport outer faces — rendered on exterior of viewport column blocks
-        // -----------------------------------------------------------------------
+        // Render only the south and east faces of the viewport block —
+        // the two exterior-facing sides of the max-X/max-Z corner.
+        // Epsilon pushes them just past the block face to avoid z-fighting.
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
         GlStateManager.color(1f, 1f, 1f, 1f);
         buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-        int totalH2 = sMax.getY() - sMin.getY() + 1;
-        // North face outer (at Z = sMin.Z - 0.001)
-        renderOuterCol(buf, pos, vpColX, sMin.getZ(), sMin.getY(), sMax.getY(),
-                totalH2, 'N', vpBotSpr, vpCtrSpr, vpTopSpr);
-        // South face outer (at Z = sMax.Z + 0.001)
-        renderOuterCol(buf, pos, vpColX, sMax.getZ(), sMin.getY(), sMax.getY(),
-                totalH2, 'S', vpBotSpr, vpCtrSpr, vpTopSpr);
-        // West face outer (at X = sMin.X - 0.001)
-        renderOuterCol(buf, pos, sMin.getX(), vpColZ, sMin.getY(), sMax.getY(),
-                totalH2, 'W', vpBotSpr, vpCtrSpr, vpTopSpr);
-        // East face outer (at X = sMax.X + 0.001)
-        renderOuterCol(buf, pos, sMax.getX(), vpColZ, sMin.getY(), sMax.getY(),
-                totalH2, 'E', vpBotSpr, vpCtrSpr, vpTopSpr);
+        renderViewportFace(buf, pos, vpColX, vpColZ, sMin.getY(), sMax.getY(), totalH, 'S', vpBotSpr, vpCtrSpr, vpTopSpr);
         tess.draw();
 
-        // -----------------------------------------------------------------------
         // Fluid
-        // -----------------------------------------------------------------------
         GlStateManager.color(1f, 1f, 1f, 1f);
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
 
@@ -148,7 +121,6 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         buf.pos(fx2,maxY,fz2).tex(u2,v2).color(r,g,b,a).endVertex();
         buf.pos(fx2,maxY,fz1).tex(u2,v1).color(r,g,b,a).endVertex();
 
-
         buf.pos(fx2,fy1,fz1).tex(u2,v2).color(r,g,b,a).endVertex();
         buf.pos(fx1,fy1,fz1).tex(u1,v2).color(r,g,b,a).endVertex();
         buf.pos(fx1,maxY,fz1).tex(u1,v1).color(r,g,b,a).endVertex();
@@ -176,17 +148,17 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         GlStateManager.popMatrix();
     }
 
-    /** Renders viewport texture quads on the EXTERIOR face of the viewport column. */
-    private void renderOuterCol(BufferBuilder buf, BlockPos ctrl,
-                                int bx, int bz, int minY, int maxY,
-                                int totalH, char face,
-                                TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
-                                TextureAtlasSprite vpTop) {
+    private void renderViewportFace(BufferBuilder buf, BlockPos ctrl,
+                                    int bx, int bz, int minY, int maxY,
+                                    int totalH, char face,
+                                    TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
+                                    TextureAtlasSprite vpTop) {
+        float eps = 0.002f;
         for (int by = minY; by <= maxY; by++) {
             TextureAtlasSprite s;
-            if (totalH == 1 || by == minY)  { s = vpBot; }
-            else if (by == maxY)             { s = vpTop; }
-            else                             { s = vpCtr; }
+            if (totalH == 1 || by == minY) { s = vpBot; }
+            else if (by == maxY)           { s = vpTop; }
+            else                           { s = vpCtr; }
 
             float lx1 = bx - ctrl.getX();
             float lx2 = lx1 + 1f;
@@ -194,42 +166,10 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
             float lz2 = lz1 + 1f;
             float ly1 = by - ctrl.getY();
             float ly2 = by - ctrl.getY() + 1f;
-            float eps = 0.002f;
 
             switch (face) {
-                case 'N': putQ(buf,lx2,ly1,lz1-eps,lx1,ly1,lz1-eps,lx1,ly2,lz1-eps,lx2,ly2,lz1-eps,s); break;
-                case 'S': putQ(buf,lx1,ly1,lz2+eps,lx2,ly1,lz2+eps,lx2,ly2,lz2+eps,lx1,ly2,lz2+eps,s); break;
-                case 'W': putQ(buf,lx1-eps,ly1,lz1,lx1-eps,ly1,lz2,lx1-eps,ly2,lz2,lx1-eps,ly2,lz1,s); break;
-                case 'E': putQ(buf,lx2+eps,ly1,lz2,lx2+eps,ly1,lz1,lx2+eps,ly2,lz1,lx2+eps,ly2,lz2,s); break;
-            }
-        }
-    }
-
-    private void renderCol(BufferBuilder buf, BlockPos ctrl,
-                           int bx, int bz, int minY, int maxY,
-                           boolean isVp, int totalH, char face,
-                           TextureAtlasSprite solid, TextureAtlasSprite inner,
-                           TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
-                           TextureAtlasSprite vpTop) {
-        for (int by = minY; by <= maxY; by++) {
-            TextureAtlasSprite s;
-            if (!isVp) { s = solid; }
-            else if (totalH == 1 || by == minY) { s = vpBot; }
-            else if (by == maxY)                 { s = vpTop; }
-            else                                 { s = vpCtr; }
-
-            float lx1 = bx - ctrl.getX();
-            float lx2 = lx1 + 1f;
-            float lz1 = bz - ctrl.getZ();
-            float lz2 = lz1 + 1f;
-            float ly1 = by - ctrl.getY() + 0.005f;
-            float ly2 = by - ctrl.getY() + 0.995f;
-
-            switch (face) {
-                case 'N': putQ(buf,lx1,ly1,lz2,lx2,ly1,lz2,lx2,ly2,lz2,lx1,ly2,lz2,s); break;
-                case 'S': putQ(buf,lx2,ly1,lz1,lx1,ly1,lz1,lx1,ly2,lz1,lx2,ly2,lz1,s); break;
-                case 'W': putQ(buf,lx2,ly1,lz1,lx2,ly1,lz2,lx2,ly2,lz2,lx2,ly2,lz1,s); break;
-                case 'E': putQ(buf,lx1,ly1,lz2,lx1,ly1,lz1,lx1,ly2,lz1,lx1,ly2,lz2,s); break;
+                case 'S': putQ(buf, lx1,ly1,lz2-eps, lx2,ly1,lz2-eps, lx2,ly2,lz2-eps, lx1,ly2,lz2-eps, s); break;
+                case 'E': putQ(buf, lx2-eps,ly1,lz2, lx2-eps,ly1,lz1, lx2-eps,ly2,lz1, lx2-eps,ly2,lz2, s); break;
             }
         }
     }
