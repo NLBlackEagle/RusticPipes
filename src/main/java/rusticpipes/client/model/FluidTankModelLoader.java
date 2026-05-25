@@ -15,7 +15,7 @@ public class FluidTankModelLoader implements ICustomModelLoader {
         if (!modelLocation.getNamespace().equals(RusticPipes.MODID)) return false;
         String path = modelLocation.getPath();
         // Multiblock uses plain cube_all — skip it
-        if (path.equals("fluid_tank_multiblock")) return false;
+        if (path.startsWith("fluid_tank_multiblock")) return false;
         return path.startsWith("fluid_tank") || path.equals("item/fluid_tank");
     }
 

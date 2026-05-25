@@ -3,13 +3,14 @@ package rusticpipes.block;
 import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
-import net.minecraft.block.properties.PropertyBool;
+import net.minecraft.block.properties.PropertyEnum;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.IStringSerializable;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.world.World;
@@ -21,24 +22,22 @@ import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 import javax.annotation.Nullable;
 import java.util.List;
 
-/**
- * Multiblock fluid tank block. Fully solid exterior (fluid_tank_solid texture).
- * Interior is rendered by FluidTankMultiblockRenderer TESR.
- *
- * Uses the same item as fluid_tank — player places these in the correct
- * footprint and they auto-validate on placement.
- *
- * Supported configurations: 2x2, 3x3, 4x4 footprint, 1-10 blocks high.
- */
 public class BlockFluidTankMultiblock extends Block implements ITileEntityProvider {
 
-    public static final PropertyBool VIEWPORT = PropertyBool.create("viewport");
+    public enum ViewportFace implements IStringSerializable {
+        NONE, NORTH, SOUTH, EAST, WEST;
+
+        @Override public String getName() { return name().toLowerCase(); }
+    }
+
+    public static final PropertyEnum<ViewportFace> VIEWPORT =
+            PropertyEnum.create("viewport", ViewportFace.class);
 
     public BlockFluidTankMultiblock() {
         super(Material.IRON);
         setHardness(2.5f);
         setResistance(10f);
-        setDefaultState(blockState.getBaseState().withProperty(VIEWPORT, false));
+        setDefaultState(blockState.getBaseState().withProperty(VIEWPORT, ViewportFace.NONE));
     }
 
     @Override
@@ -48,12 +47,12 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public IBlockState getStateFromMeta(int meta) {
-        return getDefaultState().withProperty(VIEWPORT, (meta & 1) == 1);
+        return getDefaultState().withProperty(VIEWPORT, ViewportFace.values()[meta % ViewportFace.values().length]);
     }
 
     @Override
     public int getMetaFromState(IBlockState state) {
-        return state.getValue(VIEWPORT) ? 1 : 0;
+        return state.getValue(VIEWPORT).ordinal();
     }
 
     @Override public boolean hasTileEntity(IBlockState state) { return true; }
@@ -62,10 +61,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public TileEntity createNewTileEntity(World world, int meta) {
         return new TileEntityFluidTankMultiblock();
     }
-
-    // -----------------------------------------------------------------------
-    // Auto-validate on placement / neighbour change / break
-    // -----------------------------------------------------------------------
 
     @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
@@ -77,7 +72,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
         if (world.isRemote) return;
-        // Only react when a multiblock tank block changes nearby
         boolean neighbourIsMultiblock =
                 world.getBlockState(fromPos).getBlock() instanceof BlockFluidTankMultiblock;
         TileEntity te = world.getTileEntity(pos);
@@ -103,22 +97,22 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (st != null) {
             TankMultiblock.applyMultiblock(world, st);
         } else {
-            // Not part of a valid structure — reset to standalone
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityFluidTankMultiblock) {
                 ((TileEntityFluidTankMultiblock) te).invalidate();
             }
+            // Reset to solid when not part of a valid multiblock
+            IBlockState current = world.getBlockState(pos);
+            if (current.getValue(VIEWPORT) != ViewportFace.NONE) {
+                world.setBlockState(pos, current.withProperty(VIEWPORT, ViewportFace.NONE), 2);
+            }
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Right-click info
-    // -----------------------------------------------------------------------
-
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
-        if (state.getValue(VIEWPORT)) {
-            return layer == BlockRenderLayer.CUTOUT_MIPPED;
+        if (state.getValue(VIEWPORT) != ViewportFace.NONE) {
+            return layer == BlockRenderLayer.SOLID || layer == BlockRenderLayer.CUTOUT_MIPPED;
         }
         return layer == BlockRenderLayer.SOLID;
     }
@@ -145,10 +139,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
         return true;
     }
-
-    // -----------------------------------------------------------------------
-    // Tooltip
-    // -----------------------------------------------------------------------
 
     @Override
     @SideOnly(Side.CLIENT)

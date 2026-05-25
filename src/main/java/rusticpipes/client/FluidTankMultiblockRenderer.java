@@ -1,5 +1,6 @@
 package rusticpipes.client;
 
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
@@ -14,6 +15,7 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
+import rusticpipes.block.BlockFluidTankMultiblock;
 import rusticpipes.multiblock.TankMultiblock;
 import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 
@@ -38,9 +40,10 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (fluid != null && fluid.getFluid() != null)
             fluidSprite = spr(fluid.getFluid().getStill(fluid).toString());
 
-        TextureAtlasSprite vpBotSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
-        TextureAtlasSprite vpCtrSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
-        TextureAtlasSprite vpTopSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
+        TextureAtlasSprite vpBotSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
+        TextureAtlasSprite vpCtrSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
+        TextureAtlasSprite vpTopSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
+        TextureAtlasSprite innerSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
 
         BlockPos sMin = st.min, sMax = st.max;
         int sz = st.baseSize;
@@ -64,10 +67,6 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         }
 
         double maxY = minY + wallH * fill;
-
-        // Viewport column is always the max-X / max-Z corner block
-        int vpColX = (sz >= 3) ? sMax.getX() - 1 : sMax.getX();
-        int vpColZ = (sz >= 3) ? sMax.getZ() - 1 : sMax.getZ();
         int totalH = sMax.getY() - sMin.getY() + 1;
 
         GlStateManager.pushMatrix();
@@ -81,13 +80,20 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
 
-        // Render only the south and east faces of the viewport block —
-        // the two exterior-facing sides of the max-X/max-Z corner.
-        // Epsilon pushes them just past the block face to avoid z-fighting.
+        // Render inner viewport faces for every viewport block in the structure
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
         GlStateManager.color(1f, 1f, 1f, 1f);
         buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-        renderViewportFace(buf, pos, vpColX, vpColZ, sMin.getY(), sMax.getY(), totalH, 'S', vpBotSpr, vpCtrSpr, vpTopSpr);
+
+        for (BlockPos p : st.allPositions()) {
+            IBlockState state = getWorld().getBlockState(p);
+            if (!(state.getBlock() instanceof BlockFluidTankMultiblock)) continue;
+            BlockFluidTankMultiblock.ViewportFace face = state.getValue(BlockFluidTankMultiblock.VIEWPORT);
+            if (face == BlockFluidTankMultiblock.ViewportFace.NONE) continue;
+
+            renderInnerFace(buf, pos, p, sMin.getY(), sMax.getY(), totalH, face, innerSpr, vpBotSpr, vpCtrSpr, vpTopSpr);
+        }
+
         tess.draw();
 
         // Fluid
@@ -148,29 +154,39 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         GlStateManager.popMatrix();
     }
 
-    private void renderViewportFace(BufferBuilder buf, BlockPos ctrl,
-                                    int bx, int bz, int minY, int maxY,
-                                    int totalH, char face,
-                                    TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
-                                    TextureAtlasSprite vpTop) {
+    /**
+     * Renders the inner viewport face for a single block, just inside its exterior face.
+     * Uses inner_viewport texture, positioned epsilon inside the block surface.
+     */
+    private void renderInnerFace(BufferBuilder buf, BlockPos ctrl, BlockPos p,
+                                  int minY, int maxY, int totalH,
+                                  BlockFluidTankMultiblock.ViewportFace face,
+                                  TextureAtlasSprite inner,
+                                  TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
+                                  TextureAtlasSprite vpTop) {
         float eps = 0.002f;
-        for (int by = minY; by <= maxY; by++) {
-            TextureAtlasSprite s;
-            if (totalH == 1 || by == minY) { s = vpBot; }
-            else if (by == maxY)           { s = vpTop; }
-            else                           { s = vpCtr; }
+        int by = p.getY();
+        TextureAtlasSprite s;
+        if (totalH == 1 || by == minY) { s = vpBot; }
+        else if (by == maxY)           { s = vpTop; }
+        else                           { s = vpCtr; }
 
-            float lx1 = bx - ctrl.getX();
-            float lx2 = lx1 + 1f;
-            float lz1 = bz - ctrl.getZ();
-            float lz2 = lz1 + 1f;
-            float ly1 = by - ctrl.getY();
-            float ly2 = by - ctrl.getY() + 1f;
+        // Use inner_viewport for the texture visible through the glass
+        // s is used only to determine which row we're on — the actual inner texture is inner
+        s = inner;
 
-            switch (face) {
-                case 'S': putQ(buf, lx1,ly1,lz2-eps, lx2,ly1,lz2-eps, lx2,ly2,lz2-eps, lx1,ly2,lz2-eps, s); break;
-                case 'E': putQ(buf, lx2-eps,ly1,lz2, lx2-eps,ly1,lz1, lx2-eps,ly2,lz1, lx2-eps,ly2,lz2, s); break;
-            }
+        float lx1 = p.getX() - ctrl.getX();
+        float lx2 = lx1 + 1f;
+        float lz1 = p.getZ() - ctrl.getZ();
+        float lz2 = lz1 + 1f;
+        float ly1 = by - ctrl.getY();
+        float ly2 = by - ctrl.getY() + 1f;
+
+        switch (face) {
+            case NORTH: putQ(buf, lx2,ly1,lz1+eps, lx1,ly1,lz1+eps, lx1,ly2,lz1+eps, lx2,ly2,lz1+eps, s); break;
+            case SOUTH: putQ(buf, lx1,ly1,lz2-eps, lx2,ly1,lz2-eps, lx2,ly2,lz2-eps, lx1,ly2,lz2-eps, s); break;
+            case WEST:  putQ(buf, lx1+eps,ly1,lz2, lx1+eps,ly1,lz1, lx1+eps,ly2,lz1, lx1+eps,ly2,lz2, s); break;
+            case EAST:  putQ(buf, lx2-eps,ly1,lz1, lx2-eps,ly1,lz2, lx2-eps,ly2,lz2, lx2-eps,ly2,lz1, s); break;
         }
     }
 

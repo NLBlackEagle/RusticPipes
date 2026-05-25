@@ -263,18 +263,54 @@ public class TankMultiblock {
     public static void applyMultiblock(World world, Structure structure) {
         int capacity = structure.blockCount
                 * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
-        int vpColX = (structure.baseSize >= 3) ? structure.max.getX() - 1 : structure.max.getX();
-        int vpColZ = (structure.baseSize >= 3) ? structure.max.getZ() - 1 : structure.max.getZ();
         for (BlockPos p : structure.allPositions()) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
             if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
             ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
                     structure.controller, structure.roleOf(p), capacity, structure.baseSize);
-            boolean isViewport = (p.getX() == vpColX && p.getZ() == vpColZ);
+            rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face =
+                    viewportFaceFor(p, structure);
             IBlockState current = world.getBlockState(p);
             world.setBlockState(p, current.withProperty(
-                    rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, isViewport), 2);
+                    rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, face), 2);
         }
+    }
+
+    /**
+     * Determines which face of this block should show the viewport texture.
+     * For a 2x2 base:
+     *   min-X/min-Z → WEST
+     *   max-X/min-Z → NORTH
+     *   min-X/max-Z → SOUTH
+     *   max-X/max-Z → EAST
+     * Only wall blocks (not top/bottom) on the exterior get a viewport face.
+     */
+    private static rusticpipes.block.BlockFluidTankMultiblock.ViewportFace viewportFaceFor(
+            BlockPos p, Structure structure) {
+        // Only exterior wall blocks get viewports (not top/bottom layers)
+        boolean isBottom = p.getY() == structure.min.getY();
+        boolean isTop    = p.getY() == structure.max.getY();
+        boolean singleLayer = structure.min.getY() == structure.max.getY();
+        if (!singleLayer && (isBottom || isTop)) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+
+        boolean isMinX = p.getX() == structure.min.getX();
+        boolean isMaxX = p.getX() == structure.max.getX();
+        boolean isMinZ = p.getZ() == structure.min.getZ();
+        boolean isMaxZ = p.getZ() == structure.max.getZ();
+
+        // For 2x2: every block is a corner — pick one exterior face per corner
+        if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
+        if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
+        if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
+        if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+
+        // For larger bases: non-corner wall blocks face outward on their exterior axis
+        if (isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
+        if (isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
+        if (isMinX) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
+        if (isMaxX) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
+
+        return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
     }
 
     /** Invalidates all TileEntityFluidTankMultiblock members sharing the same controller. */
@@ -295,7 +331,8 @@ public class TankMultiblock {
                             IBlockState current = world.getBlockState(mp);
                             if (current.getBlock() instanceof rusticpipes.block.BlockFluidTankMultiblock) {
                                 world.setBlockState(mp, current.withProperty(
-                                        rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, false), 2);
+                                        rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT,
+                                        rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE), 2);
                             }
                         }
                     }

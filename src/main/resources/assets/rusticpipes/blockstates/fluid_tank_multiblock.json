@@ -1,6 +1,9 @@
 {
   "variants": {
-    "viewport=false": { "model": "rusticpipes:fluid_tank_multiblock" },
-    "viewport=true":  { "model": "rusticpipes:fluid_tank_multiblock_viewport" }
+    "viewport=none":  { "model": "rusticpipes:fluid_tank_multiblock" },
+    "viewport=north": { "model": "rusticpipes:fluid_tank_multiblock_viewport_north" },
+    "viewport=south": { "model": "rusticpipes:fluid_tank_multiblock_viewport_south" },
+    "viewport=east":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_east" },
+    "viewport=west":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_west" }
   }
 }

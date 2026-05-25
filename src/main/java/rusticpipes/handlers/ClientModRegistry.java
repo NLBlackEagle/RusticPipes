@@ -86,11 +86,20 @@ public class ClientModRegistry {
             ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(fp), 0, FLUID_INVENTORY);
         }
 
-        // Fluid tank — vanilla blockstate model, role property drives texture
-        // Register multiblock model — all states use fluid_tank_solid
+        // Fluid tank multiblock — state mapper routes viewport enum to correct model
+        ModelLoader.setCustomStateMapper(ModRegistry.FLUID_TANK_MULTIBLOCK, new StateMapperBase() {
+            @Override
+            protected ModelResourceLocation getModelResourceLocation(IBlockState state) {
+                rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face =
+                        state.getValue(rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT);
+                return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock",
+                        "viewport=" + face.getName());
+            }
+        });
+        // Item uses the plain solid model
         net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                 net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK), 0,
-                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "normal"));
+                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "viewport=none"));
 
         // Register single tank item model
         ModelLoader.setCustomModelResourceLocation(
