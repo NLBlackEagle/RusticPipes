@@ -126,14 +126,14 @@ public class ClientModRegistry {
 
         // Buffer blocks — full-cube models, on/off texture driven by POWERED blockstate
         BlockConduitBuffer[] buffers = {
-            ModRegistry.BUFFER_SLOW, ModRegistry.BUFFER_NORMAL,
-            ModRegistry.BUFFER_FAST, ModRegistry.BUFFER_TURBO,
-            ModRegistry.BUFFER_HYPER, ModRegistry.BUFFER_ULTRA
+                ModRegistry.BUFFER_SLOW, ModRegistry.BUFFER_NORMAL,
+                ModRegistry.BUFFER_FAST, ModRegistry.BUFFER_TURBO,
+                ModRegistry.BUFFER_HYPER, ModRegistry.BUFFER_ULTRA
         };
         String[] bufNames = {
-            "conduit_buffer_slow", "conduit_buffer_normal",
-            "conduit_buffer_fast", "conduit_buffer_turbo",
-            "conduit_buffer_hyper", "conduit_buffer_ultra"
+                "conduit_buffer_slow", "conduit_buffer_normal",
+                "conduit_buffer_fast", "conduit_buffer_turbo",
+                "conduit_buffer_hyper", "conduit_buffer_ultra"
         };
         for (int i = 0; i < buffers.length; i++) {
             final String name = bufNames[i];
@@ -169,6 +169,12 @@ public class ClientModRegistry {
                 "rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center"));
         event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
                 "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_bottom"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_center"));
+        event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
+                "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_top"));
         event.getMap().registerSprite(new net.minecraft.util.ResourceLocation(
                 "rusticpipes:blocks/fluid_tank/fluid_tank_solid"));
     }

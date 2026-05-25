@@ -40,10 +40,12 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (fluid != null && fluid.getFluid() != null)
             fluidSprite = spr(fluid.getFluid().getStill(fluid).toString());
 
-        TextureAtlasSprite vpBotSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
-        TextureAtlasSprite vpCtrSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
-        TextureAtlasSprite vpTopSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
-        TextureAtlasSprite innerSpr  = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
+        TextureAtlasSprite vpBotSpr      = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
+        TextureAtlasSprite vpCtrSpr      = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
+        TextureAtlasSprite vpTopSpr      = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
+        TextureAtlasSprite innerBotSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_bottom");
+        TextureAtlasSprite innerCtrSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_center");
+        TextureAtlasSprite innerTopSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_top");
 
         BlockPos sMin = st.min, sMax = st.max;
         int sz = st.baseSize;
@@ -91,7 +93,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
             BlockFluidTankMultiblock.ViewportFace face = state.getValue(BlockFluidTankMultiblock.VIEWPORT);
             if (face == BlockFluidTankMultiblock.ViewportFace.NONE) continue;
 
-            renderInnerFace(buf, pos, p, sMin.getY(), sMax.getY(), totalH, face, innerSpr, vpBotSpr, vpCtrSpr, vpTopSpr);
+            renderInnerFace(buf, pos, p, sMin.getY(), sMax.getY(), totalH, face, innerBotSpr, innerCtrSpr, innerTopSpr);
         }
 
         tess.draw();
@@ -159,21 +161,16 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
      * Uses inner_viewport texture, positioned epsilon inside the block surface.
      */
     private void renderInnerFace(BufferBuilder buf, BlockPos ctrl, BlockPos p,
-                                 int minY, int maxY, int totalH,
-                                 BlockFluidTankMultiblock.ViewportFace face,
-                                 TextureAtlasSprite inner,
-                                 TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
-                                 TextureAtlasSprite vpTop) {
+                                  int minY, int maxY, int totalH,
+                                  BlockFluidTankMultiblock.ViewportFace face,
+                                  TextureAtlasSprite innerBot, TextureAtlasSprite innerCtr,
+                                  TextureAtlasSprite innerTop) {
         float eps = 0.002f;
         int by = p.getY();
         TextureAtlasSprite s;
-        if (totalH == 1 || by == minY) { s = vpBot; }
-        else if (by == maxY)           { s = vpTop; }
-        else                           { s = vpCtr; }
-
-        // Use inner_viewport for the texture visible through the glass
-        // s is used only to determine which row we're on — the actual inner texture is inner
-        s = inner;
+        if (totalH == 1 || by == minY) { s = innerBot; }
+        else if (by == maxY)           { s = innerTop; }
+        else                           { s = innerCtr; }
 
         float lx1 = p.getX() - ctrl.getX();
         float lx2 = lx1 + 1f;

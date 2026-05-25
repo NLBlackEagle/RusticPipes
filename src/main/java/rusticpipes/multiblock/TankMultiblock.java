@@ -295,12 +295,11 @@ public class TankMultiblock {
         boolean isMaxZ   = p.getZ() == structure.max.getZ();
         int totalH       = structure.max.getY() - structure.min.getY() + 1;
 
-        // Determine row: bottom, top, or center
+        // Determine row: single layer uses bottom texture (same as bottom of multi-layer)
         String row;
-        if (totalH == 1)    { row = "bottom"; } // single layer uses bottom texture
-        else if (isBottom)  { row = "bottom"; }
-        else if (isTop)     { row = "top"; }
-        else                { row = "center"; }
+        if (totalH == 1 || isBottom) { row = "bottom"; }
+        else if (isTop)              { row = "top"; }
+        else                         { row = "center"; }
 
         // Determine direction (rightmost block per face from outside)
         String dir = null;

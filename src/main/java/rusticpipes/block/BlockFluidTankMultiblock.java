@@ -76,12 +76,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
         if (world.isRemote) return;
-        boolean neighbourIsMultiblock =
-                world.getBlockState(fromPos).getBlock() instanceof BlockFluidTankMultiblock;
-        TileEntity te = world.getTileEntity(pos);
-        boolean wasInMultiblock = te instanceof TileEntityFluidTankMultiblock
-                && ((TileEntityFluidTankMultiblock) te).isPartOfMultiblock();
-        if (!neighbourIsMultiblock && !wasInMultiblock) return;
         tryValidate(world, pos);
     }
 
