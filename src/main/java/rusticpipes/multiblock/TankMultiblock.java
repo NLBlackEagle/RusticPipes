@@ -3,7 +3,8 @@ package rusticpipes.multiblock;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import rusticpipes.block.BlockFluidTank;
-import rusticpipes.tileentity.TileEntityFluidTank;
+import rusticpipes.block.BlockFluidTankMultiblock;
+import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 
 import javax.annotation.Nullable;
 import java.util.HashSet;
@@ -183,44 +184,106 @@ public class TankMultiblock {
      * Applies a validated structure to the world — updates all member TEs with
      * their role, controller pos, and total capacity.
      */
+    /** @deprecated Use applyMultiblock() for BlockFluidTankMultiblock. */
     public static void apply(World world, Structure structure) {
-        int capacity = structure.blockCount * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
-
-        for (BlockPos p : structure.allPositions()) {
-            net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
-            if (!(te instanceof TileEntityFluidTank)) continue;
-            TileEntityFluidTank tank = (TileEntityFluidTank) te;
-            tank.onMultiblockFormed(structure.controller, structure.roleOf(p), capacity);
-        }
+        // Single-block tanks no longer support multiblock — this is a no-op.
     }
 
     /**
      * Invalidates all members of the structure the given position belongs to.
      * Called when any member block is broken.
      */
+    /** @deprecated Use invalidateMultiblock() for BlockFluidTankMultiblock. */
     public static void invalidate(World world, BlockPos pos) {
-        net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
-        if (!(te instanceof TileEntityFluidTank)) return;
-        TileEntityFluidTank tank = (TileEntityFluidTank) te;
-        BlockPos controller = tank.getControllerPos();
-        if (controller == null) return;
+        // Single-block tanks no longer support multiblock — this is a no-op.
+    }
+    // -----------------------------------------------------------------------
+    // Multiblock-block variants (BlockFluidTankMultiblock)
+    // -----------------------------------------------------------------------
 
-        // Collect all members that point to the same controller
-        // We search a limited area around the controller (max 4×7×4)
-        BlockPos min = controller.add(-4, 0, -4);
-        BlockPos max = controller.add(4, 7, 4);
-        for (int x = min.getX(); x <= max.getX(); x++) {
-            for (int y = min.getY(); y <= max.getY(); y++) {
-                for (int z = min.getZ(); z <= max.getZ(); z++) {
-                    BlockPos p = new BlockPos(x, y, z);
-                    net.minecraft.tileentity.TileEntity member = world.getTileEntity(p);
-                    if (!(member instanceof TileEntityFluidTank)) continue;
-                    TileEntityFluidTank memberTank = (TileEntityFluidTank) member;
-                    if (controller.equals(memberTank.getControllerPos())) {
-                        memberTank.onMultiblockInvalidated();
-                    }
+    /**
+     * Validates a multiblock structure made of BlockFluidTankMultiblock blocks.
+     * Footprints: 2x2, 3x3, 4x4. Height: 1-10.
+     */
+    @Nullable
+    public static Structure validateMultiblock(World world, BlockPos origin) {
+        BlockPos min = origin, max = origin;
+        Set<BlockPos> visited = new HashSet<>();
+        java.util.Queue<BlockPos> queue = new java.util.ArrayDeque<>();
+        queue.add(origin); visited.add(origin);
+
+        while (!queue.isEmpty()) {
+            BlockPos current = queue.poll();
+            min = new BlockPos(Math.min(min.getX(), current.getX()),
+                               Math.min(min.getY(), current.getY()),
+                               Math.min(min.getZ(), current.getZ()));
+            max = new BlockPos(Math.max(max.getX(), current.getX()),
+                               Math.max(max.getY(), current.getY()),
+                               Math.max(max.getZ(), current.getZ()));
+            for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
+                BlockPos np = current.offset(face);
+                if (!visited.contains(np)
+                        && world.getBlockState(np).getBlock() instanceof BlockFluidTankMultiblock) {
+                    visited.add(np); queue.add(np);
                 }
             }
         }
+
+        int sizeX = max.getX() - min.getX() + 1;
+        int sizeY = max.getY() - min.getY() + 1;
+        int sizeZ = max.getZ() - min.getZ() + 1;
+
+        if (sizeX != sizeZ) return null;
+        if (sizeX < 2 || sizeX > 4) return null;  // 2x2 to 4x4
+        if (sizeY < 1 || sizeY > 10) return null; // 1 to 10 high
+
+        int baseSize = sizeX;
+        Structure candidate = new Structure(min, max, 0, baseSize, sizeY);
+        Set<BlockPos> expected = candidate.allPositions();
+        int blockCount = expected.size();
+
+        for (BlockPos p : expected) {
+            if (!(world.getBlockState(p).getBlock() instanceof BlockFluidTankMultiblock))
+                return null;
+        }
+
+        // Verify interior is air for 3x3+
+        if (baseSize >= 3) {
+            for (int x = min.getX() + 1; x <= max.getX() - 1; x++)
+                for (int y = min.getY() + 1; y <= max.getY() - 1; y++)
+                    for (int z = min.getZ() + 1; z <= max.getZ() - 1; z++)
+                        if (!world.isAirBlock(new BlockPos(x, y, z))) return null;
+        }
+
+        return new Structure(min, max, blockCount, baseSize, sizeY);
+    }
+
+    /** Applies a validated multiblock structure to TileEntityFluidTankMultiblock TEs. */
+    public static void applyMultiblock(World world, Structure structure) {
+        int capacity = structure.blockCount
+                * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
+        for (BlockPos p : structure.allPositions()) {
+            net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
+            if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
+            ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
+                    structure.controller, structure.roleOf(p), capacity, structure.baseSize);
+        }
+    }
+
+    /** Invalidates all TileEntityFluidTankMultiblock members sharing the same controller. */
+    public static void invalidateMultiblock(World world, BlockPos pos) {
+        net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
+        if (!(te instanceof TileEntityFluidTankMultiblock)) return;
+        BlockPos controller = ((TileEntityFluidTankMultiblock) te).getControllerPos();
+        if (controller == null) return;
+        for (int x = controller.getX() - 4; x <= controller.getX() + 4; x++)
+            for (int y = controller.getY(); y <= controller.getY() + 10; y++)
+                for (int z = controller.getZ() - 4; z <= controller.getZ() + 4; z++) {
+                    net.minecraft.tileentity.TileEntity m = world.getTileEntity(new BlockPos(x, y, z));
+                    if (m instanceof TileEntityFluidTankMultiblock) {
+                        TileEntityFluidTankMultiblock mt = (TileEntityFluidTankMultiblock) m;
+                        if (controller.equals(mt.getControllerPos())) mt.invalidate();
+                    }
+                }
     }
 }

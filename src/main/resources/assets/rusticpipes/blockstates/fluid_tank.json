@@ -1,25 +1,6 @@
 {
   "variants": {
-    "role=single": {
-      "model": "rusticpipes:fluid_tank_single"
-    },
-    "role=bottom": {
-      "model": "rusticpipes:fluid_tank_bottom"
-    },
-    "role=top": {
-      "model": "rusticpipes:fluid_tank_top"
-    },
-    "role=wall": {
-      "model": "rusticpipes:fluid_tank_wall"
-    },
-    "role=corner": {
-      "model": "rusticpipes:fluid_tank_corner"
-    },
-    "role=edge": {
-      "model": "rusticpipes:fluid_tank_edge"
-    },
-    "inventory": {
-      "model": "rusticpipes:fluid_tank_single"
-    }
+    "normal": { "model": "rusticpipes:fluid_tank_single" },
+    "inventory": { "model": "rusticpipes:fluid_tank_single" }
   }
 }

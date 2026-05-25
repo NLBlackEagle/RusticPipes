@@ -24,8 +24,10 @@ import rusticpipes.tileentity.TileEntityConduit;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockFluidTank;
+import rusticpipes.block.BlockFluidTankMultiblock;
 import rusticpipes.tileentity.TileEntityFluidPipe;
 import rusticpipes.tileentity.TileEntityFluidTank;
+import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 
@@ -43,7 +45,8 @@ public class ModRegistry {
     /** One block instance per color, indexed by {@link PipeColor#ordinal()}. */
     public static final BlockItemPipe[]  PIPES       = new BlockItemPipe[PipeColor.values().length];
     public static final BlockFluidPipe[] FLUID_PIPES = new BlockFluidPipe[PipeColor.values().length];
-    public static final BlockFluidTank   FLUID_TANK  = new BlockFluidTank();
+    public static final BlockFluidTank          FLUID_TANK           = new BlockFluidTank();
+    public static final BlockFluidTankMultiblock FLUID_TANK_MULTIBLOCK = new BlockFluidTankMultiblock();
 
     static {
         for (PipeColor color : PipeColor.values()) {
@@ -74,6 +77,7 @@ public class ModRegistry {
         GameRegistry.registerTileEntity(TileEntityItemPipe.class,  RusticPipes.MODID + ":item_pipe");
         GameRegistry.registerTileEntity(TileEntityFluidPipe.class, RusticPipes.MODID + ":fluid_pipe");
         GameRegistry.registerTileEntity(TileEntityFluidTank.class, RusticPipes.MODID + ":fluid_tank");
+        GameRegistry.registerTileEntity(TileEntityFluidTankMultiblock.class, RusticPipes.MODID + ":fluid_tank_multiblock");
         GameRegistry.registerTileEntity(TileEntityConduit.class,       RusticPipes.MODID + ":conduit");
         GameRegistry.registerTileEntity(TileEntityConduitBuffer.class, RusticPipes.MODID + ":conduit_buffer");
     }
@@ -101,6 +105,11 @@ public class ModRegistry {
         FLUID_TANK.setTranslationKey("fluid_tank");
         FLUID_TANK.setCreativeTab(CREATIVE_TAB);
         event.getRegistry().register(FLUID_TANK);
+
+        FLUID_TANK_MULTIBLOCK.setRegistryName(RusticPipes.MODID, "fluid_tank_multiblock");
+        FLUID_TANK_MULTIBLOCK.setTranslationKey("fluid_tank_multiblock");
+        FLUID_TANK_MULTIBLOCK.setCreativeTab(CREATIVE_TAB);
+        event.getRegistry().register(FLUID_TANK_MULTIBLOCK);
 
         CONDUIT.setRegistryName(RusticPipes.MODID, "conduit");
         CONDUIT.setTranslationKey("conduit");
@@ -136,7 +145,10 @@ public class ModRegistry {
         // Fluid tank item
         ItemBlock tankItem = new ItemBlock(FLUID_TANK);
         tankItem.setRegistryName(FLUID_TANK.getRegistryName());
+        net.minecraft.item.ItemBlock tankMultiblockItem = new net.minecraft.item.ItemBlock(FLUID_TANK_MULTIBLOCK);
+        tankMultiblockItem.setRegistryName(FLUID_TANK_MULTIBLOCK.getRegistryName());
         event.getRegistry().register(tankItem);
+            event.getRegistry().register(tankMultiblockItem);
 
         net.minecraft.item.ItemBlock conduitItem = new net.minecraft.item.ItemBlock(CONDUIT);
         conduitItem.setRegistryName(CONDUIT.getRegistryName());

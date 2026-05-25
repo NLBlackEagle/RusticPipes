@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "normal": { "model": "rusticpipes:fluid_tank_multiblock" }
+  }
+}

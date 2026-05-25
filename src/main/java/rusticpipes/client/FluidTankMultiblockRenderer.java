@@ -9,18 +9,27 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
-import rusticpipes.tileentity.TileEntityFluidTank;
+import rusticpipes.multiblock.TankMultiblock;
+import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 
 @SideOnly(Side.CLIENT)
-public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluidTank> {
+public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileEntityFluidTankMultiblock> {
 
     @Override
-    public void render(TileEntityFluidTank te, double x, double y, double z,
+    public void render(TileEntityFluidTankMultiblock te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
+
+        if (!te.isController() && te.isPartOfMultiblock()) return;
+        if (!te.isPartOfMultiblock()) return; // standalone blocks don't use this renderer
+
+        BlockPos pos = te.getPos();
+        TankMultiblock.Structure st = TankMultiblock.validateMultiblock(getWorld(), pos);
+        if (st == null) return;
 
         FluidStack fluid = te.getFluid();
         float fill = (fluid != null && fluid.amount > 0) ? te.getFillFraction() : 0f;
@@ -29,16 +38,51 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         if (fluid != null && fluid.getFluid() != null)
             fluidSprite = spr(fluid.getFluid().getStill(fluid).toString());
 
-        // Single block interior bounds — flush with exterior faces
-        double minX = 0.002, maxX = 0.998;
-        double minZ = 0.002, maxZ = 0.998;
-        double minY = 0.002;
-        double maxY = minY + 0.994 * fill;
-        float wTop = 0.998f;
-
+        // -----------------------------------------------------------------------
+        // Sprites
+        // -----------------------------------------------------------------------
         TextureAtlasSprite solidSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_solid");
         TextureAtlasSprite innerSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
+        TextureAtlasSprite vpBotSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom");
+        TextureAtlasSprite vpCtrSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center");
+        TextureAtlasSprite vpTopSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top");
 
+        // -----------------------------------------------------------------------
+        // Interior bounds (local coords relative to controller)
+        // -----------------------------------------------------------------------
+        BlockPos sMin = st.min, sMax = st.max;
+        int sz = st.baseSize;
+        double minX, minY, minZ, maxX, maxZ, wallH;
+
+        boolean hollow = (sz >= 3) && (sMax.getY() - sMin.getY() >= 2);
+        if (!hollow) {
+            // Fully solid footprint (2x2 any height, or 3x3+ with height < 3)
+            minX = sMin.getX() - pos.getX() + 0.01;
+            minZ = sMin.getZ() - pos.getZ() + 0.01;
+            maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
+            maxZ = sMax.getZ() - pos.getZ() + 1.0 - 0.01;
+            minY = sMin.getY() - pos.getY() + 0.01;
+            wallH = (sMax.getY() - sMin.getY() + 1) - 0.02;
+        } else {
+            // Hollow interior (3x3+ with height >= 3)
+            minX = sMin.getX() - pos.getX() + 1.0 + 0.01;
+            minZ = sMin.getZ() - pos.getZ() + 1.0 + 0.01;
+            maxX = sMax.getX() - pos.getX() - 0.01;
+            maxZ = sMax.getZ() - pos.getZ() - 0.01;
+            minY = sMin.getY() - pos.getY() + 1.0 + 0.01;
+            wallH = (sMax.getY() - sMin.getY() - 1) - 0.02;
+        }
+
+        double wTop = minY + wallH;
+        double maxY = minY + wallH * fill;
+
+        // Viewport column: max-1 for size>=3, max for size==2
+        int vpColX = (sz >= 3) ? sMax.getX() - 1 : sMax.getX();
+        int vpColZ = (sz >= 3) ? sMax.getZ() - 1 : sMax.getZ();
+
+        // -----------------------------------------------------------------------
+        // GL setup
+        // -----------------------------------------------------------------------
         GlStateManager.pushMatrix();
         GlStateManager.translate(x, y, z);
         Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
@@ -49,23 +93,10 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
 
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
-        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
 
-        float wx1 = (float)minX, wx2 = (float)maxX;
-        float wz1 = (float)minZ, wz2 = (float)maxZ;
-        float wy1 = (float)minY;
-
-        // Bottom and top — solid
-        putQ(buf, wx1,wy1,wz1, wx1,wy1,wz2, wx2,wy1,wz2, wx2,wy1,wz1, solidSpr);
-        putQ(buf, wx1,wTop,wz1, wx2,wTop,wz1, wx2,wTop,wz2, wx1,wTop,wz2, solidSpr);
-        // Sides — inner viewport
-        putQ(buf, wx1,wy1,wz1, wx2,wy1,wz1, wx2,wTop,wz1, wx1,wTop,wz1, innerSpr);
-        putQ(buf, wx2,wy1,wz2, wx1,wy1,wz2, wx1,wTop,wz2, wx2,wTop,wz2, innerSpr);
-        putQ(buf, wx1,wy1,wz2, wx1,wy1,wz1, wx1,wTop,wz1, wx1,wTop,wz2, innerSpr);
-        putQ(buf, wx2,wy1,wz1, wx2,wy1,wz2, wx2,wTop,wz2, wx2,wTop,wz1, innerSpr);
-
-        tess.draw();
-
+        // -----------------------------------------------------------------------
+        // Fluid
+        // -----------------------------------------------------------------------
         GlStateManager.color(1f, 1f, 1f, 1f);
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
 
@@ -126,6 +157,35 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         GlStateManager.enableLighting();
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
+    }
+
+    private void renderCol(BufferBuilder buf, BlockPos ctrl,
+                           int bx, int bz, int minY, int maxY,
+                           boolean isVp, int totalH, char face,
+                           TextureAtlasSprite solid, TextureAtlasSprite inner,
+                           TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
+                           TextureAtlasSprite vpTop) {
+        for (int by = minY; by <= maxY; by++) {
+            TextureAtlasSprite s;
+            if (!isVp) { s = solid; }
+            else if (totalH == 1 || by == minY) { s = vpBot; }
+            else if (by == maxY)                 { s = vpTop; }
+            else                                 { s = vpCtr; }
+
+            float lx1 = bx - ctrl.getX();
+            float lx2 = lx1 + 1f;
+            float lz1 = bz - ctrl.getZ();
+            float lz2 = lz1 + 1f;
+            float ly1 = by - ctrl.getY() + 0.005f;
+            float ly2 = by - ctrl.getY() + 0.995f;
+
+            switch (face) {
+                case 'N': putQ(buf,lx1,ly1,lz2,lx2,ly1,lz2,lx2,ly2,lz2,lx1,ly2,lz2,s); break;
+                case 'S': putQ(buf,lx2,ly1,lz1,lx1,ly1,lz1,lx1,ly2,lz1,lx2,ly2,lz1,s); break;
+                case 'W': putQ(buf,lx2,ly1,lz1,lx2,ly1,lz2,lx2,ly2,lz2,lx2,ly2,lz1,s); break;
+                case 'E': putQ(buf,lx1,ly1,lz2,lx1,ly1,lz1,lx1,ly2,lz1,lx1,ly2,lz2,s); break;
+            }
+        }
     }
 
     private TextureAtlasSprite spr(String name) {

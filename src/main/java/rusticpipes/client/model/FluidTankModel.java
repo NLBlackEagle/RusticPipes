@@ -35,7 +35,11 @@ public class FluidTankModel implements IModel {
 
     @Override
     public Collection<ResourceLocation> getTextures() {
-        return java.util.Arrays.asList(TEXTURE_VIEWPORT, TEXTURE_SOLID, TEXTURE_INNER_VIEWPORT);
+        return java.util.Arrays.asList(
+                TEXTURE_VIEWPORT, TEXTURE_SOLID, TEXTURE_INNER_VIEWPORT,
+                new net.minecraft.util.ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_bottom"),
+                new net.minecraft.util.ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_top"),
+                new net.minecraft.util.ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_viewport_center"));
     }
 
     @Override

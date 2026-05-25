@@ -23,9 +23,11 @@ import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockFluidTank;
 import rusticpipes.client.FluidTankRenderer;
+import rusticpipes.client.FluidTankMultiblockRenderer;
 import rusticpipes.client.model.FluidPipeModelLoader;
 import rusticpipes.client.model.FluidTankModelLoader;
 import rusticpipes.tileentity.TileEntityFluidTank;
+import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 import rusticpipes.client.model.PipeModelLoader;
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
@@ -46,6 +48,8 @@ public class ClientModRegistry {
         // their texture/init setup before we bind our renderer.
         net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
                 TileEntityFluidTank.class, new FluidTankRenderer());
+        net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
+                TileEntityFluidTankMultiblock.class, new FluidTankMultiblockRenderer());
         net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
                 rusticpipes.tileentity.TileEntityFluidPipe.class, new rusticpipes.client.FluidPipeRenderer());
     }
@@ -82,11 +86,15 @@ public class ClientModRegistry {
         }
 
         // Fluid tank — vanilla blockstate model, role property drives texture
-        for (rusticpipes.block.BlockFluidTank.TankRole role : rusticpipes.block.BlockFluidTank.TankRole.values()) {
-            ModelLoader.setCustomModelResourceLocation(
-                    Item.getItemFromBlock(ModRegistry.FLUID_TANK), 0,
-                    new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank", "inventory"));
-        }
+        // Register multiblock model — all states use fluid_tank_solid
+        net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
+                net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK), 0,
+                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "normal"));
+
+        // Register single tank item model
+        ModelLoader.setCustomModelResourceLocation(
+                Item.getItemFromBlock(ModRegistry.FLUID_TANK), 0,
+                new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank", "inventory"));
 
         // Conduit model
         final ModelResourceLocation CONDUIT_MODEL = new ModelResourceLocation(RusticPipes.MODID + ":conduit", "normal");
