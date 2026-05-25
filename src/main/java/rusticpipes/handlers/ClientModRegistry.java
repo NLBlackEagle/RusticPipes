@@ -96,6 +96,13 @@ public class ClientModRegistry {
                         "viewport=" + face.getName());
             }
         });
+        // Pre-register all viewport variant models so Forge bakes them
+        for (rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face :
+                rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.values()) {
+            if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE) continue;
+            ModelLoader.registerItemVariants(net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK),
+                    new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "viewport=" + face.getName()));
+        }
         // Item uses the plain solid model
         net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(
                 net.minecraft.item.Item.getItemFromBlock(ModRegistry.FLUID_TANK_MULTIBLOCK), 0,

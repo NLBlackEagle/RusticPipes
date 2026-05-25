@@ -216,11 +216,11 @@ public class TankMultiblock {
         while (!queue.isEmpty()) {
             BlockPos current = queue.poll();
             min = new BlockPos(Math.min(min.getX(), current.getX()),
-                    Math.min(min.getY(), current.getY()),
-                    Math.min(min.getZ(), current.getZ()));
+                               Math.min(min.getY(), current.getY()),
+                               Math.min(min.getZ(), current.getZ()));
             max = new BlockPos(Math.max(max.getX(), current.getX()),
-                    Math.max(max.getY(), current.getY()),
-                    Math.max(max.getZ(), current.getZ()));
+                               Math.max(max.getY(), current.getY()),
+                               Math.max(max.getZ(), current.getZ()));
             for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
                 BlockPos np = current.offset(face);
                 if (!visited.contains(np)
@@ -289,37 +289,47 @@ public class TankMultiblock {
             BlockPos p, Structure structure) {
         boolean isBottom = p.getY() == structure.min.getY();
         boolean isTop    = p.getY() == structure.max.getY();
+        boolean isMinX   = p.getX() == structure.min.getX();
+        boolean isMaxX   = p.getX() == structure.max.getX();
+        boolean isMinZ   = p.getZ() == structure.min.getZ();
+        boolean isMaxZ   = p.getZ() == structure.max.getZ();
+        int totalH       = structure.max.getY() - structure.min.getY() + 1;
 
-        boolean isMinX = p.getX() == structure.min.getX();
-        boolean isMaxX = p.getX() == structure.max.getX();
-        boolean isMinZ = p.getZ() == structure.min.getZ();
-        boolean isMaxZ = p.getZ() == structure.max.getZ();
+        // Determine row: bottom, top, or center
+        String row;
+        if (totalH == 1)    { row = "bottom"; } // single layer uses bottom texture
+        else if (isBottom)  { row = "bottom"; }
+        else if (isTop)     { row = "top"; }
+        else                { row = "center"; }
 
-        // Viewport is on the rightmost block of each wall face (from outside looking in):
-        // South face (viewed from south): rightmost = maxX
-        // North face (viewed from north): rightmost = minX
-        // East face  (viewed from east):  rightmost = minZ
-        // West face  (viewed from west):  rightmost = maxZ
+        // Determine direction (rightmost block per face from outside)
+        String dir = null;
 
-        // For 2x2 every block is a corner — assign based on which corner is rightmost per face
         if (structure.baseSize == 2) {
-            if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
-            if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
-            if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
-            if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
+            if (isMaxX && isMaxZ) dir = "south";
+            else if (isMinX && isMinZ) dir = "north";
+            else if (isMaxX && isMinZ) dir = "east";
+            else if (isMinX && isMaxZ) dir = "west";
+        } else {
+            // Corners are solid
+            if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+            if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+            if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+            if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+
+            if (isMaxZ && p.getX() == structure.max.getX() - 1) dir = "south";
+            else if (isMinZ && p.getX() == structure.min.getX() + 1) dir = "north";
+            else if (isMaxX && p.getZ() == structure.min.getZ() + 1) dir = "east";
+            else if (isMinX && p.getZ() == structure.max.getZ() - 1) dir = "west";
         }
 
-        // For 3x3+: corners are solid, viewport goes on rightmost non-corner wall block
-        if (isMinX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-        if (isMaxX && isMinZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-        if (isMinX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
-        if (isMaxX && isMaxZ) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
+        if (dir == null) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
 
-        if (isMaxZ && p.getX() == structure.max.getX() - 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SOUTH;
-        if (isMinZ && p.getX() == structure.min.getX() + 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NORTH;
-        if (isMaxX && p.getZ() == structure.min.getZ() + 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.EAST;
-        if (isMinX && p.getZ() == structure.max.getZ() - 1) return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.WEST;
-
+        String name = dir + "_" + row;
+        for (rusticpipes.block.BlockFluidTankMultiblock.ViewportFace f :
+                rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.values()) {
+            if (f.getName().equals(name)) return f;
+        }
         return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE;
     }
 

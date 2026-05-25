@@ -25,7 +25,11 @@ import java.util.List;
 public class BlockFluidTankMultiblock extends Block implements ITileEntityProvider {
 
     public enum ViewportFace implements IStringSerializable {
-        NONE, NORTH, SOUTH, EAST, WEST;
+        NONE,
+        NORTH_BOTTOM, NORTH_CENTER, NORTH_TOP,
+        SOUTH_BOTTOM, SOUTH_CENTER, SOUTH_TOP,
+        EAST_BOTTOM,  EAST_CENTER,  EAST_TOP,
+        WEST_BOTTOM,  WEST_CENTER,  WEST_TOP;
 
         @Override public String getName() { return name().toLowerCase(); }
     }

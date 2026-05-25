@@ -159,11 +159,11 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
      * Uses inner_viewport texture, positioned epsilon inside the block surface.
      */
     private void renderInnerFace(BufferBuilder buf, BlockPos ctrl, BlockPos p,
-                                  int minY, int maxY, int totalH,
-                                  BlockFluidTankMultiblock.ViewportFace face,
-                                  TextureAtlasSprite inner,
-                                  TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
-                                  TextureAtlasSprite vpTop) {
+                                 int minY, int maxY, int totalH,
+                                 BlockFluidTankMultiblock.ViewportFace face,
+                                 TextureAtlasSprite inner,
+                                 TextureAtlasSprite vpBot, TextureAtlasSprite vpCtr,
+                                 TextureAtlasSprite vpTop) {
         float eps = 0.002f;
         int by = p.getY();
         TextureAtlasSprite s;
@@ -182,12 +182,11 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         float ly1 = by - ctrl.getY();
         float ly2 = by - ctrl.getY() + 1f;
 
-        switch (face) {
-            case NORTH: putQ(buf, lx2,ly1,lz1+eps, lx1,ly1,lz1+eps, lx1,ly2,lz1+eps, lx2,ly2,lz1+eps, s); break;
-            case SOUTH: putQ(buf, lx1,ly1,lz2-eps, lx2,ly1,lz2-eps, lx2,ly2,lz2-eps, lx1,ly2,lz2-eps, s); break;
-            case WEST:  putQ(buf, lx1+eps,ly1,lz2, lx1+eps,ly1,lz1, lx1+eps,ly2,lz1, lx1+eps,ly2,lz2, s); break;
-            case EAST:  putQ(buf, lx2-eps,ly1,lz1, lx2-eps,ly1,lz2, lx2-eps,ly2,lz2, lx2-eps,ly2,lz1, s); break;
-        }
+        String faceName = face.getName();
+        if      (faceName.startsWith("north")) putQ(buf, lx2,ly1,lz1+eps, lx1,ly1,lz1+eps, lx1,ly2,lz1+eps, lx2,ly2,lz1+eps, s);
+        else if (faceName.startsWith("south")) putQ(buf, lx1,ly1,lz2-eps, lx2,ly1,lz2-eps, lx2,ly2,lz2-eps, lx1,ly2,lz2-eps, s);
+        else if (faceName.startsWith("west"))  putQ(buf, lx1+eps,ly1,lz2, lx1+eps,ly1,lz1, lx1+eps,ly2,lz1, lx1+eps,ly2,lz2, s);
+        else if (faceName.startsWith("east"))  putQ(buf, lx2-eps,ly1,lz1, lx2-eps,ly1,lz2, lx2-eps,ly2,lz2, lx2-eps,ly2,lz1, s);
     }
 
     private TextureAtlasSprite spr(String name) {

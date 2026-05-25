@@ -1,9 +1,17 @@
 {
   "variants": {
-    "viewport=none":  { "model": "rusticpipes:fluid_tank_multiblock" },
-    "viewport=north": { "model": "rusticpipes:fluid_tank_multiblock_viewport_north" },
-    "viewport=south": { "model": "rusticpipes:fluid_tank_multiblock_viewport_south" },
-    "viewport=east":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_east" },
-    "viewport=west":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_west" }
+    "viewport=none":          { "model": "rusticpipes:fluid_tank_multiblock" },
+    "viewport=north_bottom":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_north_bottom" },
+    "viewport=north_center":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_north_center" },
+    "viewport=north_top":     { "model": "rusticpipes:fluid_tank_multiblock_viewport_north_top" },
+    "viewport=south_bottom":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_south_bottom" },
+    "viewport=south_center":  { "model": "rusticpipes:fluid_tank_multiblock_viewport_south_center" },
+    "viewport=south_top":     { "model": "rusticpipes:fluid_tank_multiblock_viewport_south_top" },
+    "viewport=east_bottom":   { "model": "rusticpipes:fluid_tank_multiblock_viewport_east_bottom" },
+    "viewport=east_center":   { "model": "rusticpipes:fluid_tank_multiblock_viewport_east_center" },
+    "viewport=east_top":      { "model": "rusticpipes:fluid_tank_multiblock_viewport_east_top" },
+    "viewport=west_bottom":   { "model": "rusticpipes:fluid_tank_multiblock_viewport_west_bottom" },
+    "viewport=west_center":   { "model": "rusticpipes:fluid_tank_multiblock_viewport_west_center" },
+    "viewport=west_top":      { "model": "rusticpipes:fluid_tank_multiblock_viewport_west_top" }
   }
 }
