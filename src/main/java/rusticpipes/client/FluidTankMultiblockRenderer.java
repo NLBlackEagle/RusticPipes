@@ -46,6 +46,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         TextureAtlasSprite innerBotSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_bottom");
         TextureAtlasSprite innerCtrSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_center");
         TextureAtlasSprite innerTopSpr   = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_top");
+        TextureAtlasSprite innerSingleSpr = spr("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
 
         BlockPos sMin = st.min, sMax = st.max;
         int sz = st.baseSize;
@@ -93,7 +94,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
             BlockFluidTankMultiblock.ViewportFace face = state.getValue(BlockFluidTankMultiblock.VIEWPORT);
             if (face == BlockFluidTankMultiblock.ViewportFace.NONE) continue;
 
-            renderInnerFace(buf, pos, p, sMin.getY(), sMax.getY(), totalH, face, innerBotSpr, innerCtrSpr, innerTopSpr);
+            renderInnerFace(buf, pos, p, sMin.getY(), sMax.getY(), totalH, face, innerBotSpr, innerCtrSpr, innerTopSpr, innerSingleSpr);
         }
 
         tess.draw();
@@ -158,19 +159,20 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
 
     /**
      * Renders the inner viewport face for a single block, just inside its exterior face.
-     * Uses inner_viewport texture, positioned epsilon inside the block surface.
+     * Uses inner_viewport texture for 1-tall, or inner_viewport_* for multi-tall rows.
      */
     private void renderInnerFace(BufferBuilder buf, BlockPos ctrl, BlockPos p,
                                   int minY, int maxY, int totalH,
                                   BlockFluidTankMultiblock.ViewportFace face,
                                   TextureAtlasSprite innerBot, TextureAtlasSprite innerCtr,
-                                  TextureAtlasSprite innerTop) {
+                                  TextureAtlasSprite innerTop, TextureAtlasSprite innerSingle) {
         float eps = 0.002f;
         int by = p.getY();
         TextureAtlasSprite s;
-        if (totalH == 1 || by == minY) { s = innerBot; }
-        else if (by == maxY)           { s = innerTop; }
-        else                           { s = innerCtr; }
+        if (totalH == 1) { s = innerSingle; }
+        else if (by == minY) { s = innerBot; }
+        else if (by == maxY) { s = innerTop; }
+        else { s = innerCtr; }
 
         float lx1 = p.getX() - ctrl.getX();
         float lx2 = lx1 + 1f;
