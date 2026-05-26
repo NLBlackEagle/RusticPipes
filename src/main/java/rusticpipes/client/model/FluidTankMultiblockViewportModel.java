@@ -83,8 +83,19 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
         List<BakedQuad> quads = new ArrayList<>();
 
         if (isSolid) {
-            for (EnumFacing f : EnumFacing.VALUES) {
-                if (f != vpFace) quads.add(buildFace(f, spriteSolid, false));
+            // Top block gets UP face (roof)
+            if (row == BlockFluidTankMultiblock.ViewportRow.TOP
+             || row == BlockFluidTankMultiblock.ViewportRow.SINGLE) {
+                quads.add(buildFace(EnumFacing.UP, spriteSolid, false));
+            }
+            // 2x2 corner: render the extra perpendicular exterior side face
+            EnumFacing sideFace = null;
+            if (state instanceof IExtendedBlockState) {
+                sideFace = ((IExtendedBlockState) state)
+                        .getValue(BlockFluidTankMultiblock.SIDE_FACE);
+            }
+            if (sideFace != null) {
+                quads.add(buildFace(sideFace, spriteSolid, false));
             }
         }
         if (isCutout) {

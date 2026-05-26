@@ -270,8 +270,9 @@ public class TankMultiblock {
                     viewportFaceFor(p, structure);
             rusticpipes.block.BlockFluidTankMultiblock.ViewportRow row =
                     viewportRowFor(p, structure);
+            net.minecraft.util.EnumFacing sideFace = sideFaceFor(p, structure, face);
             ((TileEntityFluidTankMultiblock) te).onMultiblockFormed(
-                    structure.controller, structure.roleOf(p), capacity, structure.baseSize, row);
+                    structure.controller, structure.roleOf(p), capacity, structure.baseSize, row, sideFace);
             IBlockState current = world.getBlockState(p);
             world.setBlockState(p, current.withProperty(
                     rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, face), 2);
@@ -304,6 +305,29 @@ public class TankMultiblock {
      *   max-X/max-Z → EAST
      * Only wall blocks (not top/bottom) on the exterior get a viewport face.
      */
+    /**
+     * For 2x2 corner viewport blocks, returns the extra exterior perpendicular face.
+     * That is the 90-degree-CCW rotation of the viewport direction.
+     * For 3x3+ or blocks with no viewport, returns null.
+     */
+    private static net.minecraft.util.EnumFacing sideFaceFor(
+            BlockPos p, Structure structure,
+            rusticpipes.block.BlockFluidTankMultiblock.ViewportFace face) {
+        if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE) return null;
+        if (structure.baseSize != 2) return null;
+
+        // For 2x2, each corner block has a second exterior face perpendicular to the viewport.
+        // It's the CCW rotation of the viewport direction:
+        // NORTH→WEST, WEST→SOUTH, SOUTH→EAST, EAST→NORTH
+        switch (face) {
+            case NORTH: return net.minecraft.util.EnumFacing.WEST;
+            case WEST:  return net.minecraft.util.EnumFacing.SOUTH;
+            case SOUTH: return net.minecraft.util.EnumFacing.EAST;
+            case EAST:  return net.minecraft.util.EnumFacing.NORTH;
+            default:    return null;
+        }
+    }
+
     private static rusticpipes.block.BlockFluidTankMultiblock.ViewportFace viewportFaceFor(
             BlockPos p, Structure structure) {
         boolean isBottom = p.getY() == structure.min.getY();

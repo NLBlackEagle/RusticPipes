@@ -33,6 +33,8 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
      */
     private BlockFluidTankMultiblock.ViewportRow viewportRow =
             BlockFluidTankMultiblock.ViewportRow.NONE;
+    /** Extra exterior side face for 2x2 corner blocks (null = none). */
+    @Nullable private EnumFacing sideFace = null;
 
     @Nullable private FluidStack fluid = null;
     private float fillFraction = 0f;
@@ -43,12 +45,14 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
 
     public void onMultiblockFormed(BlockPos controller, TankMultiblock.Role role,
                                    int capacity, int baseSize,
-                                   BlockFluidTankMultiblock.ViewportRow viewportRow) {
+                                   BlockFluidTankMultiblock.ViewportRow viewportRow,
+                                   @Nullable EnumFacing sideFace) {
         this.controllerPos = controller;
         this.role          = role;
         this.totalCapacity = capacity;
         this.baseSize      = baseSize;
         this.viewportRow   = viewportRow;
+        this.sideFace      = sideFace;
         markDirty();
         if (world != null && !world.isRemote)
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
@@ -60,6 +64,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         baseSize      = 1;
         totalCapacity = rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
         viewportRow   = BlockFluidTankMultiblock.ViewportRow.NONE;
+        sideFace      = null;
         fillFraction  = 0f;
         markDirty();
         if (world != null && !world.isRemote)
@@ -79,6 +84,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     public float getFillFraction()         { return fillFraction; }
     public int getCapacity()               { return totalCapacity; }
     public BlockFluidTankMultiblock.ViewportRow getViewportRow() { return viewportRow; }
+    @Nullable public EnumFacing getSideFace() { return sideFace; }
 
     @Nullable
     private TileEntityFluidTankMultiblock getController() {
@@ -210,6 +216,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         compound.setInteger("baseSize", baseSize);
         compound.setFloat("fillFraction", fillFraction);
         compound.setString("viewportRow", viewportRow.name());
+        if (sideFace != null) compound.setString("sideFace", sideFace.getName());
         return compound;
     }
 
@@ -233,5 +240,7 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
             try { viewportRow = BlockFluidTankMultiblock.ViewportRow.valueOf(compound.getString("viewportRow")); }
             catch (IllegalArgumentException e) { viewportRow = BlockFluidTankMultiblock.ViewportRow.NONE; }
         }
+        sideFace = compound.hasKey("sideFace")
+                ? EnumFacing.byName(compound.getString("sideFace")) : null;
     }
 }

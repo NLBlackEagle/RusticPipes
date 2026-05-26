@@ -59,6 +59,18 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                 @Override public String valueToString(ViewportRow v) { return v.getName(); }
             };
 
+    /**
+     * Unlisted property: extra exterior side face for 2x2 corner viewport blocks.
+     * Null means no extra side face (3x3+, or non-top blocks).
+     */
+    public static final IUnlistedProperty<EnumFacing> SIDE_FACE =
+            new IUnlistedProperty<EnumFacing>() {
+                @Override public String getName()                   { return "side_face"; }
+                @Override public boolean isValid(EnumFacing v)      { return true; }
+                @Override public Class<EnumFacing> getType()        { return EnumFacing.class; }
+                @Override public String valueToString(EnumFacing v) { return v == null ? "none" : v.getName(); }
+            };
+
     public BlockFluidTankMultiblock() {
         super(Material.IRON);
         setHardness(2.5f);
@@ -70,7 +82,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     protected BlockStateContainer createBlockState() {
         return new ExtendedBlockState(this,
                 new net.minecraft.block.properties.IProperty[]{ VIEWPORT },
-                new IUnlistedProperty[]{ VIEWPORT_ROW });
+                new IUnlistedProperty[]{ VIEWPORT_ROW, SIDE_FACE });
     }
 
     @Override
@@ -93,7 +105,11 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (te instanceof TileEntityFluidTankMultiblock) {
             row = ((TileEntityFluidTankMultiblock) te).getViewportRow();
         }
-        return ext.withProperty(VIEWPORT_ROW, row);
+        EnumFacing sideFace = null;
+        if (te instanceof TileEntityFluidTankMultiblock) {
+            sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
+        }
+        return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace);
     }
 
     @Override public boolean hasTileEntity(IBlockState state) { return true; }
