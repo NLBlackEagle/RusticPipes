@@ -78,6 +78,13 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
 
     public boolean isController()          { return controllerPos != null && controllerPos.equals(pos); }
     public boolean isPartOfMultiblock()    { return controllerPos != null; }
+
+    @Override
+    public net.minecraft.util.math.AxisAlignedBB getRenderBoundingBox() {
+        // Use infinite extent so Minecraft never frustum-culls our TESR
+        // (the TESR renders spanning quads across the whole multiblock)
+        return INFINITE_EXTENT_AABB;
+    }
     public BlockPos getControllerPos()     { return controllerPos; }
     public TankMultiblock.Role getRole()   { return role; }
     public int getBaseSize()               { return baseSize; }

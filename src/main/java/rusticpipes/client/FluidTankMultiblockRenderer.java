@@ -41,7 +41,8 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         int sz = st.baseSize;
 
         double minX, minY, minZ, maxX, maxZ, wallH;
-        boolean hollow = (sz >= 2) && (sMax.getY() - sMin.getY() >= 1);
+        // All multiblocks (even 1-tall) have an interior cavity
+        boolean hollow = sz >= 2;
         if (!hollow) {
             minX = sMin.getX() - pos.getX() + 0.01;
             minZ = sMin.getZ() - pos.getZ() + 0.01;
@@ -71,7 +72,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
 
-        // Render interior walls for hollow tanks
+        // Render interior walls for all multiblocks
         if (hollow) {
             buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
             renderInteriorWalls(buf, pos, st);
@@ -136,100 +137,92 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
     }
 
     /**
-     * Renders interior walls as spanning quads.
-     * Interior cavity = entire tank volume (from min to max inclusive).
+     * Renders interior walls as 6 spanning quads.
+     * Texture UV ratios are adjusted for padded power-of-2 textures.
      */
     private void renderInteriorWalls(BufferBuilder buf, BlockPos ctrl, TankMultiblock.Structure st) {
         BlockPos min = st.min, max = st.max;
         int baseSize = st.baseSize;
         int height = max.getY() - min.getY() + 1;
-        
-        // Interior cavity dimensions
-        int wallWidth = baseSize;    // Width of interior cavity
-        int wallHeight = height;     // Height of interior cavity
-        
-        // Only render if there's interior space
+
+        int wallWidth = baseSize;
+        int wallHeight = height;
+
         if (wallWidth < 2 || wallHeight < 1) return;
-        
-        // Get textures
+
         String sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + wallWidth + "x" + wallHeight;
-        String topPath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_" + wallWidth + "x" + wallWidth;
-        String botPath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + wallWidth + "x" + wallWidth;
-        
+        String topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_"  + wallWidth + "x" + wallWidth;
+        String botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + wallWidth + "x" + wallWidth;
+
         TextureAtlasSprite sideSpr = spr(sidePath);
-        TextureAtlasSprite topSpr = spr(topPath);
-        TextureAtlasSprite botSpr = spr(botPath);
-        
-        System.out.println("=== INTERIOR WALLS ===");
-        System.out.println("baseSize=" + baseSize + ", height=" + height);
-        System.out.println("Side: " + sidePath + " (found=" + !sideSpr.getIconName().contains("missingno") + ")");
-        System.out.println("Top: " + topPath + " (found=" + !topSpr.getIconName().contains("missingno") + ")");
-        
-        // Interior cavity bounds: entire tank volume (relative to controller block at origin)
-        // Inset slightly to avoid z-fighting with block faces
-        float intMinX = 0.01f;
-        float intMaxX = wallWidth - 0.01f;
-        float intMinZ = 0.01f;
-        float intMaxZ = wallWidth - 0.01f;
-        float intMinY = 0.01f;
-        float intMaxY = wallHeight - 0.01f;
-        
-        // Render 4 spanning side walls
-        // North wall (at minZ, facing +Z inward) - mirrored
-        putQMirrorX(buf, intMaxX, intMinY, intMinZ, intMinX, intMinY, intMinZ, 
-                    intMinX, intMaxY, intMinZ, intMaxX, intMaxY, intMinZ, sideSpr);
-        
-        // South wall (at maxZ, facing -Z inward) - mirrored
-        putQMirrorX(buf, intMinX, intMinY, intMaxZ, intMaxX, intMinY, intMaxZ,
-                    intMaxX, intMaxY, intMaxZ, intMinX, intMaxY, intMaxZ, sideSpr);
-        
-        // West wall (at minX, facing +X inward)
-        putQ(buf, intMinX, intMinY, intMaxZ, intMinX, intMinY, intMinZ,
-             intMinX, intMaxY, intMinZ, intMinX, intMaxY, intMaxZ, sideSpr);
-        
-        // East wall (at maxX, facing -X inward)
-        putQ(buf, intMaxX, intMinY, intMinZ, intMaxX, intMinY, intMaxZ,
-             intMaxX, intMaxY, intMaxZ, intMaxX, intMaxY, intMinZ, sideSpr);
-        
-        // Ceiling (at maxY, facing -Y downward)
-        putQ(buf, intMinX, intMaxY, intMinZ, intMaxX, intMaxY, intMinZ,
-             intMaxX, intMaxY, intMaxZ, intMinX, intMaxY, intMaxZ, topSpr);
-        
-        // Floor (at minY, facing +Y upward)
-        putQ(buf, intMinX, intMinY, intMaxZ, intMaxX, intMinY, intMaxZ,
-             intMaxX, intMinY, intMinZ, intMinX, intMinY, intMinZ, botSpr);
-        
-        System.out.println("=== 6 QUADS RENDERED ===");
+        TextureAtlasSprite topSpr  = spr(topPath);
+        TextureAtlasSprite botSpr  = spr(botPath);
+
+        // Calculate UV ratio for padded textures
+        // Original texture height (pixels) = wallHeight * 16
+        // Padded to next power-of-2, so we only use vRatio of the V range
+        float sideVRatio = vRatio(wallHeight);
+        float topVRatio  = vRatio(wallWidth);  // top/bottom textures: W x W, padded if needed
+
+        // Interior cavity bounds (entire tank volume, inset slightly)
+        float x0 = 0.01f, x1 = wallWidth  - 0.01f;
+        float z0 = 0.01f, z1 = wallWidth  - 0.01f;
+        float y0 = 0.01f, y1 = wallHeight - 0.01f;
+
+        // North wall (minZ, facing +Z) — mirrored
+        putQv(buf, x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y1,z0, sideSpr, true,  sideVRatio);
+        // South wall (maxZ, facing -Z) — mirrored
+        putQv(buf, x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y1,z1, sideSpr, true,  sideVRatio);
+        // West wall  (minX, facing +X)
+        putQv(buf, x0,y0,z1, x0,y0,z0, x0,y1,z0, x0,y1,z1, sideSpr, false, sideVRatio);
+        // East wall  (maxX, facing -X)
+        putQv(buf, x1,y0,z0, x1,y0,z1, x1,y1,z1, x1,y1,z0, sideSpr, false, sideVRatio);
+        // Ceiling (maxY, facing -Y)
+        putQv(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr,  false, topVRatio);
+        // Floor (minY, facing +Y)
+        putQv(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr,  false, topVRatio);
+    }
+
+    /**
+     * Returns the fraction of V range to use for a texture with given block-height dimension.
+     * Textures are padded to next power-of-2, so we only use the real portion.
+     */
+    private static float vRatio(int blockDim) {
+        int pixels = blockDim * 16;
+        int padded = nextPow2(pixels);
+        return (float) pixels / padded;
+    }
+
+    private static int nextPow2(int n) {
+        int p = 1;
+        while (p < n) p <<= 1;
+        return p;
     }
 
     private TextureAtlasSprite spr(String name) {
         TextureAtlasSprite s = Minecraft.getMinecraft().getTextureMapBlocks().getAtlasSprite(name);
-        if (s == null) {
-            System.out.println("WARNING: Sprite not found: " + name);
-            s = Minecraft.getMinecraft().getTextureMapBlocks().getMissingSprite();
-        }
-        return s;
+        return s != null ? s : Minecraft.getMinecraft().getTextureMapBlocks().getMissingSprite();
     }
 
-    private void putQ(BufferBuilder buf,
-                      float x1, float y1, float z1, float x2, float y2, float z2,
-                      float x3, float y3, float z3, float x4, float y4, float z4,
-                      TextureAtlasSprite s) {
-        float u0=s.getMinU(), v0=s.getMinV(), u1=s.getMaxU(), v1=s.getMaxV();
-        buf.pos(x1,y1,z1).tex(u0,v1).color(1f,1f,1f,1f).endVertex();
-        buf.pos(x2,y2,z2).tex(u1,v1).color(1f,1f,1f,1f).endVertex();
-        buf.pos(x3,y3,z3).tex(u1,v0).color(1f,1f,1f,1f).endVertex();
-        buf.pos(x4,y4,z4).tex(u0,v0).color(1f,1f,1f,1f).endVertex();
-    }
-    
-    private void putQMirrorX(BufferBuilder buf,
-                             float x1, float y1, float z1, float x2, float y2, float z2,
-                             float x3, float y3, float z3, float x4, float y4, float z4,
-                             TextureAtlasSprite s) {
-        float u0=s.getMinU(), v0=s.getMinV(), u1=s.getMaxU(), v1=s.getMaxV();
-        buf.pos(x1,y1,z1).tex(u1,v1).color(1f,1f,1f,1f).endVertex();  // Swapped U
-        buf.pos(x2,y2,z2).tex(u0,v1).color(1f,1f,1f,1f).endVertex();  // Swapped U
-        buf.pos(x3,y3,z3).tex(u0,v0).color(1f,1f,1f,1f).endVertex();  // Swapped U
-        buf.pos(x4,y4,z4).tex(u1,v0).color(1f,1f,1f,1f).endVertex();  // Swapped U
+    /**
+     * Renders a quad with UV ratio applied to the V axis.
+     * @param mirrorU if true, swaps U coordinates (for north/south walls viewed from inside)
+     * @param vRatio  fraction of the sprite's V range to use (for padded textures)
+     */
+    private void putQv(BufferBuilder buf,
+                       float x1, float y1, float z1, float x2, float y2, float z2,
+                       float x3, float y3, float z3, float x4, float y4, float z4,
+                       TextureAtlasSprite s, boolean mirrorU, float vRatio) {
+        float uMin = s.getMinU(), uMax = s.getMaxU();
+        float vMin = s.getMinV();
+        float vMax = s.getMinV() + (s.getMaxV() - s.getMinV()) * vRatio;
+
+        float uA = mirrorU ? uMax : uMin;
+        float uB = mirrorU ? uMin : uMax;
+
+        buf.pos(x1,y1,z1).tex(uA, vMax).color(1f,1f,1f,1f).endVertex();
+        buf.pos(x2,y2,z2).tex(uB, vMax).color(1f,1f,1f,1f).endVertex();
+        buf.pos(x3,y3,z3).tex(uB, vMin).color(1f,1f,1f,1f).endVertex();
+        buf.pos(x4,y4,z4).tex(uA, vMin).color(1f,1f,1f,1f).endVertex();
     }
 }
