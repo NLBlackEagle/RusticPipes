@@ -11,9 +11,7 @@ import net.minecraftforge.common.model.IModelState;
 import net.minecraftforge.common.model.TRSRTransformation;
 import rusticpipes.RusticPipes;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -59,7 +57,22 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
 
         @Override
         public Collection<ResourceLocation> getTextures() {
-            return Arrays.asList(TEX_SINGLE, TEX_BOTTOM, TEX_CENTER, TEX_TOP, TEX_SOLID);
+            List<ResourceLocation> textures = new ArrayList<>(Arrays.asList(TEX_SINGLE, TEX_BOTTOM, TEX_CENTER, TEX_TOP, TEX_SOLID));
+            
+            // Register inner side textures (2x1-4x10)
+            for (int base = 2; base <= 4; base++) {
+                for (int height = 1; height <= 10; height++) {
+                    textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + base + "x" + height));
+                }
+            }
+            
+            // Register inner top/bottom textures (2x2, 3x3, 4x4)
+            for (int base = 2; base <= 4; base++) {
+                textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_" + base + "x" + base));
+                textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + base + "x" + base));
+            }
+            
+            return textures;
         }
 
         @Override
