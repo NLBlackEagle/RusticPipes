@@ -172,7 +172,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand,
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
-        if (world.isRemote) return true;
+        if (world.isRemote) return player.isSneaking();
         if (!player.isSneaking()) return false;
         TileEntity te = world.getTileEntity(pos);
         if (!(te instanceof TileEntityFluidTankMultiblock)) return false;
