@@ -138,7 +138,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
 
     /**
      * Renders interior walls as 6 spanning quads.
-     * Texture UV ratios are adjusted for padded power-of-2 textures.
+     * Textures are padded to square power-of-2, so both U and V ratios are applied.
      */
     private void renderInteriorWalls(BufferBuilder buf, BlockPos ctrl, TankMultiblock.Structure st) {
         BlockPos min = st.min, max = st.max;
@@ -158,39 +158,38 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         TextureAtlasSprite topSpr  = spr(topPath);
         TextureAtlasSprite botSpr  = spr(botPath);
 
-        // Calculate UV ratio for padded textures
-        // Original texture height (pixels) = wallHeight * 16
-        // Padded to next power-of-2, so we only use vRatio of the V range
-        float sideVRatio = vRatio(wallHeight);
-        float topVRatio  = vRatio(wallWidth);  // top/bottom textures: W x W, padded if needed
+        // Textures are padded to square power-of-2.
+        // Compute U and V ratios: only use the fraction that contains real content.
+        // Side texture: original is wallWidth*16 wide x wallHeight*16 tall
+        int sideOrigW = wallWidth  * 16;
+        int sideOrigH = wallHeight * 16;
+        int sideSize  = nextPow2(Math.max(sideOrigW, sideOrigH));
+        float sideURatio = (float) sideOrigW / sideSize;
+        float sideVRatio = (float) sideOrigH / sideSize;
 
-        // Interior cavity bounds (entire tank volume, inset slightly)
+        // Top/bottom texture: original is wallWidth*16 x wallWidth*16 (square)
+        int topOrigW = wallWidth * 16;
+        int topSize  = nextPow2(topOrigW);
+        float topURatio = (float) topOrigW / topSize;
+        float topVRatio = topURatio; // square texture so same ratio for both
+
+        // Interior cavity bounds (entire tank volume, inset slightly to avoid z-fighting)
         float x0 = 0.01f, x1 = wallWidth  - 0.01f;
         float z0 = 0.01f, z1 = wallWidth  - 0.01f;
         float y0 = 0.01f, y1 = wallHeight - 0.01f;
 
-        // North wall (minZ, facing +Z) — mirrored
-        putQv(buf, x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y1,z0, sideSpr, true,  sideVRatio);
-        // South wall (maxZ, facing -Z) — mirrored
-        putQv(buf, x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y1,z1, sideSpr, true,  sideVRatio);
+        // North wall (minZ, facing +Z) — mirrored U
+        putQuad(buf, x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y1,z0, sideSpr, true,  sideURatio, sideVRatio);
+        // South wall (maxZ, facing -Z) — mirrored U
+        putQuad(buf, x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y1,z1, sideSpr, true,  sideURatio, sideVRatio);
         // West wall  (minX, facing +X)
-        putQv(buf, x0,y0,z1, x0,y0,z0, x0,y1,z0, x0,y1,z1, sideSpr, false, sideVRatio);
+        putQuad(buf, x0,y0,z1, x0,y0,z0, x0,y1,z0, x0,y1,z1, sideSpr, false, sideURatio, sideVRatio);
         // East wall  (maxX, facing -X)
-        putQv(buf, x1,y0,z0, x1,y0,z1, x1,y1,z1, x1,y1,z0, sideSpr, false, sideVRatio);
+        putQuad(buf, x1,y0,z0, x1,y0,z1, x1,y1,z1, x1,y1,z0, sideSpr, false, sideURatio, sideVRatio);
         // Ceiling (maxY, facing -Y)
-        putQv(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr,  false, topVRatio);
+        putQuad(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr,  false, topURatio,  topVRatio);
         // Floor (minY, facing +Y)
-        putQv(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr,  false, topVRatio);
-    }
-
-    /**
-     * Returns the fraction of V range to use for a texture with given block-height dimension.
-     * Textures are padded to next power-of-2, so we only use the real portion.
-     */
-    private static float vRatio(int blockDim) {
-        int pixels = blockDim * 16;
-        int padded = nextPow2(pixels);
-        return (float) pixels / padded;
+        putQuad(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr,  false, topURatio,  topVRatio);
     }
 
     private static int nextPow2(int n) {
@@ -205,15 +204,18 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
     }
 
     /**
-     * Renders a quad with UV ratio applied to the V axis.
-     * @param mirrorU if true, swaps U coordinates (for north/south walls viewed from inside)
-     * @param vRatio  fraction of the sprite's V range to use (for padded textures)
+     * Renders a quad with UV ratios applied to both axes.
+     * Textures are padded to square power-of-2; ratios clip UVs to real content.
+     * @param mirrorU  if true, swaps U (for north/south walls viewed from inside)
+     * @param uRatio   fraction of U range containing real texture content
+     * @param vRatio   fraction of V range containing real texture content
      */
-    private void putQv(BufferBuilder buf,
-                       float x1, float y1, float z1, float x2, float y2, float z2,
-                       float x3, float y3, float z3, float x4, float y4, float z4,
-                       TextureAtlasSprite s, boolean mirrorU, float vRatio) {
-        float uMin = s.getMinU(), uMax = s.getMaxU();
+    private void putQuad(BufferBuilder buf,
+                         float x1, float y1, float z1, float x2, float y2, float z2,
+                         float x3, float y3, float z3, float x4, float y4, float z4,
+                         TextureAtlasSprite s, boolean mirrorU, float uRatio, float vRatio) {
+        float uMin = s.getMinU();
+        float uMax = s.getMinU() + (s.getMaxU() - s.getMinU()) * uRatio;
         float vMin = s.getMinV();
         float vMax = s.getMinV() + (s.getMaxV() - s.getMinV()) * vRatio;
 
