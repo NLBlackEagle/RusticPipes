@@ -129,7 +129,16 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
         if (world.isRemote) return;
-        tryValidate(world, pos);
+        if (blockIn instanceof BlockFluidTankMultiblock) {
+            // A tank block was placed nearby — try to form a larger structure but
+            // don't invalidate the existing one (prevents TESR flicker)
+            rusticpipes.multiblock.TankMultiblock.Structure st =
+                    rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, pos);
+            if (st != null) rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+        } else {
+            // Non-tank block placed or removed — full re-validation (can invalidate)
+            tryValidate(world, pos);
+        }
     }
 
     @Override
@@ -141,6 +150,20 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             }
         }
         super.breakBlock(world, pos, state);
+        // After the block is removed, check if remaining tank blocks form a valid multiblock
+        if (!world.isRemote) {
+            for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
+                BlockPos neighborPos = pos.offset(face);
+                if (world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock) {
+                    rusticpipes.multiblock.TankMultiblock.Structure st =
+                            rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, neighborPos);
+                    if (st != null) {
+                        rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     private void tryValidate(World world, BlockPos pos) {
@@ -172,10 +195,17 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand,
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
-        if (world.isRemote) return player.isSneaking();
+        if (hand != EnumHand.MAIN_HAND) return true;
+        if (world.isRemote) return true;
         if (!player.isSneaking()) return false;
+        sendTankInfo(world, pos, player);
+        return true;
+    }
+
+    private void sendTankInfo(World world, BlockPos pos, EntityPlayer player) {
+        if (world.isRemote) return;
         TileEntity te = world.getTileEntity(pos);
-        if (!(te instanceof TileEntityFluidTankMultiblock)) return false;
+        if (!(te instanceof TileEntityFluidTankMultiblock)) return;
         TileEntityFluidTankMultiblock tank = (TileEntityFluidTankMultiblock) te;
         net.minecraftforge.fluids.FluidStack fluid = tank.getFluid();
         int capacity = tank.getCapacity();
@@ -187,7 +217,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                     "rusticpipes.message.tank.info",
                     fluid.getLocalizedName(), fluid.amount, capacity));
         }
-        return true;
     }
 
     @Override

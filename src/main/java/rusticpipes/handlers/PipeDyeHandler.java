@@ -103,39 +103,4 @@ public class PipeDyeHandler {
         // Cancel the event so the dye's own onItemUse doesn't also fire
         event.setCanceled(true);
     }
-
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onRightClickFluidTank(PlayerInteractEvent.RightClickBlock event) {
-        EntityPlayer player = event.getEntityPlayer();
-        if (!player.isSneaking()) return;
-
-        World world = event.getWorld();
-        BlockPos pos = event.getPos();
-        Block block = world.getBlockState(pos).getBlock();
-        if (!(block instanceof BlockFluidTankMultiblock)) return;
-
-        // Cancel on BOTH sides — prevents client from predicting placement AND server from placing
-        event.setCanceled(true);
-
-        // Only show fluid info on server side
-        if (event.getSide() == Side.CLIENT) return;
-
-        TileEntity te = world.getTileEntity(pos);
-        if (!(te instanceof TileEntityFluidTankMultiblock)) return;
-        TileEntityFluidTankMultiblock member = (TileEntityFluidTankMultiblock) te;
-        BlockPos ctrlPos = member.getControllerPos();
-        if (ctrlPos == null) return;
-        TileEntity ctrlTe = world.getTileEntity(ctrlPos);
-        if (!(ctrlTe instanceof TileEntityFluidTankMultiblock)) return;
-        TileEntityFluidTankMultiblock tank = (TileEntityFluidTankMultiblock) ctrlTe;
-
-        net.minecraftforge.fluids.FluidStack fluid = tank.getFluid();
-        int capacity = tank.getCapacity();
-        if (fluid == null || fluid.amount == 0) {
-            player.sendMessage(new TextComponentTranslation("rusticpipes.message.tank.empty", capacity));
-        } else {
-            player.sendMessage(new TextComponentTranslation("rusticpipes.message.tank.info",
-                    fluid.getLocalizedName(), fluid.amount, capacity));
-        }
-    }
 }
