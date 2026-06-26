@@ -181,9 +181,8 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     @Override
     public boolean hasCapability(Capability<?> capability, @Nullable EnumFacing facing) {
         if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            if (facing == EnumFacing.UP)   return role == TankMultiblock.Role.TOP    || role == TankMultiblock.Role.SINGLE;
-            if (facing == EnumFacing.DOWN) return false;
-            return role == TankMultiblock.Role.BOTTOM || role == TankMultiblock.Role.SINGLE;
+            // Expose fluid capability on all sides for any block that is part of the multiblock
+            return isPartOfMultiblock();
         }
         return super.hasCapability(capability, facing);
     }
