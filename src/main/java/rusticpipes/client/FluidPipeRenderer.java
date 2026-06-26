@@ -4,6 +4,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
@@ -58,6 +59,10 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
         GlStateManager.disableLighting();
+        int combinedLight = getWorld().getCombinedLight(te.getPos().up(), 0);
+        int lightU = (combinedLight >> 4) & 0xF;   // block light 0-15
+        int lightV = (combinedLight >> 20) & 0xF; // sky light 0-15
+        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lightU * 16f, lightV * 16f);
         GlStateManager.enableBlend();
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableCull();

@@ -59,7 +59,10 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableLighting();
         GlStateManager.disableCull();
-        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
+        int combinedLight = getWorld().getCombinedLight(sMax.up(), 0);
+        int lightU = (combinedLight >> 4) & 0xF;   // block light 0-15
+        int lightV = (combinedLight >> 20) & 0xF; // sky light 0-15
+        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lightU * 16f, lightV * 16f);
 
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();

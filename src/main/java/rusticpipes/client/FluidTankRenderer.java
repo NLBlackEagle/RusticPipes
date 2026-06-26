@@ -68,7 +68,10 @@ public class FluidTankRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         tess.draw();
 
         GlStateManager.color(1f, 1f, 1f, 1f);
-        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
+        int combinedLight = getWorld().getCombinedLight(te.getPos().up(), 0);
+        int lightU = (combinedLight >> 4) & 0xF;   // block light 0-15
+        int lightV = (combinedLight >> 20) & 0xF; // sky light 0-15
+        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lightU * 16f, lightV * 16f);
 
         if (fluid == null || fluid.amount <= 0 || fluidSprite == null) {
             GlStateManager.enableCull();
