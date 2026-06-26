@@ -3,6 +3,7 @@ package rusticpipes.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
@@ -40,24 +41,14 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         BlockPos sMin = st.min, sMax = st.max;
         int sz = st.baseSize;
 
-        double minX, minY, minZ, maxX, maxZ, wallH;
-        // All multiblocks (even 1-tall) have an interior cavity
+        // Fluid always fills the full tank volume (tank is solid, no hollow frame)
         boolean hollow = sz >= 2;
-        if (!hollow) {
-            minX = sMin.getX() - pos.getX() + 0.01;
-            minZ = sMin.getZ() - pos.getZ() + 0.01;
-            maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
-            maxZ = sMax.getZ() - pos.getZ() + 1.0 - 0.01;
-            minY = sMin.getY() - pos.getY() + 0.01;
-            wallH = (sMax.getY() - sMin.getY() + 1) - 0.02;
-        } else {
-            minX = sMin.getX() - pos.getX() + 1.0 + 0.01;
-            minZ = sMin.getZ() - pos.getZ() + 1.0 + 0.01;
-            maxX = sMax.getX() - pos.getX() - 0.01;
-            maxZ = sMax.getZ() - pos.getZ() - 0.01;
-            minY = sMin.getY() - pos.getY() + 1.0 + 0.01;
-            wallH = (sMax.getY() - sMin.getY() - 1) - 0.02;
-        }
+        double minX = sMin.getX() - pos.getX() + 0.01;
+        double minZ = sMin.getZ() - pos.getZ() + 0.01;
+        double maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
+        double maxZ = sMax.getZ() - pos.getZ() + 1.0 - 0.01;
+        double minY = sMin.getY() - pos.getY() + 0.01;
+        double wallH = (sMax.getY() - sMin.getY() + 1) - 0.02;
 
         double maxY = minY + wallH * fill;
 
@@ -68,6 +59,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableLighting();
         GlStateManager.disableCull();
+        OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240f, 240f);
 
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuffer();
