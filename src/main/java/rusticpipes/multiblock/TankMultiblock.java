@@ -248,13 +248,7 @@ public class TankMultiblock {
                 return null;
         }
 
-        // Verify interior is air for 3x3+
-        if (baseSize >= 3) {
-            for (int x = min.getX() + 1; x <= max.getX() - 1; x++)
-                for (int y = min.getY() + 1; y <= max.getY() - 1; y++)
-                    for (int z = min.getZ() + 1; z <= max.getZ() - 1; z++)
-                        if (!world.isAirBlock(new BlockPos(x, y, z))) return null;
-        }
+        // All structures are fully solid — no interior air check needed
 
         return new Structure(min, max, blockCount, baseSize, sizeY);
     }
