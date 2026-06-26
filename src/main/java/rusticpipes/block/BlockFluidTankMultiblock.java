@@ -130,11 +130,15 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                                 Block blockIn, BlockPos fromPos) {
         if (world.isRemote) return;
         if (blockIn instanceof BlockFluidTankMultiblock) {
-            // A tank block was placed nearby — try to form a larger structure but
-            // don't invalidate the existing one (prevents TESR flicker)
+            // A tank block was placed nearby — try to form a larger structure
             rusticpipes.multiblock.TankMultiblock.Structure st =
                     rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, pos);
-            if (st != null) rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+            if (st != null) {
+                rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+            } else {
+                // New block breaks the structure — invalidate including viewport reset
+                tryValidate(world, pos);
+            }
         } else {
             // Non-tank block placed or removed — full re-validation (can invalidate)
             tryValidate(world, pos);
@@ -171,14 +175,8 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (st != null) {
             TankMultiblock.applyMultiblock(world, st);
         } else {
-            TileEntity te = world.getTileEntity(pos);
-            if (te instanceof TileEntityFluidTankMultiblock) {
-                ((TileEntityFluidTankMultiblock) te).invalidate();
-            }
-            IBlockState current = world.getBlockState(pos);
-            if (current.getValue(VIEWPORT) != ViewportFace.NONE) {
-                world.setBlockState(pos, current.withProperty(VIEWPORT, ViewportFace.NONE), 2);
-            }
+            // Invalidate the entire multiblock structure (resets VIEWPORT on all blocks)
+            TankMultiblock.invalidateMultiblock(world, pos);
         }
     }
 
