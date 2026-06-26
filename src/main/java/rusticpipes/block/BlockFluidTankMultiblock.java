@@ -125,22 +125,129 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         tryValidate(world, pos);
     }
 
+    /**
+     * When a tank block is placed on top of an existing valid multiblock,
+     * automatically fill the entire layer and consume blocks from the placer's inventory.
+     * @return true if a layer was placed (suppresses normal single-block validation)
+     */
+    private boolean tryPlaceLayer(World world, BlockPos pos) {
+        BlockPos below = pos.down();
+        TileEntity tBelow = world.getTileEntity(below);
+        System.out.println("DEBUG tryPlaceLayer pos=" + pos + " below TE=" + tBelow);
+        if (!(tBelow instanceof TileEntityFluidTankMultiblock)) return false;
+
+        TileEntityFluidTankMultiblock memberBelow = (TileEntityFluidTankMultiblock) tBelow;
+        System.out.println("DEBUG isPartOfMultiblock=" + memberBelow.isPartOfMultiblock());
+        if (!memberBelow.isPartOfMultiblock()) return false;
+
+        BlockPos ctrlPos = memberBelow.getControllerPos();
+        System.out.println("DEBUG ctrlPos=" + ctrlPos);
+        if (ctrlPos == null) return false;
+
+        TileEntity ctrlTe = world.getTileEntity(ctrlPos);
+        if (!(ctrlTe instanceof TileEntityFluidTankMultiblock)) return false;
+        TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
+
+        int baseSize = ctrl.getBaseSize();
+        System.out.println("DEBUG baseSize=" + baseSize);
+        if (baseSize < 2) return false;
+
+        int minX = ctrlPos.getX();
+        int minZ = ctrlPos.getZ();
+        int maxX = minX + baseSize - 1;
+        int maxZ = minZ + baseSize - 1;
+
+        int topY = ctrlPos.getY();
+        while (topY + 1 < pos.getY() &&
+               world.getBlockState(new BlockPos(minX, topY + 1, minZ)).getBlock() instanceof BlockFluidTankMultiblock) {
+            topY++;
+        }
+
+        int currentHeight = topY - ctrlPos.getY() + 1;
+        System.out.println("DEBUG topY=" + topY + " pos.getY()=" + pos.getY() + " currentHeight=" + currentHeight);
+        if (currentHeight >= 10) return false;
+        if (pos.getY() != topY + 1) return false;
+
+        int blocksNeeded = baseSize * baseSize;
+
+        EntityPlayer player = findNearestPlayer(world, pos);
+        System.out.println("DEBUG player=" + player);
+        if (player == null) return false;
+
+        int inInventory = countTankBlocksInInventory(player);
+        System.out.println("DEBUG inInventory=" + inInventory + " blocksNeeded=" + blocksNeeded);
+        if (inInventory < blocksNeeded - 1) return false;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                BlockPos layerPos = new BlockPos(x, pos.getY(), z);
+                if (layerPos.equals(pos)) continue;
+                if (world.isAirBlock(layerPos)) {
+                    world.setBlockState(layerPos, getDefaultState(), 3);
+                }
+            }
+        }
+
+        if (!player.isCreative()) {
+            removeTankBlocksFromInventory(player, blocksNeeded - 1);
+        }
+
+        System.out.println("DEBUG layer placed successfully!");
+        return true;
+    }
+
+    private EntityPlayer findNearestPlayer(World world, BlockPos pos) {
+        return world.getClosestPlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 8.0, false);
+    }
+
+    private int countTankBlocksInInventory(EntityPlayer player) {
+        int count = 0;
+        for (int i = 0; i < player.inventory.getSizeInventory(); i++) {
+            net.minecraft.item.ItemStack stack = player.inventory.getStackInSlot(i);
+            if (!stack.isEmpty()
+                    && stack.getItem() instanceof net.minecraft.item.ItemBlock
+                    && ((net.minecraft.item.ItemBlock) stack.getItem()).getBlock() instanceof BlockFluidTankMultiblock) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private void removeTankBlocksFromInventory(EntityPlayer player, int count) {
+        int remaining = count;
+        for (int i = 0; i < player.inventory.getSizeInventory() && remaining > 0; i++) {
+            net.minecraft.item.ItemStack stack = player.inventory.getStackInSlot(i);
+            if (!stack.isEmpty()
+                    && stack.getItem() instanceof net.minecraft.item.ItemBlock
+                    && ((net.minecraft.item.ItemBlock) stack.getItem()).getBlock() instanceof BlockFluidTankMultiblock) {
+                int take = Math.min(remaining, stack.getCount());
+                stack.shrink(take);
+                remaining -= take;
+                if (stack.isEmpty()) player.inventory.setInventorySlotContents(i, net.minecraft.item.ItemStack.EMPTY);
+            }
+        }
+    }
+
     @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
         if (world.isRemote) return;
-        if (blockIn instanceof BlockFluidTankMultiblock) {
-            // A tank block was placed nearby — try to form a larger structure
+        // Note: blockIn is the OLD block before the change, so we check the current block at fromPos
+        boolean tankPlaced = world.getBlockState(fromPos).getBlock() instanceof BlockFluidTankMultiblock;
+        if (tankPlaced) {
+            // A tank block was placed nearby — try layer placement first, then form larger structure
             rusticpipes.multiblock.TankMultiblock.Structure st =
                     rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, pos);
             if (st != null) {
                 rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+            } else if (tryPlaceLayer(world, fromPos)) {
+                // Layer placed successfully — don't invalidate
             } else {
-                // New block breaks the structure — invalidate including viewport reset
+                // New block breaks the structure and not enough blocks for a layer — invalidate
                 tryValidate(world, pos);
             }
         } else {
-            // Non-tank block placed or removed — full re-validation (can invalidate)
+            // Non-tank block placed or tank block removed — full re-validation (can invalidate)
             tryValidate(world, pos);
         }
     }
