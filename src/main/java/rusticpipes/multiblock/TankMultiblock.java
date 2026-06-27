@@ -235,7 +235,7 @@ public class TankMultiblock {
         int sizeZ = max.getZ() - min.getZ() + 1;
 
         if (sizeX != sizeZ) return null;
-        if (sizeX < 2 || sizeX > 4) return null;  // 2x2 to 4x4
+        if (sizeX < 1 || sizeX > 4) return null;  // 1x1 to 4x4
         if (sizeY < 1 || sizeY > 10) return null; // 1 to 10 high
 
         int baseSize = sizeX;
@@ -336,6 +336,10 @@ public class TankMultiblock {
 
     private static rusticpipes.block.BlockFluidTankMultiblock.ViewportFace viewportFaceFor(
             BlockPos p, Structure structure) {
+        // 1x1 base — show all 4 viewports via SINGLE state
+        if (structure.baseSize == 1) {
+            return rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SINGLE;
+        }
         boolean isBottom = p.getY() == structure.min.getY();
         boolean isTop    = p.getY() == structure.max.getY();
         boolean isMinX   = p.getX() == structure.min.getX();

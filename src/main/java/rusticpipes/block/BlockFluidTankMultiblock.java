@@ -33,7 +33,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
      * Only 5 values — fits easily in 3 meta bits (max meta = 15).
      */
     public enum ViewportFace implements IStringSerializable {
-        NONE, NORTH, SOUTH, EAST, WEST;
+        NONE, SINGLE, NORTH, SOUTH, EAST, WEST;
         @Override public String getName() { return name().toLowerCase(); }
     }
 

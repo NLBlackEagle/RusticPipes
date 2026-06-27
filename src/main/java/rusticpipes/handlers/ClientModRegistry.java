@@ -92,6 +92,9 @@ public class ClientModRegistry {
                 if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE) {
                     return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock", "normal");
                 }
+                if (face == rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.SINGLE) {
+                    return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_single", "normal");
+                }
                 return new ModelResourceLocation(RusticPipes.MODID + ":fluid_tank_multiblock_viewport", "normal");
             }
         });
