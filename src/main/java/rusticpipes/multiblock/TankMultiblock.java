@@ -257,6 +257,18 @@ public class TankMultiblock {
     public static void applyMultiblock(World world, Structure structure) {
         int capacity = structure.blockCount
                 * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
+
+        // Trim excess fluid if the new structure is smaller than the previous one
+        net.minecraft.tileentity.TileEntity ctrlTe = world.getTileEntity(structure.controller);
+        if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
+            TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
+            net.minecraftforge.fluids.FluidStack fluid = ctrl.getFluid();
+            if (fluid != null && fluid.amount > capacity) {
+                fluid.amount = capacity;
+                ctrl.markDirty();
+            }
+        }
+
         for (BlockPos p : structure.allPositions()) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
             if (!(te instanceof TileEntityFluidTankMultiblock)) continue;

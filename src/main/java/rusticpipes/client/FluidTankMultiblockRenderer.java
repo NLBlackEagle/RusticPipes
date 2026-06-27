@@ -32,7 +32,8 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (st == null) return;
 
         FluidStack fluid = te.getFluid();
-        float fill = (fluid != null && fluid.amount > 0) ? te.getFillFraction() : 0f;
+        // Clamp fill to [0, 1] to prevent rendering glitches during structure transitions
+        float fill = (fluid != null && fluid.amount > 0) ? Math.max(0f, Math.min(1f, te.getFillFraction())) : 0f;
 
         TextureAtlasSprite fluidSprite = null;
         if (fluid != null && fluid.getFluid() != null)
@@ -48,9 +49,9 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         double maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
         double maxZ = sMax.getZ() - pos.getZ() + 1.0 - 0.01;
         double minY = sMin.getY() - pos.getY() + 0.01;
-        double wallH = (sMax.getY() - sMin.getY() + 1) - 0.02;
+        double wallH = (sMax.getY() - sMin.getY() + 1) - 0.12; // extra headroom to prevent clipping through roof
 
-        double maxY = minY + wallH * fill;
+        double maxY = Math.min(minY + wallH * fill, minY + wallH - 0.01); // clamp to ceiling
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(x, y, z);
