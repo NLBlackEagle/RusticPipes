@@ -43,7 +43,7 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         int sz = st.baseSize;
 
         // Fluid always fills the full tank volume (tank is solid, no hollow frame)
-        boolean hollow = sz >= 2;
+        boolean hollow = sz >= 1;
         double minX = sMin.getX() - pos.getX() + 0.01;
         double minZ = sMin.getZ() - pos.getZ() + 0.01;
         double maxX = sMax.getX() - pos.getX() + 1.0 - 0.01;
@@ -144,11 +144,18 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         int wallWidth = baseSize;
         int wallHeight = height;
 
-        if (wallWidth < 2 || wallHeight < 1) return;
+        if (wallWidth < 1 || wallHeight < 1) return;
 
-        String sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + wallWidth + "x" + wallHeight;
-        String topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_"  + wallWidth + "x" + wallWidth;
-        String botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + wallWidth + "x" + wallWidth;
+        String sidePath, topPath, botPath;
+        if (wallWidth == 1) {
+            sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport";
+            topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
+            botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
+        } else {
+            sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + wallWidth + "x" + wallHeight;
+            topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_"  + wallWidth + "x" + wallWidth;
+            botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + wallWidth + "x" + wallWidth;
+        }
 
         TextureAtlasSprite sideSpr = spr(sidePath);
         TextureAtlasSprite topSpr  = spr(topPath);
@@ -156,18 +163,25 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
 
         // Textures are padded to square power-of-2.
         // Compute U and V ratios: only use the fraction that contains real content.
-        // Side texture: original is wallWidth*16 wide x wallHeight*16 tall
-        int sideOrigW = wallWidth  * 16;
-        int sideOrigH = wallHeight * 16;
-        int sideSize  = nextPow2(Math.max(sideOrigW, sideOrigH));
-        float sideURatio = (float) sideOrigW / sideSize;
-        float sideVRatio = (float) sideOrigH / sideSize;
+        // For 1x1 tanks the viewport texture is used at full UV — always 1.0
+        float sideURatio, sideVRatio, topURatio, topVRatio;
+        if (wallWidth == 1) {
+            sideURatio = 1.0f; sideVRatio = 1.0f;
+            topURatio  = 1.0f; topVRatio  = 1.0f;
+        } else {
+            // Side texture: original is wallWidth*16 wide x wallHeight*16 tall
+            int sideOrigW = wallWidth  * 16;
+            int sideOrigH = wallHeight * 16;
+            int sideSize  = nextPow2(Math.max(sideOrigW, sideOrigH));
+            sideURatio = (float) sideOrigW / sideSize;
+            sideVRatio = (float) sideOrigH / sideSize;
 
-        // Top/bottom texture: original is wallWidth*16 x wallWidth*16 (square)
-        int topOrigW = wallWidth * 16;
-        int topSize  = nextPow2(topOrigW);
-        float topURatio = (float) topOrigW / topSize;
-        float topVRatio = topURatio; // square texture so same ratio for both
+            // Top/bottom texture: original is wallWidth*16 x wallWidth*16 (square)
+            int topOrigW = wallWidth * 16;
+            int topSize  = nextPow2(topOrigW);
+            topURatio = (float) topOrigW / topSize;
+            topVRatio = topURatio;
+        }
 
         // Interior cavity bounds (entire tank volume, inset slightly to avoid z-fighting)
         float x0 = 0.01f, x1 = wallWidth  - 0.01f;

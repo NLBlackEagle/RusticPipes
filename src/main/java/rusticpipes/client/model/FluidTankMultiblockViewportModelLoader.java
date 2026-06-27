@@ -62,7 +62,7 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             System.out.println("[FluidTankMultiblockViewportModelLoader] getTextures() called!");
             
             // Register inner side textures (2x1-4x10)
-            for (int base = 2; base <= 4; base++) {
+            for (int base = 1; base <= 4; base++) {
                 for (int height = 1; height <= 10; height++) {
                     ResourceLocation loc = new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + base + "x" + height);
                     textures.add(loc);
@@ -70,7 +70,7 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             }
             
             // Register inner top/bottom textures (2x2, 3x3, 4x4)
-            for (int base = 2; base <= 4; base++) {
+            for (int base = 1; base <= 4; base++) {
                 textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_" + base + "x" + base));
                 textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + base + "x" + base));
             }
@@ -95,14 +95,14 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             getter.apply(TEX_SOLID);
             
             // Load inner side textures (2x1-4x10) to ensure they're stitched into atlas
-            for (int base = 2; base <= 4; base++) {
+            for (int base = 1; base <= 4; base++) {
                 for (int height = 1; height <= 10; height++) {
                     getter.apply(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + base + "x" + height));
                 }
             }
             
             // Load inner top/bottom textures (2x2, 3x3, 4x4)
-            for (int base = 2; base <= 4; base++) {
+            for (int base = 1; base <= 4; base++) {
                 getter.apply(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_" + base + "x" + base));
                 getter.apply(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + base + "x" + base));
             }
