@@ -213,10 +213,11 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         putQuad(buf, x0,y0,z1, x0,y0,z0, x0,y1,z0, x0,y1,z1, sideSpr, false, sideURatio, sideVRatio);
         // East wall  (maxX, facing -X)
         putQuad(buf, x1,y0,z0, x1,y0,z1, x1,y1,z1, x1,y1,z0, sideSpr, false, sideURatio, sideVRatio);
-        // Ceiling (maxY, facing -Y)
-        putQuad(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr,  false, topURatio,  topVRatio);
-        // Floor (minY, facing +Y)
-        putQuad(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr,  false, topURatio,  topVRatio);
+        // Ceiling and floor — enable culling so they only show from inside, not through solid top/bottom
+        GlStateManager.enableCull();
+        putQuad(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr, false, topURatio, topVRatio);
+        putQuad(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr, false, topURatio, topVRatio);
+        GlStateManager.disableCull();
     }
 
     private static int nextPow2(int n) {

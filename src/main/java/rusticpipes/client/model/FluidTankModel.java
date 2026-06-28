@@ -83,57 +83,66 @@ public class FluidTankModel implements IModel {
 
             BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
             boolean isInventory = state == null;
-            boolean isSolid  = isInventory || layer == BlockRenderLayer.SOLID;
+            boolean isSolid = isInventory || layer == BlockRenderLayer.SOLID;
             boolean isCutout = isInventory || layer == BlockRenderLayer.CUTOUT_MIPPED;
             if (!isSolid && !isCutout) return Collections.emptyList();
 
             // Pick viewport texture based on row
             TextureAtlasSprite vpTex = viewport; // default: SINGLE
+            BlockFluidTankMultiblock.ViewportRow row = null;
             if (state instanceof IExtendedBlockState) {
-                BlockFluidTankMultiblock.ViewportRow row =
-                        ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
+                row = ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
                 if (row != null) {
                     switch (row) {
-                        case BOTTOM: vpTex = viewportBottom; break;
-                        case CENTER: vpTex = viewportCenter; break;
-                        case TOP:    vpTex = viewportTop;    break;
-                        default:     vpTex = viewport;       break;
+                        case BOTTOM:
+                            vpTex = viewportBottom;
+                            break;
+                        case CENTER:
+                            vpTex = viewportCenter;
+                            break;
+                        case TOP:
+                            vpTex = viewportTop;
+                            break;
+                        default:
+                            vpTex = viewport;
+                            break;
                     }
                 }
             }
 
             List<BakedQuad> quads = new ArrayList<>();
 
-            // Top and bottom — solid texture
-            // Only render top/bottom on the outermost faces to avoid interior floors/ceilings
-            // in multi-height 1x1 stacks
-            BlockFluidTankMultiblock.ViewportRow row = BlockFluidTankMultiblock.ViewportRow.SINGLE;
-            if (state instanceof IExtendedBlockState) {
-                BlockFluidTankMultiblock.ViewportRow r =
-                        ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
-                if (r != null) row = r;
+            // If VIEWPORT_ROW=NONE an adjacent tank invalidates this block — render fully solid
+            if (row == BlockFluidTankMultiblock.ViewportRow.NONE) {
+                if (isSolid) {
+                    float su0 = solid.getMinU(), sv0 = solid.getMinV();
+                    float su1 = solid.getMaxU(), sv1 = solid.getMaxV();
+                    addQuad(quads, EnumFacing.DOWN, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, su0, sv0, su1, sv1, solid);
+                    addQuad(quads, EnumFacing.UP, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, su0, sv0, su1, sv1, solid);
+                    addQuad(quads, EnumFacing.NORTH, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, su0, sv0, su1, sv1, solid);
+                    addQuad(quads, EnumFacing.SOUTH, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, su0, sv0, su1, sv1, solid);
+                    addQuad(quads, EnumFacing.WEST, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, su0, sv0, su1, sv1, solid);
+                    addQuad(quads, EnumFacing.EAST, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, su0, sv0, su1, sv1, solid);
+                }
+                return quads;
             }
-            boolean renderBottom = (row == BlockFluidTankMultiblock.ViewportRow.BOTTOM
-                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE);
-            boolean renderTop    = (row == BlockFluidTankMultiblock.ViewportRow.TOP
-                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE);
+
+            // Top and bottom — always render solid faces (this model is only used for SINGLE blocks)
             if (isSolid) {
                 float su0 = solid.getMinU(), sv0 = solid.getMinV();
                 float su1 = solid.getMaxU(), sv1 = solid.getMaxV();
-                if (renderBottom)
-                    addQuad(quads, EnumFacing.DOWN, 0,0,0, 1,0,0, 1,0,1, 0,0,1, su0,sv0,su1,sv1, solid);
-                if (renderTop)
-                    addQuad(quads, EnumFacing.UP,   0,1,1, 1,1,1, 1,1,0, 0,1,0, su0,sv0,su1,sv1, solid);
+                addQuad(quads, EnumFacing.DOWN, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, su0, sv0, su1, sv1, solid);
+                addQuad(quads, EnumFacing.UP, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, su0, sv0, su1, sv1, solid);
             }
 
             // Side faces — viewport texture (chosen by row)
             if (isCutout) {
                 float vu0 = vpTex.getMinU(), vv0 = vpTex.getMinV();
                 float vu1 = vpTex.getMaxU(), vv1 = vpTex.getMaxV();
-                addQuad(quads, EnumFacing.NORTH, 1,0,0, 0,0,0, 0,1,0, 1,1,0, vu0,vv0,vu1,vv1, vpTex);
-                addQuad(quads, EnumFacing.SOUTH, 0,0,1, 1,0,1, 1,1,1, 0,1,1, vu0,vv0,vu1,vv1, vpTex);
-                addQuad(quads, EnumFacing.WEST,  0,0,0, 0,0,1, 0,1,1, 0,1,0, vu0,vv0,vu1,vv1, vpTex);
-                addQuad(quads, EnumFacing.EAST,  1,0,1, 1,0,0, 1,1,0, 1,1,1, vu0,vv0,vu1,vv1, vpTex);
+                addQuad(quads, EnumFacing.NORTH, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, vu0, vv0, vu1, vv1, vpTex);
+                addQuad(quads, EnumFacing.SOUTH, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, vu0, vv0, vu1, vv1, vpTex);
+                addQuad(quads, EnumFacing.WEST, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, vu0, vv0, vu1, vv1, vpTex);
+                addQuad(quads, EnumFacing.EAST, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, vu0, vv0, vu1, vv1, vpTex);
             }
 
             return quads;

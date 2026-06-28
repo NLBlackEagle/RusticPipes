@@ -100,6 +100,20 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     public IBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos) {
         if (!(state instanceof IExtendedBlockState)) return state;
         IExtendedBlockState ext = (IExtendedBlockState) state;
+
+        // For SINGLE blocks: if any horizontal neighbor is also a tank, this structure is
+        // invalid — show solid immediately without waiting for a server sync packet.
+        ViewportFace viewport = state.getValue(VIEWPORT);
+        if (viewport == ViewportFace.SINGLE) {
+            for (EnumFacing face : new EnumFacing[]{EnumFacing.NORTH, EnumFacing.SOUTH,
+                                                    EnumFacing.EAST,  EnumFacing.WEST}) {
+                if (world.getBlockState(pos.offset(face)).getBlock() instanceof BlockFluidTankMultiblock) {
+                    // Adjacent horizontal tank makes this invalid — override to solid
+                    return ext.withProperty(VIEWPORT_ROW, ViewportRow.NONE).withProperty(SIDE_FACE, null);
+                }
+            }
+        }
+
         ViewportRow row = ViewportRow.NONE;
         TileEntity te = world.getTileEntity(pos);
         if (te instanceof TileEntityFluidTankMultiblock) {
@@ -121,8 +135,22 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
-        // Validate on both sides so TESR renders immediately without waiting for server sync
         tryValidate(world, pos);
+    }
+
+    @Override
+    public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state,
+                                net.minecraft.entity.EntityLivingBase placer, net.minecraft.item.ItemStack stack) {
+        // Client-only: validate adjacent blocks immediately for visual update.
+        // Server uses neighborChanged instead — running this server-side would
+        // invalidate multiblocks before tryPlaceLayer gets a chance to run.
+        if (!world.isRemote) return;
+        for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
+            BlockPos neighbor = pos.offset(face);
+            if (world.getBlockState(neighbor).getBlock() instanceof BlockFluidTankMultiblock) {
+                tryValidate(world, neighbor);
+            }
+        }
     }
 
     /**
@@ -231,23 +259,20 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
-        if (world.isRemote) return;
+        // Run on both sides for immediate client-side visual update (no server sync delay)
         // Note: blockIn is the OLD block before the change, so we check the current block at fromPos
         boolean tankPlaced = world.getBlockState(fromPos).getBlock() instanceof BlockFluidTankMultiblock;
         if (tankPlaced) {
-            // A tank block was placed nearby — try layer placement first, then form larger structure
             rusticpipes.multiblock.TankMultiblock.Structure st =
                     rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, pos);
             if (st != null) {
                 rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
-            } else if (tryPlaceLayer(world, fromPos)) {
-                // Layer placed successfully — don't invalidate
+            } else if (!world.isRemote && tryPlaceLayer(world, fromPos)) {
+                // Layer placement — server only (places blocks and consumes inventory)
             } else {
-                // New block breaks the structure and not enough blocks for a layer — invalidate
                 tryValidate(world, pos);
             }
         } else {
-            // Non-tank block placed or tank block removed — full re-validation (can invalidate)
             tryValidate(world, pos);
         }
     }
