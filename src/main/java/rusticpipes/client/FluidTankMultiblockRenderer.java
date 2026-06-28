@@ -152,8 +152,8 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (wallWidth == 1 && wallHeight == 1) {
             // 1x1x1 — use single inner viewport texture
             sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport";
-            topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
-            botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
+            topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_top_1x1";
+            botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_1x1";
         } else if (wallWidth == 1) {
             // 1x1x2-10 — use height-specific inner side textures
             sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_1x" + wallHeight;
