@@ -132,8 +132,9 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         } else {
             buffer.amount = Math.min(buffer.amount + fluid.amount, BUFFER_CAPACITY);
         }
-        int newColor = fluid.getFluid().getColor(fluid);
-        if (newColor == 0xFFFFFFFF || newColor == 0) newColor = 0xFF4444FF;
+        int rawColor = fluid.getFluid().getColor(fluid);
+        // Force full alpha so the color renders correctly
+        int newColor = (rawColor & 0xFF000000) == 0 ? (rawColor | 0xFF000000) : rawColor;
         fluidColor = newColor;
         ticksSinceFlow = 0;
     }
@@ -148,6 +149,15 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
 
     /** Called by FluidNetwork after all transfers — syncs to client. */
     public void syncToClient() {
+        // Always keep color in sync with current buffer content
+        if (buffer != null && buffer.getFluid() != null) {
+            int rawColor = buffer.getFluid().getColor(buffer);
+            fluidColor = (rawColor & 0xFF000000) == 0 ? (rawColor | 0xFF000000) : rawColor;
+        } else {
+            fluidColor = 0;
+        }
+        // Reset drain timer — network is actively processing this pipe
+        ticksSinceFlow = 0;
         if (world != null && !world.isRemote) {
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
@@ -199,10 +209,10 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         FluidNetwork network = FluidNetwork.getNetwork(world, pos);
         if (network == null) return;
 
-        // Drain visual buffer if no fluid has passed through recently — runs on all pipes
+        // Clear visual color if no fluid has passed through recently.
+        // Do NOT clear the actual buffer — that holds real fluid that should not be voided.
         ticksSinceFlow++;
         if (ticksSinceFlow > DRAIN_AFTER_TICKS && fluidColor != 0) {
-            buffer = null;
             fluidColor = 0;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
