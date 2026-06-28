@@ -87,23 +87,27 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         TextureAtlasSprite sprE = vpE ? vpInner : bodyInner;
         TextureAtlasSprite sprW = vpW ? vpInner : bodyInner;
 
+        // Track connections for fluid face culling below
+        boolean connN = te.isConnected(net.minecraft.util.EnumFacing.NORTH);
+        boolean connS = te.isConnected(net.minecraft.util.EnumFacing.SOUTH);
+        boolean connE = te.isConnected(net.minecraft.util.EnumFacing.EAST);
+        boolean connW = te.isConnected(net.minecraft.util.EnumFacing.WEST);
+        boolean connU = te.isConnected(net.minecraft.util.EnumFacing.UP);
+        boolean connD = te.isConnected(net.minecraft.util.EnumFacing.DOWN);
+
+        // Always render all inner walls — they close off the interior view and
+        // are hidden from outside by the arm geometry anyway
         buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-        // North inner wall (faces inward toward +Z)
         putQuad(buf, bMin,bMin,bMin, bMax,bMin,bMin, bMax,bMax,bMin, bMin,bMax,bMin,
                 sprN.getMinU(),sprN.getMinV(),sprN.getMaxU(),sprN.getMaxV(), 1f,1f,1f,1f);
-        // South inner wall
         putQuad(buf, bMax,bMin,bMax, bMin,bMin,bMax, bMin,bMax,bMax, bMax,bMax,bMax,
                 sprS.getMinU(),sprS.getMinV(),sprS.getMaxU(),sprS.getMaxV(), 1f,1f,1f,1f);
-        // West inner wall
         putQuad(buf, bMin,bMin,bMax, bMin,bMin,bMin, bMin,bMax,bMin, bMin,bMax,bMax,
                 sprW.getMinU(),sprW.getMinV(),sprW.getMaxU(),sprW.getMaxV(), 1f,1f,1f,1f);
-        // East inner wall
         putQuad(buf, bMax,bMin,bMin, bMax,bMin,bMax, bMax,bMax,bMax, bMax,bMax,bMin,
                 sprE.getMinU(),sprE.getMinV(),sprE.getMaxU(),sprE.getMaxV(), 1f,1f,1f,1f);
-        // Bottom inner wall
         putQuad(buf, bMin,bMin,bMax, bMax,bMin,bMax, bMax,bMin,bMin, bMin,bMin,bMin,
                 bodyInner.getMinU(),bodyInner.getMinV(),bodyInner.getMaxU(),bodyInner.getMaxV(), 1f,1f,1f,1f);
-        // Top inner wall
         putQuad(buf, bMin,bMax,bMin, bMax,bMax,bMin, bMax,bMax,bMax, bMin,bMax,bMax,
                 bodyInner.getMinU(),bodyInner.getMinV(),bodyInner.getMaxU(),bodyInner.getMaxV(), 1f,1f,1f,1f);
         tess.draw();
@@ -121,11 +125,13 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
             float fu1 = fluidSprite.getMaxU(), fv1 = fluidSprite.getMaxV();
 
             buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
+            // Top surface always renders (fluid level)
             putQuad(buf, fMin,fluidTop,fMax, fMax,fluidTop,fMax, fMax,fluidTop,fMin, fMin,fluidTop,fMin, fu0,fv0,fu1,fv1, fr,fg,fb,fa2);
-            putQuad(buf, fMax,fMin,fMin, fMin,fMin,fMin, fMin,fluidTop,fMin, fMax,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
-            putQuad(buf, fMin,fMin,fMax, fMax,fMin,fMax, fMax,fluidTop,fMax, fMin,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
-            putQuad(buf, fMin,fMin,fMin, fMin,fMin,fMax, fMin,fluidTop,fMax, fMin,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
-            putQuad(buf, fMax,fMin,fMax, fMax,fMin,fMin, fMax,fluidTop,fMin, fMax,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
+            // Side fluid faces — skip if adjacent pipe (inner wall already culled there)
+            if (!connN) putQuad(buf, fMax,fMin,fMin, fMin,fMin,fMin, fMin,fluidTop,fMin, fMax,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
+            if (!connS) putQuad(buf, fMin,fMin,fMax, fMax,fMin,fMax, fMax,fluidTop,fMax, fMin,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.8f,fg*0.8f,fb*0.8f,fa2);
+            if (!connW) putQuad(buf, fMin,fMin,fMin, fMin,fMin,fMax, fMin,fluidTop,fMax, fMin,fluidTop,fMin, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
+            if (!connE) putQuad(buf, fMax,fMin,fMax, fMax,fMin,fMin, fMax,fluidTop,fMin, fMax,fluidTop,fMax, fu0,fv0,fu1,fv1, fr*0.7f,fg*0.7f,fb*0.7f,fa2);
             tess.draw();
         }
 

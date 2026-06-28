@@ -273,26 +273,25 @@ public class FluidPipeModel implements IModel {
             boolean isSolid  = layer == null || layer == BlockRenderLayer.SOLID;
 
             if (isSolid) {
-                // SOLID pass — skip viewport faces, render solid on the rest
+                // SOLID pass — skip viewport faces AND faces hidden by connection arms
                 TextureAtlasSprite sN = vpN ? null : bodySprites[idxN];
                 TextureAtlasSprite sS = vpS ? null : bodySprites[idxS];
                 TextureAtlasSprite sE = vpE ? null : bodySprites[idxE];
                 TextureAtlasSprite sW = vpW ? null : bodySprites[idxW];
-                // Render each face individually to skip viewport faces
-                if (sN != null) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, sN, BODY_TINT);
-                if (sS != null) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, sS, BODY_TINT);
-                if (sE != null) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, sE, BODY_TINT);
-                if (sW != null) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, sW, BODY_TINT);
-                addQuad(quads, EnumFacing.UP,   CORE_MIN,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, bodyU, BODY_TINT);
-                addQuad(quads, EnumFacing.DOWN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MIN,CORE_MAX, bodyD, BODY_TINT);
+                if (sN != null && north == 0) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, sN, BODY_TINT);
+                if (sS != null && south == 0) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, sS, BODY_TINT);
+                if (sE != null && east  == 0) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, sE, BODY_TINT);
+                if (sW != null && west  == 0) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, sW, BODY_TINT);
+                if (up   == 0) addQuad(quads, EnumFacing.UP,   CORE_MIN,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, bodyU, BODY_TINT);
+                if (down == 0) addQuad(quads, EnumFacing.DOWN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MIN,CORE_MAX, bodyD, BODY_TINT);
             }
 
             if (isCutout) {
-                // CUTOUT_MIPPED pass — viewport faces only
-                if (vpN) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
-                if (vpS) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
-                if (vpE) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
-                if (vpW) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
+                // CUTOUT_MIPPED pass — viewport faces only (skip if hidden by connection arm)
+                if (vpN && north == 0) addQuad(quads, EnumFacing.NORTH, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
+                if (vpS && south == 0) addQuad(quads, EnumFacing.SOUTH, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
+                if (vpE && east  == 0) addQuad(quads, EnumFacing.EAST,  CORE_MAX,CORE_MIN,CORE_MAX, CORE_MAX,CORE_MIN,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MIN, CORE_MAX,CORE_MAX,CORE_MAX, waterSprite, BODY_TINT);
+                if (vpW && west  == 0) addQuad(quads, EnumFacing.WEST,  CORE_MIN,CORE_MIN,CORE_MIN, CORE_MIN,CORE_MIN,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MAX, CORE_MIN,CORE_MAX,CORE_MIN, waterSprite, BODY_TINT);
                 // Fluid color quad just inside viewport faces when fluid flowing
                 if (fluidColor != 0) {
                     int packedColor = 0xFF000000 | (fluidColor & 0x00FFFFFF);
@@ -361,14 +360,30 @@ public class FluidPipeModel implements IModel {
         // -----------------------------------------------------------------------
 
         private void addArm(List<BakedQuad> quads, EnumFacing dir, TextureAtlasSprite body) {
+            // Skip the inner face (junction with core) — it is always hidden inside the core geometry
+            float x1, y1, z1, x2, y2, z2;
+            EnumFacing skip; // the face to omit
             switch (dir) {
-                case DOWN:  addCube(quads, CORE_MIN, 0.001f,   CORE_MIN, CORE_MAX, CORE_MIN,    CORE_MAX, body, BODY_TINT); break;
-                case UP:    addCube(quads, CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 0.999f,       CORE_MAX, body, BODY_TINT); break;
-                case NORTH: addCube(quads, CORE_MIN, CORE_MIN, 0.001f,   CORE_MAX, CORE_MAX,     CORE_MIN, body, BODY_TINT); break;
-                case SOUTH: addCube(quads, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX,     0.999f,   body, BODY_TINT); break;
-                case WEST:  addCube(quads, 0.001f,   CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX,     CORE_MAX, body, BODY_TINT); break;
-                case EAST:  addCube(quads, CORE_MAX, CORE_MIN, CORE_MIN, 0.999f,   CORE_MAX,     CORE_MAX, body, BODY_TINT); break;
+                case DOWN:  x1=CORE_MIN; y1=0.001f;   z1=CORE_MIN; x2=CORE_MAX; y2=CORE_MIN;  z2=CORE_MAX; skip=EnumFacing.UP;    break;
+                case UP:    x1=CORE_MIN; y1=CORE_MAX; z1=CORE_MIN; x2=CORE_MAX; y2=0.999f;    z2=CORE_MAX; skip=EnumFacing.DOWN;  break;
+                case NORTH: x1=CORE_MIN; y1=CORE_MIN; z1=0.001f;   x2=CORE_MAX; y2=CORE_MAX;  z2=CORE_MIN; skip=EnumFacing.SOUTH; break;
+                case SOUTH: x1=CORE_MIN; y1=CORE_MIN; z1=CORE_MAX; x2=CORE_MAX; y2=CORE_MAX;  z2=0.999f;   skip=EnumFacing.NORTH; break;
+                case WEST:  x1=0.001f;   y1=CORE_MIN; z1=CORE_MIN; x2=CORE_MIN; y2=CORE_MAX;  z2=CORE_MAX; skip=EnumFacing.EAST;  break;
+                case EAST:  x1=CORE_MAX; y1=CORE_MIN; z1=CORE_MIN; x2=0.999f;   y2=CORE_MAX;  z2=CORE_MAX; skip=EnumFacing.WEST;  break;
+                default: return;
             }
+            addCubeSkip(quads, x1, y1, z1, x2, y2, z2, body, BODY_TINT, skip);
+        }
+
+        private void addCubeSkip(List<BakedQuad> quads, float x1, float y1, float z1,
+                                  float x2, float y2, float z2,
+                                  TextureAtlasSprite s, int tint, EnumFacing skip) {
+            if (skip != EnumFacing.DOWN)  addQuad(quads, EnumFacing.DOWN,  x1,y1,z1, x2,y1,z1, x2,y1,z2, x1,y1,z2, s, tint);
+            if (skip != EnumFacing.UP)    addQuad(quads, EnumFacing.UP,    x1,y2,z2, x2,y2,z2, x2,y2,z1, x1,y2,z1, s, tint);
+            if (skip != EnumFacing.NORTH) addQuad(quads, EnumFacing.NORTH, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1, s, tint);
+            if (skip != EnumFacing.SOUTH) addQuad(quads, EnumFacing.SOUTH, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2, s, tint);
+            if (skip != EnumFacing.WEST)  addQuad(quads, EnumFacing.WEST,  x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1, s, tint);
+            if (skip != EnumFacing.EAST)  addQuad(quads, EnumFacing.EAST,  x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2, s, tint);
         }
 
         private void addFlange(List<BakedQuad> quads, EnumFacing dir, int faceState) {
