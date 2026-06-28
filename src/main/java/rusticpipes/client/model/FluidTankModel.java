@@ -105,11 +105,25 @@ public class FluidTankModel implements IModel {
             List<BakedQuad> quads = new ArrayList<>();
 
             // Top and bottom — solid texture
+            // Only render top/bottom on the outermost faces to avoid interior floors/ceilings
+            // in multi-height 1x1 stacks
+            BlockFluidTankMultiblock.ViewportRow row = BlockFluidTankMultiblock.ViewportRow.SINGLE;
+            if (state instanceof IExtendedBlockState) {
+                BlockFluidTankMultiblock.ViewportRow r =
+                        ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
+                if (r != null) row = r;
+            }
+            boolean renderBottom = (row == BlockFluidTankMultiblock.ViewportRow.BOTTOM
+                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE);
+            boolean renderTop    = (row == BlockFluidTankMultiblock.ViewportRow.TOP
+                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE);
             if (isSolid) {
                 float su0 = solid.getMinU(), sv0 = solid.getMinV();
                 float su1 = solid.getMaxU(), sv1 = solid.getMaxV();
-                addQuad(quads, EnumFacing.DOWN, 0,0,0, 1,0,0, 1,0,1, 0,0,1, su0,sv0,su1,sv1, solid);
-                addQuad(quads, EnumFacing.UP,   0,1,1, 1,1,1, 1,1,0, 0,1,0, su0,sv0,su1,sv1, solid);
+                if (renderBottom)
+                    addQuad(quads, EnumFacing.DOWN, 0,0,0, 1,0,0, 1,0,1, 0,0,1, su0,sv0,su1,sv1, solid);
+                if (renderTop)
+                    addQuad(quads, EnumFacing.UP,   0,1,1, 1,1,1, 1,1,0, 0,1,0, su0,sv0,su1,sv1, solid);
             }
 
             // Side faces — viewport texture (chosen by row)
