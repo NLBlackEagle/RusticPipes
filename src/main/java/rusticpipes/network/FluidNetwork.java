@@ -8,7 +8,6 @@ import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.handlers.ForgeConfigHandler;
@@ -18,11 +17,22 @@ import rusticpipes.tileentity.TileEntityFluidPipe;
 import java.util.*;
 
 /**
- * Single-tier fluid pipe network.
- * One network per connected set of same-color fluid pipes.
- * No motor required — fluid just flows at the configured rate.
+ * Single-tier fluid pipe network — Option B buffered transfer.
+ *
+ * Each pipe has a real fluid buffer. Fluid moves in three phases per tick:
+ *   1. SOURCE FILL  — source tanks push into adjacent pipe buffers.
+ *   2. PROPAGATION  — pipes above threshold push to adjacent less-full pipes.
+ *   3. SINK DRAIN   — destination-adjacent pipes drain into output tanks.
+ *
+ * This creates a natural staircase fill effect: source-adjacent pipes fill
+ * first, then the wave propagates outward hop by hop.
  */
 public class FluidNetwork {
+
+    /** How full a pipe must be (0–1) before it pushes to the next pipe. */
+    private static final float PUSH_THRESHOLD = 0.2f;
+    /** How many propagation passes to run per tick — more = faster wave. */
+    private static final int PROPAGATION_PASSES = 3;
 
     private static final Map<BlockPos, FluidNetwork> NETWORKS = new HashMap<>();
 
@@ -33,11 +43,11 @@ public class FluidNetwork {
     // Static accessors
     // -----------------------------------------------------------------------
 
-    public static FluidNetwork getNetwork(BlockPos pos) { return NETWORKS.get(pos); }
+    public static FluidNetwork getNetwork(BlockPos pos)              { return NETWORKS.get(pos); }
     public static FluidNetwork getNetwork(World world, BlockPos pos) { return NETWORKS.get(pos); }
 
     // -----------------------------------------------------------------------
-    // Network management — mirrors PipeNetwork logic
+    // Network management
     // -----------------------------------------------------------------------
 
     public static void onPipeAdded(World world, BlockPos pos) {
@@ -87,7 +97,6 @@ public class FluidNetwork {
         network.members.remove(pos);
         if (network.members.isEmpty()) return;
 
-        // Flood-fill to detect splits
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new ArrayDeque<>();
         BlockPos seed = network.members.iterator().next();
@@ -122,110 +131,168 @@ public class FluidNetwork {
     }
 
     // -----------------------------------------------------------------------
-    // Transfer
+    // Transfer — three-phase buffered
     // -----------------------------------------------------------------------
 
     public void transferFluids(World world) {
-        List<BlockPos> inputs  = new ArrayList<>();
-        List<BlockPos> outputs = new ArrayList<>();
+        int maxRate = ForgeConfigHandler.fluid.flowRatePerTick;
 
-        for (BlockPos memberPos : members) {
-            TileEntity te = world.getTileEntity(memberPos);
-            if (!(te instanceof TileEntityFluidPipe)) continue;
-            TileEntityFluidPipe pipe = (TileEntityFluidPipe) te;
+        // Collect all pipe TEs once
+        Map<BlockPos, TileEntityFluidPipe> pipes = new LinkedHashMap<>();
+        for (BlockPos pos : members) {
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof TileEntityFluidPipe) pipes.put(pos, (TileEntityFluidPipe) te);
+        }
+        if (pipes.isEmpty()) return;
+
+        // ------------------------------------------------------------------
+        // Phase 1: SOURCE FILL — tanks push into adjacent pipe buffers
+        // ------------------------------------------------------------------
+        for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
+            BlockPos pipePos  = entry.getKey();
+            TileEntityFluidPipe pipe = entry.getValue();
 
             for (EnumFacing face : EnumFacing.VALUES) {
-                BlockPos neighbourPos = memberPos.offset(face);
-                if (world.getBlockState(neighbourPos).getBlock() instanceof BlockFluidPipe) continue;
-                TileEntity nte = world.getTileEntity(neighbourPos);
-                if (nte == null) continue;
-                if (!nte.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) continue;
+                BlockPos neighborPos = pipePos.offset(face);
+                if (members.contains(neighborPos)) continue; // skip other pipes
+                if (pipe.getFaceMode(face) != FaceMode.INPUT) continue;
 
-                FaceMode mode = pipe.getFaceMode(face);
-                if (mode == FaceMode.INPUT) inputs.add(neighbourPos);
-                else outputs.add(neighbourPos);
+                TileEntity nte = world.getTileEntity(neighborPos);
+                if (nte == null) continue;
+                IFluidHandler source = nte.getCapability(
+                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
+                if (source == null) continue;
+
+                int space = pipe.getBufferSpace();
+                if (space <= 0) continue;
+
+                FluidStack current = pipe.getBuffer();
+                // Only drain compatible fluid
+                FluidStack candidate = source.drain(Math.min(space, maxRate), false);
+                if (candidate == null || candidate.amount <= 0) continue;
+                if (current != null && !current.isFluidEqual(candidate)) continue;
+
+                FluidStack drained = source.drain(candidate.amount, true);
+                if (drained != null && drained.amount > 0) {
+                    pipe.addToBuffer(drained);
+                }
             }
         }
 
-        if (inputs.isEmpty() || outputs.isEmpty()) return;
+        // ------------------------------------------------------------------
+        // Phase 2: PROPAGATION — BFS distance from sources prevents backflow
+        // ------------------------------------------------------------------
 
-        int maxTransfer = ForgeConfigHandler.fluid.flowRatePerTick;
-
-        for (BlockPos inputPos : inputs) {
-            TileEntity sourceTe = world.getTileEntity(inputPos);
-            if (sourceTe == null) continue;
-
-            // Find which face this input is connected from
-            IFluidHandler source = null;
-            EnumFacing sourceFace = null;
-            for (BlockPos memberPos : members) {
-                for (EnumFacing face : EnumFacing.VALUES) {
-                    if (memberPos.offset(face).equals(inputPos)) {
-                        IFluidHandler fh = sourceTe.getCapability(
-                                CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
-                        if (fh != null) { source = fh; sourceFace = face; break; }
-                    }
-                }
-                if (source != null) break;
-            }
-            if (source == null) continue;
-
-            // Simulate drain
-            FluidStack drained = source.drain(maxTransfer, false);
-            if (drained == null || drained.amount <= 0) continue;
-
-            // Fill visual buffer on all pipes whenever fluid is available in the network,
-            // regardless of whether a destination accepts it.
-            for (BlockPos memberPos : members) {
-                net.minecraft.tileentity.TileEntity mte = world.getTileEntity(memberPos);
-                if (mte instanceof TileEntityFluidPipe) {
-                    ((TileEntityFluidPipe) mte).onFluidPassed(drained);
-                }
-            }
-
-            int remaining = drained.amount;
-
-            for (int attempt = 0; attempt < outputs.size() && remaining > 0; attempt++) {
-                BlockPos destPos = outputs.get(rrPointer % outputs.size());
-                rrPointer++;
-
-                TileEntity destTe = world.getTileEntity(destPos);
-                if (destTe == null) continue;
-
-                IFluidHandler dest = null;
-                for (BlockPos memberPos : members) {
-                    for (EnumFacing face : EnumFacing.VALUES) {
-                        if (memberPos.offset(face).equals(destPos)) {
-                            IFluidHandler fh = destTe.getCapability(
-                                    CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
-                            if (fh != null) { dest = fh; break; }
+        // Assign distance from nearest source-adjacent pipe via BFS
+        Map<BlockPos, Integer> distance = new HashMap<>();
+        Queue<BlockPos> bfsQueue = new ArrayDeque<>();
+        for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
+            BlockPos pipePos = entry.getKey();
+            TileEntityFluidPipe pipe = entry.getValue();
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos neighborPos = pipePos.offset(face);
+                if (members.contains(neighborPos)) continue;
+                if (pipe.getFaceMode(face) == FaceMode.INPUT) {
+                    TileEntity nte = world.getTileEntity(neighborPos);
+                    if (nte != null && nte.hasCapability(
+                            CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) {
+                        if (!distance.containsKey(pipePos)) {
+                            distance.put(pipePos, 0);
+                            bfsQueue.add(pipePos);
                         }
                     }
-                    if (dest != null) break;
                 }
+            }
+        }
+        while (!bfsQueue.isEmpty()) {
+            BlockPos current = bfsQueue.poll();
+            int d = distance.get(current);
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos next = current.offset(face);
+                if (members.contains(next) && !distance.containsKey(next)) {
+                    distance.put(next, d + 1);
+                    bfsQueue.add(next);
+                }
+            }
+        }
+
+        // Multiple propagation passes — fluid only flows away from source (distance increases)
+        for (int pass = 0; pass < PROPAGATION_PASSES; pass++) {
+            Map<BlockPos, Float> fillSnapshot = new HashMap<>();
+            for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
+                fillSnapshot.put(entry.getKey(), entry.getValue().getFillFraction());
+            }
+
+            for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
+                BlockPos pipePos = entry.getKey();
+                TileEntityFluidPipe pipe = entry.getValue();
+
+                float myFill = fillSnapshot.get(pipePos);
+                if (myFill < PUSH_THRESHOLD) continue;
+                if (pipe.getBuffer() == null || pipe.getBuffer().amount <= 0) continue;
+
+                int myDist = distance.getOrDefault(pipePos, Integer.MAX_VALUE);
+
+                for (EnumFacing face : EnumFacing.VALUES) {
+                    BlockPos neighborPos = pipePos.offset(face);
+                    if (!members.contains(neighborPos)) continue;
+
+                    TileEntityFluidPipe neighbor = pipes.get(neighborPos);
+                    if (neighbor == null) continue;
+
+                    // Only push downstream (increasing distance from source)
+                    int neighborDist = distance.getOrDefault(neighborPos, Integer.MAX_VALUE);
+                    if (neighborDist <= myDist) continue;
+
+                    FluidStack neighborBuf = neighbor.getBuffer();
+                    if (neighborBuf != null && !neighborBuf.isFluidEqual(pipe.getBuffer())) continue;
+
+                    int space  = neighbor.getBufferSpace();
+                    int toPush = Math.min(maxRate, Math.min(pipe.getBuffer().amount, space));
+                    if (toPush <= 0) continue;
+
+                    FluidStack pushing = pipe.getBuffer().copy();
+                    pushing.amount = toPush;
+                    pipe.drainBuffer(toPush);
+                    neighbor.addToBuffer(pushing);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Phase 3: SINK DRAIN — pipe buffers push into output tanks
+        // ------------------------------------------------------------------
+        for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
+            BlockPos pipePos = entry.getKey();
+            TileEntityFluidPipe pipe = entry.getValue();
+            if (pipe.getBuffer() == null || pipe.getBuffer().amount <= 0) continue;
+
+            for (EnumFacing face : EnumFacing.VALUES) {
+                BlockPos neighborPos = pipePos.offset(face);
+                if (members.contains(neighborPos)) continue;
+                if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
+
+                TileEntity nte = world.getTileEntity(neighborPos);
+                if (nte == null) continue;
+                IFluidHandler dest = nte.getCapability(
+                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
                 if (dest == null) continue;
 
-                FluidStack toInsert = drained.copy();
-                toInsert.amount = remaining;
+                FluidStack toInsert = pipe.getBuffer().copy();
+                toInsert.amount = Math.min(toInsert.amount, maxRate);
 
                 int accepted = dest.fill(toInsert, false);
                 if (accepted <= 0) continue;
 
-                FluidStack actuallyDrained = source.drain(accepted, true);
-                if (actuallyDrained == null || actuallyDrained.amount <= 0) continue;
-
-                FluidStack actualInsert = actuallyDrained.copy();
-                dest.fill(actualInsert, true);
-                remaining -= actuallyDrained.amount;
-
-                // Notify all pipe TEs in the network that fluid passed through
-                for (BlockPos memberPos : members) {
-                    net.minecraft.tileentity.TileEntity mte = world.getTileEntity(memberPos);
-                    if (mte instanceof TileEntityFluidPipe) {
-                        ((TileEntityFluidPipe) mte).onFluidPassed(actuallyDrained);
-                    }
-                }
+                toInsert.amount = accepted;
+                dest.fill(toInsert.copy(), true);
+                pipe.drainBuffer(accepted);
             }
+        }
+
+        // Sync all pipes to client
+        for (TileEntityFluidPipe pipe : pipes.values()) {
+            pipe.syncToClient();
         }
     }
 

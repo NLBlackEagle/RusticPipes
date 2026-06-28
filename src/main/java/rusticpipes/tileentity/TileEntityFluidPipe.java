@@ -22,7 +22,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     private final Map<EnumFacing, FaceMode> faceModes = new EnumMap<>(EnumFacing.class);
 
     /** Small in-transit fluid buffer — used for viewport color rendering. */
-    private static final int BUFFER_CAPACITY = 100;
+    private static final int BUFFER_CAPACITY = 1000;
     @Nullable private FluidStack buffer = null;
     /** Fluid color synced to client for viewport rendering. 0 = empty. */
     private int fluidColor = 0;
@@ -115,22 +115,42 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
 
     public int getFluidColor() { return fluidColor; }
 
-    /**
-     * Called by FluidNetwork during transfer to push fluid through this pipe's buffer.
-     * Updates color and resets the drain timer.
-     */
-    public void onFluidPassed(FluidStack fluid) {
+    public float getFillFraction() {
+        return buffer != null ? (float) buffer.amount / BUFFER_CAPACITY : 0f;
+    }
+
+    public int getBufferSpace() {
+        return buffer != null ? BUFFER_CAPACITY - buffer.amount : BUFFER_CAPACITY;
+    }
+
+    /** Add fluid to this pipe's buffer. */
+    public void addToBuffer(FluidStack fluid) {
         if (fluid == null || fluid.amount <= 0) return;
-        buffer = fluid.copy();
-        buffer.amount = Math.min(buffer.amount, BUFFER_CAPACITY);
+        if (buffer == null) {
+            buffer = fluid.copy();
+            buffer.amount = Math.min(buffer.amount, BUFFER_CAPACITY);
+        } else {
+            buffer.amount = Math.min(buffer.amount + fluid.amount, BUFFER_CAPACITY);
+        }
         int newColor = fluid.getFluid().getColor(fluid);
-        if (newColor == 0xFFFFFFFF || newColor == 0) newColor = 0xFF4444FF; // default blue for colorless fluids
+        if (newColor == 0xFFFFFFFF || newColor == 0) newColor = 0xFF4444FF;
         fluidColor = newColor;
-        // Always sync to client so TESR has current buffer/fill data
+        ticksSinceFlow = 0;
+    }
+
+    /** Remove up to amount mB from this pipe's buffer. */
+    public void drainBuffer(int amount) {
+        if (buffer == null || amount <= 0) return;
+        buffer.amount -= amount;
+        if (buffer.amount <= 0) buffer = null;
+        ticksSinceFlow = 0;
+    }
+
+    /** Called by FluidNetwork after all transfers — syncs to client. */
+    public void syncToClient() {
         if (world != null && !world.isRemote) {
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
-        ticksSinceFlow = 0;
     }
 
     // -----------------------------------------------------------------------

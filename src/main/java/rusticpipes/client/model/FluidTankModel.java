@@ -127,12 +127,21 @@ public class FluidTankModel implements IModel {
                 return quads;
             }
 
-            // Top and bottom — always render solid faces (this model is only used for SINGLE blocks)
+            // Top and bottom — only render on outermost blocks of 1x1xN stacks.
+            // NONE = TE not yet synced, treat as SINGLE (safe default = show both faces).
+            boolean renderBottom = (row == BlockFluidTankMultiblock.ViewportRow.BOTTOM
+                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE
+                                 || row == BlockFluidTankMultiblock.ViewportRow.NONE);
+            boolean renderTop    = (row == BlockFluidTankMultiblock.ViewportRow.TOP
+                                 || row == BlockFluidTankMultiblock.ViewportRow.SINGLE
+                                 || row == BlockFluidTankMultiblock.ViewportRow.NONE);
             if (isSolid) {
                 float su0 = solid.getMinU(), sv0 = solid.getMinV();
                 float su1 = solid.getMaxU(), sv1 = solid.getMaxV();
-                addQuad(quads, EnumFacing.DOWN, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, su0, sv0, su1, sv1, solid);
-                addQuad(quads, EnumFacing.UP, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, su0, sv0, su1, sv1, solid);
+                if (renderBottom)
+                    addQuad(quads, EnumFacing.DOWN, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, su0, sv0, su1, sv1, solid);
+                if (renderTop)
+                    addQuad(quads, EnumFacing.UP, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, su0, sv0, su1, sv1, solid);
             }
 
             // Side faces — viewport texture (chosen by row)
