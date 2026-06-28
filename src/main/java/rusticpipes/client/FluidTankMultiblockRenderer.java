@@ -149,8 +149,14 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         if (wallWidth < 1 || wallHeight < 1) return;
 
         String sidePath, topPath, botPath;
-        if (wallWidth == 1) {
+        if (wallWidth == 1 && wallHeight == 1) {
+            // 1x1x1 — use single inner viewport texture
             sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport";
+            topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
+            botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
+        } else if (wallWidth == 1) {
+            // 1x1x2-10 — use height-specific inner side textures
+            sidePath = "rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_1x" + wallHeight;
             topPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
             botPath  = "rusticpipes:blocks/fluid_tank/fluid_tank_solid";
         } else {
@@ -165,11 +171,20 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
 
         // Textures are padded to square power-of-2.
         // Compute U and V ratios: only use the fraction that contains real content.
-        // For 1x1 tanks the viewport texture is used at full UV — always 1.0
+        // For 1x1x1 the inner viewport is used at full UV
+        // For 1x1x2-10 the side texture is WxH so needs proper ratio calculation
         float sideURatio, sideVRatio, topURatio, topVRatio;
-        if (wallWidth == 1) {
+        if (wallWidth == 1 && wallHeight == 1) {
             sideURatio = 1.0f; sideVRatio = 1.0f;
             topURatio  = 1.0f; topVRatio  = 1.0f;
+        } else if (wallWidth == 1) {
+            // fluid_tank_inner_side_1xH: 16px wide x (H*16)px tall — needs padding
+            int sideOrigW = 16;
+            int sideOrigH = wallHeight * 16;
+            int sideSize  = nextPow2(Math.max(sideOrigW, sideOrigH));
+            sideURatio = (float) sideOrigW / sideSize;
+            sideVRatio = (float) sideOrigH / sideSize;
+            topURatio  = 1.0f; topVRatio = 1.0f;
         } else {
             // Side texture: original is wallWidth*16 wide x wallHeight*16 tall
             int sideOrigW = wallWidth  * 16;
