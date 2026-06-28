@@ -199,6 +199,13 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     // NBT / sync
     // -----------------------------------------------------------------------
 
+@Override
+    public void onLoad() {
+        if (world != null && !world.isRemote) {
+            world.scheduleUpdate(pos, world.getBlockState(pos).getBlock(), 1);
+        }
+    }
+
     @Override public NBTTagCompound getUpdateTag() { return writeToNBT(new NBTTagCompound()); }
 
     @Nullable @Override

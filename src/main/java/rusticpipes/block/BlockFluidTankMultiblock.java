@@ -135,7 +135,16 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
-        tryValidate(world, pos);
+        if (!world.isRemote) {
+            world.scheduleUpdate(pos, this, 1); // validate on next tick
+        }
+    }
+
+    @Override
+    public void updateTick(World world, BlockPos pos, IBlockState state, java.util.Random rand) {
+        if (!world.isRemote) {
+            tryValidate(world, pos);
+        }
     }
 
     @Override
