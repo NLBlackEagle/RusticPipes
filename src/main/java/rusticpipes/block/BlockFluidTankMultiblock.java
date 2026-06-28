@@ -121,7 +121,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
-        if (world.isRemote) return;
+        // Validate on both sides so TESR renders immediately without waiting for server sync
         tryValidate(world, pos);
     }
 

@@ -24,12 +24,14 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
     public void render(TileEntityFluidTankMultiblock te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
 
-        if (!te.isController() && te.isPartOfMultiblock()) return;
-        if (!te.isPartOfMultiblock()) return;
+        // Skip non-controller members of a formed multiblock
+        if (te.isPartOfMultiblock() && !te.isController()) return;
 
         BlockPos pos = te.getPos();
         TankMultiblock.Structure st = TankMultiblock.validateMultiblock(getWorld(), pos);
         if (st == null) return;
+        // If TE not yet synced (just placed), check this block would be the controller
+        if (!st.controller.equals(pos)) return;
 
         FluidStack fluid = te.getFluid();
         // Clamp fill to [0, 1] to prevent rendering glitches during structure transitions
