@@ -282,7 +282,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (st != null) {
             TankMultiblock.applyMultiblock(world, st);
         } else {
-            // Invalidate the entire multiblock structure (resets VIEWPORT on all blocks)
             TankMultiblock.invalidateMultiblock(world, pos);
         }
     }
