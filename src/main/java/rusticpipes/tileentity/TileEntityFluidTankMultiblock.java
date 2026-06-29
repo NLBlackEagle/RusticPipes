@@ -53,6 +53,10 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         this.baseSize      = baseSize;
         this.viewportRow   = viewportRow;
         this.sideFace      = sideFace;
+        // Snap fill fraction immediately on structural change — no lerp
+        if (controller.equals(pos) && capacity > 0) {
+            fillFraction = fluid != null ? Math.min(1f, (float) fluid.amount / capacity) : 0f;
+        }
         markDirty();
         if (world != null && !world.isRemote)
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
@@ -90,6 +94,9 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     public int getBaseSize()               { return baseSize; }
     public float getFillFraction()         { return fillFraction; }
     public int getCapacity()               { return totalCapacity; }
+    /** Direct fluid access — bypasses controller resolution, used during revalidation. */
+    public FluidStack getRawFluid()         { return fluid; }
+    public void setRawFluid(FluidStack f)   { fluid = f; markDirty(); }
     public BlockFluidTankMultiblock.ViewportRow getViewportRow() { return viewportRow; }
     @Nullable public EnumFacing getSideFace() { return sideFace; }
 

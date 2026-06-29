@@ -258,15 +258,23 @@ public class TankMultiblock {
         int capacity = structure.blockCount
                 * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
 
-        // Trim excess fluid if the new structure is smaller than the previous one
-        net.minecraft.tileentity.TileEntity ctrlTe = world.getTileEntity(structure.controller);
-        if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
-            TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
-            net.minecraftforge.fluids.FluidStack fluid = ctrl.getFluid();
-            if (fluid != null && fluid.amount > capacity) {
-                fluid.amount = capacity;
-                ctrl.markDirty();
+        // Preserve fluid across revalidation — scan all positions for a TE that holds fluid
+        // (getFluid() fails after invalidate since controllerPos is null, so use getRawFluid())
+        net.minecraftforge.fluids.FluidStack preserved = null;
+        for (BlockPos p : structure.allPositions()) {
+            net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
+            if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
+            net.minecraftforge.fluids.FluidStack raw = ((TileEntityFluidTankMultiblock) te).getRawFluid();
+            if (raw != null && raw.amount > 0) {
+                if (preserved == null || raw.amount > preserved.amount) preserved = raw.copy();
+                ((TileEntityFluidTankMultiblock) te).setRawFluid(null); // clear from old member
             }
+        }
+        // Trim to new capacity and assign to new controller
+        net.minecraft.tileentity.TileEntity ctrlTe = world.getTileEntity(structure.controller);
+        if (ctrlTe instanceof TileEntityFluidTankMultiblock && preserved != null) {
+            if (preserved.amount > capacity) preserved.amount = capacity;
+            ((TileEntityFluidTankMultiblock) ctrlTe).setRawFluid(preserved);
         }
 
         for (BlockPos p : structure.allPositions()) {

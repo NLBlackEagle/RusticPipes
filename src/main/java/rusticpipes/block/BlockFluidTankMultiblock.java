@@ -291,24 +291,52 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (!world.isRemote) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityFluidTankMultiblock) {
-                ((TileEntityFluidTankMultiblock) te).onBreak();
+                TileEntityFluidTankMultiblock teTank = (TileEntityFluidTankMultiblock) te;
+
+                // Save fluid from the controller BEFORE anything invalidates it
+                net.minecraftforge.fluids.FluidStack savedFluid = null;
+                BlockPos ctrlPos = teTank.getControllerPos();
+                if (ctrlPos != null) {
+                    TileEntity ctrlTe = world.getTileEntity(ctrlPos);
+                    if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
+                        net.minecraftforge.fluids.FluidStack raw =
+                                ((TileEntityFluidTankMultiblock) ctrlTe).getRawFluid();
+                        if (raw != null && raw.amount > 0) savedFluid = raw.copy();
+                    }
+                }
+
+                teTank.onBreak();
+
+                // After block removal and revalidation, push saved fluid into new controller
+                super.breakBlock(world, pos, state);
+
+                for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
+                    BlockPos neighborPos = pos.offset(face);
+                    if (world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock) {
+                        rusticpipes.multiblock.TankMultiblock.Structure st =
+                                rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, neighborPos);
+                        if (st != null) {
+                            rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
+                            // Restore fluid to the new controller, trimmed to new capacity
+                            if (savedFluid != null) {
+                                TileEntity newCtrl = world.getTileEntity(st.controller);
+                                if (newCtrl instanceof TileEntityFluidTankMultiblock) {
+                                    int newCap = st.blockCount *
+                                            rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
+                                    net.minecraftforge.fluids.FluidStack toRestore = savedFluid.copy();
+                                    if (toRestore.amount > newCap) toRestore.amount = newCap;
+                                    ((TileEntityFluidTankMultiblock) newCtrl).setRawFluid(toRestore);
+                                    newCtrl.markDirty();
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+                return;
             }
         }
         super.breakBlock(world, pos, state);
-        // After the block is removed, check if remaining tank blocks form a valid multiblock
-        if (!world.isRemote) {
-            for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
-                BlockPos neighborPos = pos.offset(face);
-                if (world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock) {
-                    rusticpipes.multiblock.TankMultiblock.Structure st =
-                            rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, neighborPos);
-                    if (st != null) {
-                        rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
-                        break;
-                    }
-                }
-            }
-        }
     }
 
     private void tryValidate(World world, BlockPos pos) {
