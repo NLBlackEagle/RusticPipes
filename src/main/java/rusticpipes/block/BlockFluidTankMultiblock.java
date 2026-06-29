@@ -363,6 +363,25 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (hand != EnumHand.MAIN_HAND) return true;
         if (world.isRemote) return true;
+
+        // Bucket interaction — fill or empty the tank with a bucket
+        net.minecraft.item.ItemStack held = player.getHeldItem(hand);
+        if (!held.isEmpty()) {
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof TileEntityFluidTankMultiblock) {
+                TileEntityFluidTankMultiblock tank = (TileEntityFluidTankMultiblock) te;
+                if (tank.isPartOfMultiblock()) {
+                    net.minecraftforge.fluids.capability.IFluidHandler handler =
+                            te.getCapability(net.minecraftforge.fluids.capability.CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, facing);
+                    if (handler != null) {
+                        boolean success = net.minecraftforge.fluids.FluidUtil.interactWithFluidHandler(player, hand, handler);
+                        if (success) return true;
+                    }
+                }
+            }
+        }
+
+        // Sneak right-click: show tank info
         if (!player.isSneaking()) return false;
         sendTankInfo(world, pos, player);
         return true;

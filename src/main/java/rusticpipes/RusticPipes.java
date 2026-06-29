@@ -24,7 +24,7 @@ public class RusticPipes {
     public static boolean completedLoading = false;
 
     /** Set to true to enable debug chat messages in-game. */
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
 
     public static SimpleNetworkWrapper NET;
 

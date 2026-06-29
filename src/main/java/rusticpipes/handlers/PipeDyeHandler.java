@@ -20,9 +20,11 @@ import net.minecraft.world.WorldServer;
 import net.minecraftforge.fml.relauncher.Side;
 import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockFluidTankMultiblock;
+import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
+import rusticpipes.tileentity.TileEntityFluidPipe;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
 /**
@@ -51,30 +53,35 @@ public class PipeDyeHandler {
         World world = event.getWorld();
         BlockPos pos = event.getPos();
         Block block = world.getBlockState(pos).getBlock();
-        if (!(block instanceof BlockItemPipe)) return;
+        boolean isItemPipe  = block instanceof BlockItemPipe;
+        boolean isFluidPipe = block instanceof BlockFluidPipe;
+        if (!isItemPipe && !isFluidPipe) return;
 
-        BlockItemPipe pipe = (BlockItemPipe) block;
+        PipeColor currentColor = isItemPipe ? ((BlockItemPipe) block).pipeColor
+                                            : ((BlockFluidPipe) block).pipeColor;
 
         // ItemDye metadata is inverted vs EnumDyeColor ordinal — byDyeDamage handles this
         EnumDyeColor dyeColor = EnumDyeColor.byDyeDamage(held.getMetadata());
         PipeColor targetColor = PipeColor.fromDye(dyeColor);
 
-        if (targetColor == pipe.pipeColor) return; // already this color, do nothing
+        if (targetColor == currentColor) return; // already this color, do nothing
 
         // Preserve face modes from the existing TE
         TileEntity oldTe = world.getTileEntity(pos);
         NBTTagCompound savedData = null;
-        if (oldTe instanceof TileEntityItemPipe) {
-            savedData = oldTe.writeToNBT(new NBTTagCompound());
-        }
+        if (oldTe != null) savedData = oldTe.writeToNBT(new NBTTagCompound());
 
         // Swap block to the new color
-        world.setBlockState(pos, ModRegistry.getPipe(targetColor).getDefaultState(), 3);
+        if (isItemPipe) {
+            world.setBlockState(pos, ModRegistry.getPipe(targetColor).getDefaultState(), 3);
+        } else {
+            world.setBlockState(pos, ModRegistry.getFluidPipe(targetColor).getDefaultState(), 3);
+        }
 
         // Restore face modes on the new TE
         if (savedData != null) {
             TileEntity newTe = world.getTileEntity(pos);
-            if (newTe instanceof TileEntityItemPipe) {
+            if (newTe != null) {
                 savedData.setInteger("x", pos.getX());
                 savedData.setInteger("y", pos.getY());
                 savedData.setInteger("z", pos.getZ());

@@ -147,6 +147,7 @@ public class ClientModRegistry {
     @SubscribeEvent
     public static void registerBlockColors(ColorHandlerEvent.Block event) {
         event.getBlockColors().registerBlockColorHandler(PipeBlockColor.INSTANCE, ModRegistry.PIPES);
+        event.getBlockColors().registerBlockColorHandler(PipeBlockColor.INSTANCE, ModRegistry.FLUID_PIPES);
     }
 
     @SubscribeEvent
@@ -175,6 +176,10 @@ public class ClientModRegistry {
         for (BlockItemPipe pipe : ModRegistry.PIPES) {
             event.getItemColors().registerItemColorHandler(
                     PipeItemColor.INSTANCE, Item.getItemFromBlock(pipe));
+        }
+        for (rusticpipes.block.BlockFluidPipe fp : ModRegistry.FLUID_PIPES) {
+            event.getItemColors().registerItemColorHandler(
+                    PipeItemColor.INSTANCE, Item.getItemFromBlock(fp));
         }
     }
 }
