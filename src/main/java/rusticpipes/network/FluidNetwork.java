@@ -146,7 +146,8 @@ public class FluidNetwork {
         if (pipes.isEmpty()) return;
 
         // ------------------------------------------------------------------
-        // Phase 1: SOURCE FILL — tanks push into adjacent pipe buffers
+        // Phase 1: SOURCE FILL — auto-detect sources by checking which
+        // adjacent handlers actually have fluid to give (ignores face mode)
         // ------------------------------------------------------------------
         for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
             BlockPos pipePos  = entry.getKey();
@@ -154,7 +155,7 @@ public class FluidNetwork {
 
             for (EnumFacing face : EnumFacing.VALUES) {
                 BlockPos neighborPos = pipePos.offset(face);
-                if (members.contains(neighborPos)) continue; // skip other pipes
+                if (members.contains(neighborPos)) continue;
                 if (pipe.getFaceMode(face) != FaceMode.INPUT) continue;
 
                 TileEntity nte = world.getTileEntity(neighborPos);
@@ -167,7 +168,6 @@ public class FluidNetwork {
                 if (space <= 0) continue;
 
                 FluidStack current = pipe.getBuffer();
-                // Only drain compatible fluid
                 FluidStack candidate = source.drain(Math.min(space, maxRate), false);
                 if (candidate == null || candidate.amount <= 0) continue;
                 if (current != null && !current.isFluidEqual(candidate)) continue;
@@ -180,43 +180,45 @@ public class FluidNetwork {
         }
 
         // ------------------------------------------------------------------
-        // Phase 2: PROPAGATION — BFS distance from sources prevents backflow
+        // Phase 2: PROPAGATION — BFS from OUTPUT-adjacent pipes (destination
+        // side). Distance 0 = nearest to destination. Fluid only flows toward
+        // lower distance (toward destination), preventing oscillation.
         // ------------------------------------------------------------------
 
-        // Assign distance from nearest source-adjacent pipe via BFS
-        Map<BlockPos, Integer> distance = new HashMap<>();
-        Queue<BlockPos> bfsQueue = new ArrayDeque<>();
-        for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
-            BlockPos pipePos = entry.getKey();
-            TileEntityFluidPipe pipe = entry.getValue();
+        // BFS from destination-adjacent pipes (OUTPUT face = dest side, dist 0).
+        // Fluid propagates from high dist (source) toward low dist (destination).
+        Map<BlockPos, Integer> dist = new HashMap<>();
+        Queue<BlockPos> bfsQ = new ArrayDeque<>();
+        for (Map.Entry<BlockPos, TileEntityFluidPipe> e : pipes.entrySet()) {
+            BlockPos pipePos = e.getKey();
+            TileEntityFluidPipe pipe = e.getValue();
             for (EnumFacing face : EnumFacing.VALUES) {
-                BlockPos neighborPos = pipePos.offset(face);
-                if (members.contains(neighborPos)) continue;
-                if (pipe.getFaceMode(face) == FaceMode.INPUT) {
-                    TileEntity nte = world.getTileEntity(neighborPos);
-                    if (nte != null && nte.hasCapability(
-                            CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) {
-                        if (!distance.containsKey(pipePos)) {
-                            distance.put(pipePos, 0);
-                            bfsQueue.add(pipePos);
-                        }
-                    }
+                BlockPos nbPos = pipePos.offset(face);
+                if (members.contains(nbPos)) continue;
+                if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
+                TileEntity nte = world.getTileEntity(nbPos);
+                if (nte == null) continue;
+                if (!nte.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) continue;
+                if (!dist.containsKey(pipePos)) {
+                    dist.put(pipePos, 0);
+                    bfsQ.add(pipePos);
                 }
             }
         }
-        while (!bfsQueue.isEmpty()) {
-            BlockPos current = bfsQueue.poll();
-            int d = distance.get(current);
+        while (!bfsQ.isEmpty()) {
+            BlockPos cur = bfsQ.poll();
+            int d = dist.get(cur);
             for (EnumFacing face : EnumFacing.VALUES) {
-                BlockPos next = current.offset(face);
-                if (members.contains(next) && !distance.containsKey(next)) {
-                    distance.put(next, d + 1);
-                    bfsQueue.add(next);
+                BlockPos nb = cur.offset(face);
+                if (members.contains(nb) && !dist.containsKey(nb)) {
+                    dist.put(nb, d + 1);
+                    bfsQ.add(nb);
                 }
             }
         }
 
-        // Multiple propagation passes — fluid only flows away from source (distance increases)
+        // Propagate: push from low dist (source) to high dist (destination)
+        // Source pipes (dist 0) are fullest — staircase steps down toward destination
         for (int pass = 0; pass < PROPAGATION_PASSES; pass++) {
             Map<BlockPos, Float> fillSnapshot = new HashMap<>();
             for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
@@ -231,7 +233,7 @@ public class FluidNetwork {
                 if (myFill < PUSH_THRESHOLD) continue;
                 if (pipe.getBuffer() == null || pipe.getBuffer().amount <= 0) continue;
 
-                int myDist = distance.getOrDefault(pipePos, Integer.MAX_VALUE);
+                int myDist = dist.getOrDefault(pipePos, Integer.MAX_VALUE);
 
                 for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos neighborPos = pipePos.offset(face);
@@ -240,9 +242,14 @@ public class FluidNetwork {
                     TileEntityFluidPipe neighbor = pipes.get(neighborPos);
                     if (neighbor == null) continue;
 
-                    // Only push downstream (increasing distance from source)
-                    int neighborDist = distance.getOrDefault(neighborPos, Integer.MAX_VALUE);
-                    if (neighborDist <= myDist) continue;
+                    // Only push toward destination (lower dist)
+                    int neighborDist = dist.getOrDefault(neighborPos, Integer.MAX_VALUE);
+                    if (neighborDist >= myDist) continue;
+
+                    // Don't push into a pipe that is equally or more full — prevents
+                    // backpressure reversal when destination tank is saturated
+                    float neighborFill = fillSnapshot.getOrDefault(neighborPos, 0f);
+                    if (neighborFill >= myFill) continue;
 
                     FluidStack neighborBuf = neighbor.getBuffer();
                     if (neighborBuf != null && !neighborBuf.isFluidEqual(pipe.getBuffer())) continue;
@@ -260,7 +267,8 @@ public class FluidNetwork {
         }
 
         // ------------------------------------------------------------------
-        // Phase 3: SINK DRAIN — pipe buffers push into output tanks
+        // Phase 3: SINK DRAIN — auto-detect destinations by checking which
+        // adjacent handlers have space to accept fluid
         // ------------------------------------------------------------------
         for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
             BlockPos pipePos = entry.getKey();

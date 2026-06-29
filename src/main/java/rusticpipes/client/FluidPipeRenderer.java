@@ -40,8 +40,9 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
 
         // Fluid state
         FluidStack buffer = te.getBuffer();
+        // Use smoothed fill fraction to prevent visual jumping from rapid buffer changes
         float fillFraction = (buffer != null && buffer.amount > 0)
-                ? (float) buffer.amount / te.getBufferCapacity()
+                ? te.getVisualFillFraction()
                 : 0f;
 
         // Fluid color

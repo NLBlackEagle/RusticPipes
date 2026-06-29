@@ -26,6 +26,8 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     @Nullable private FluidStack buffer = null;
     /** Fluid color synced to client for viewport rendering. 0 = empty. */
     private int fluidColor = 0;
+    /** Smoothed fill fraction for rendering — lerps toward actual fill to prevent visual jumping. */
+    private float visualFillFraction = 0f;
     /** Ticks since last fluid passed through — used to drain the visual buffer. */
     private int ticksSinceFlow = 0;
     private static final int DRAIN_AFTER_TICKS = 40;
@@ -80,6 +82,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         }
         compound.setTag("faceModes", modes);
         compound.setInteger("fluidColor", fluidColor);
+        compound.setFloat("visualFill", visualFillFraction);
         if (buffer != null) compound.setTag("buffer", buffer.writeToNBT(new NBTTagCompound()));
         return compound;
     }
@@ -88,6 +91,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
         fluidColor = compound.hasKey("fluidColor") ? compound.getInteger("fluidColor") : 0;
+        visualFillFraction = compound.hasKey("visualFill") ? compound.getFloat("visualFill") : 0f;
         buffer = compound.hasKey("buffer")
                 ? FluidStack.loadFluidStackFromNBT(compound.getCompoundTag("buffer")) : null;
         if (compound.hasKey("faceModes")) {
@@ -118,6 +122,9 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     public float getFillFraction() {
         return buffer != null ? (float) buffer.amount / BUFFER_CAPACITY : 0f;
     }
+
+    /** Smoothed fill fraction for rendering — prevents visual jumping. */
+    public float getVisualFillFraction() { return visualFillFraction; }
 
     public int getBufferSpace() {
         return buffer != null ? BUFFER_CAPACITY - buffer.amount : BUFFER_CAPACITY;
@@ -156,6 +163,9 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         } else {
             fluidColor = 0;
         }
+        // Smooth visual fill fraction to prevent jumping from rapid buffer changes
+        float target = getFillFraction();
+        visualFillFraction = visualFillFraction + (target - visualFillFraction) * 0.2f;
         // Reset drain timer — network is actively processing this pipe
         ticksSinceFlow = 0;
         if (world != null && !world.isRemote) {

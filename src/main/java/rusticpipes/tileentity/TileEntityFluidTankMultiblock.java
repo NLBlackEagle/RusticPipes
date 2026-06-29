@@ -120,8 +120,10 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         float newFill = ctrl.totalCapacity > 0
                 ? (ctrl.fluid != null ? (float) ctrl.fluid.amount / ctrl.totalCapacity : 0f)
                 : 0f;
-        if (Math.abs(newFill - fillFraction) > 0.005f) {
-            fillFraction = newFill;
+        // Smooth fill fraction to prevent visual jumping from rapid pipe push/pull oscillation
+        float smoothed = fillFraction + (newFill - fillFraction) * 0.15f;
+        if (Math.abs(smoothed - fillFraction) > 0.001f) {
+            fillFraction = smoothed;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
     }
