@@ -37,6 +37,8 @@ public class FluidNetwork {
 
     private final Set<BlockPos> members = new HashSet<>();
     private int rrPointer = 0;
+    // Cached master pos — the member with the smallest toLong() value.
+    private BlockPos cachedMasterPos = null;
 
     // -----------------------------------------------------------------------
     // Static accessors
@@ -79,11 +81,13 @@ public class FluidNetwork {
         if (neighbours.isEmpty()) {
             FluidNetwork network = new FluidNetwork();
             network.members.add(pos);
+            network.recomputeMaster();
             NETWORKS.put(new DimPos(dimId, pos), network);
         } else if (neighbours.size() == 1) {
             FluidNetwork network = neighbours.iterator().next();
             network.members.add(pos);
             NETWORKS.put(new DimPos(dimId, pos), network);
+            network.recomputeMaster();
         } else {
             FluidNetwork kept = neighbours.iterator().next();
             for (FluidNetwork other : neighbours) {
@@ -95,6 +99,7 @@ public class FluidNetwork {
             }
             kept.members.add(pos);
             NETWORKS.put(new DimPos(dimId, pos), kept);
+            kept.recomputeMaster();
         }
     }
 
@@ -115,7 +120,10 @@ public class FluidNetwork {
                 if (++networkNeighbours >= 2) break;
             }
         }
-        if (networkNeighbours < 2) return;
+        if (networkNeighbours < 2) {
+            network.recomputeMaster();
+            return;
+        }
 
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new ArrayDeque<>();
@@ -131,13 +139,17 @@ public class FluidNetwork {
             }
         }
 
-        if (visited.size() == network.members.size()) return;
+        if (visited.size() == network.members.size()) {
+            network.recomputeMaster();
+            return;
+        }
 
         Set<BlockPos> remaining = new HashSet<>(network.members);
         remaining.removeAll(visited);
 
         network.members.clear();
         network.members.addAll(visited);
+        network.recomputeMaster();
         for (BlockPos memberPos : visited) NETWORKS.put(new DimPos(dimId, memberPos), network);
 
         FluidNetwork newNetwork = new FluidNetwork();
@@ -145,6 +157,7 @@ public class FluidNetwork {
             newNetwork.members.add(memberPos);
             NETWORKS.put(new DimPos(dimId, memberPos), newNetwork);
         }
+        newNetwork.recomputeMaster();
     }
 
     // -----------------------------------------------------------------------
@@ -317,4 +330,14 @@ public class FluidNetwork {
     }
 
     public Set<BlockPos> getMembers() { return Collections.unmodifiableSet(members); }
+
+    private void recomputeMaster() {
+        cachedMasterPos = null;
+        for (BlockPos p : members) {
+            if (cachedMasterPos == null || p.toLong() < cachedMasterPos.toLong())
+                cachedMasterPos = p;
+        }
+    }
+
+    public BlockPos getMasterPos() { return cachedMasterPos; }
 }

@@ -44,6 +44,17 @@ public class BlockFluidTank extends Block implements ITileEntityProvider {
     }
 
     @Override
+    public void breakBlock(World world, BlockPos pos, IBlockState state) {
+        if (!world.isRemote && rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak) {
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof TileEntityFluidTank) {
+                BlockFluidPipe.dropFluidBuckets(world, pos, ((TileEntityFluidTank) te).getFluid());
+            }
+        }
+        super.breakBlock(world, pos, state);
+    }
+
+    @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand,
                                     EnumFacing facing, float hitX, float hitY, float hitZ) {

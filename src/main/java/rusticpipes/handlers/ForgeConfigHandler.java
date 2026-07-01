@@ -334,6 +334,47 @@ public class ForgeConfigHandler {
         @Config.RangeInt(min = 1, max = 1000000)
         @Config.Name("Capacity Per Tank Block (mB)")
         public int capacityPerTankBlock = 8000;
+
+        // ---- NuclearCraft radiation ----------------------------------------
+
+        @Config.Comment("Enable NuclearCraft radiation from fluid pipes and tanks.\n"
+                + "Requires NuclearCraft (original or Overhauled) to be installed.\n"
+                + "Pipes and tanks containing radioactive fluids will irradiate nearby players.")
+        @Config.Name("Enable NC Radiation")
+        public boolean enableRadiation = true;
+
+        @Config.Comment("How often radiation is applied to players, in ticks.\n"
+                + "Lower values apply radiation more frequently. Minimum 1.")
+        @Config.RangeInt(min = 1, max = 200)
+        @Config.Name("Radiation Check Interval (ticks)")
+        public int radiationTickInterval = 20;
+
+        @Config.Comment("Radius in blocks around each pipe/tank block from which\n"
+                + "players will receive radiation.")
+        @Config.RangeInt(min = 1, max = 16)
+        @Config.Name("Radiation Range (blocks)")
+        public int radiationRange = 4;
+
+        @Config.Comment("Multiplier applied to all radiation values emitted by\n"
+                + "RusticPipes fluid blocks. 0.0 = no radiation, 1.0 = natural NC levels.\n"
+                + "Use this to tune radiation strength without editing individual fluid values.")
+        @Config.Name("Radiation Strength Multiplier")
+        public double radiationMultiplier = 1.0;
+
+        @Config.Comment("Fallback radiation level (Sv/t) used when NuclearCraft\'s reflection\n"
+                + "API cannot read the exact value from the fluid class.\n"
+                + "Applied to any fluid whose name contains a known radioactive keyword.\n"
+                + "Set to 0.0 to disable the fallback entirely.")
+        @Config.Name("Radiation Fallback Level (Sv/t)")
+        public double radiationFallbackLevel = 0.001;
+
+        // ---- Bucket drop on destruction ------------------------------------
+
+        @Config.Comment("When a fluid pipe or tank is destroyed, drop a filled bucket\n"
+                + "for every 1000 mB of fluid it contains. The remainder is voided.\n"
+                + "Requires the fluid to have a registered bucket item.")
+        @Config.Name("Drop Buckets On Break")
+        public boolean dropBucketsOnBreak = true;
     }
 
     public static class ClientConfig {

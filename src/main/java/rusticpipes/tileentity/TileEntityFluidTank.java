@@ -49,6 +49,20 @@ public class TileEntityFluidTank extends TileEntity implements ITickable {
             fillFraction = newFill;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
+
+        // NuclearCraft radiation — irradiate nearby players if tank holds a radioactive fluid
+        if (rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation && fluid != null) {
+            long t = world.getTotalWorldTime();
+            int interval = rusticpipes.handlers.ForgeConfigHandler.fluid.radiationTickInterval;
+            if (t % interval == 0) {
+                double rad = rusticpipes.compat.NuclearCraftCompat.getFluidRadiation(fluid);
+                if (rad > 0) {
+                    double scaled = rad * ((double) fluid.amount / Math.max(1, capacity));
+                    rusticpipes.compat.NuclearCraftCompat.irradiateNearbyPlayers(world, pos, scaled,
+                            rusticpipes.handlers.ForgeConfigHandler.fluid.radiationRange);
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------

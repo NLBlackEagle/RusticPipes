@@ -250,7 +250,14 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
     @Override
     public void breakBlock(World world, BlockPos pos, IBlockState state) {
         TileEntity te = world.getTileEntity(pos);
-        if (te instanceof TileEntityFluidPipe) ((TileEntityFluidPipe) te).onRemoved();
+        if (te instanceof TileEntityFluidPipe) {
+            TileEntityFluidPipe pipe = (TileEntityFluidPipe) te;
+            // Drop filled buckets for any fluid remaining in the in-transit buffer
+            if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak) {
+                dropFluidBuckets(world, pos, pipe.getBuffer());
+            }
+            pipe.onRemoved();
+        }
         super.breakBlock(world, pos, state);
     }
 
@@ -264,5 +271,36 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
     private static String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /**
+     * Drops one filled bucket item per 1000 mB of fluid at the given position.
+     * Any remainder below 1000 mB is silently voided (it was in-transit fluid).
+     * Uses Forge FluidUtil to get the correct bucket item (vanilla or universal bucket).
+     * Safe to call with null or empty fluid stacks — does nothing.
+     */
+    static void dropFluidBuckets(World world, BlockPos pos,
+                                 @Nullable net.minecraftforge.fluids.FluidStack fluid) {
+        if (world.isRemote) return;
+        if (fluid == null || fluid.amount < 1000) return;
+
+        int buckets = fluid.amount / 1000;
+        net.minecraftforge.fluids.FluidStack oneBucket =
+                new net.minecraftforge.fluids.FluidStack(fluid.getFluid(), 1000);
+        net.minecraft.item.ItemStack bucketStack =
+                net.minecraftforge.fluids.FluidUtil.getFilledBucket(oneBucket);
+
+        if (bucketStack.isEmpty()) return; // fluid has no registered bucket item
+
+        for (int i = 0; i < buckets; i++) {
+            net.minecraft.entity.item.EntityItem entity = new net.minecraft.entity.item.EntityItem(
+                    world,
+                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                    bucketStack.copy());
+            entity.motionX = 0;
+            entity.motionY = 0.1;
+            entity.motionZ = 0;
+            world.spawnEntity(entity);
+        }
     }
 }

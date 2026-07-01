@@ -310,6 +310,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                 // After block removal and revalidation, push saved fluid into new controller
                 super.breakBlock(world, pos, state);
 
+                net.minecraftforge.fluids.FluidStack overflow = savedFluid; // fluid not restored
                 for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
                     BlockPos neighborPos = pos.offset(face);
                     if (world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock) {
@@ -327,11 +328,24 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                                     if (toRestore.amount > newCap) toRestore.amount = newCap;
                                     ((TileEntityFluidTankMultiblock) newCtrl).setRawFluid(toRestore);
                                     newCtrl.markDirty();
+                                    // Only the excess that didn't fit is truly lost
+                                    if (savedFluid.amount > newCap) {
+                                        overflow = savedFluid.copy();
+                                        overflow.amount = savedFluid.amount - newCap;
+                                    } else {
+                                        overflow = null;
+                                    }
                                 }
                             }
                             break;
                         }
                     }
+                }
+
+                // Drop buckets for any fluid that couldn't be preserved in a reformed tank
+                if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak
+                        && overflow != null) {
+                    rusticpipes.block.BlockFluidPipe.dropFluidBuckets(world, pos, overflow);
                 }
                 return;
             }

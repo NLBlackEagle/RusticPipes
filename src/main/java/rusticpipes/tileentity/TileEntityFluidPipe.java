@@ -11,6 +11,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import rusticpipes.block.BlockFluidPipe;
+import rusticpipes.compat.NuclearCraftCompat;
 import rusticpipes.network.FluidNetwork;
 
 import javax.annotation.Nullable;
@@ -219,6 +220,19 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         FluidNetwork network = FluidNetwork.getNetwork(world, pos);
         if (network == null) return;
 
+        // NuclearCraft radiation — irradiate nearby players if buffer holds a radioactive fluid
+        if (rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation
+                && buffer != null
+                && world.getTotalWorldTime() % rusticpipes.handlers.ForgeConfigHandler.fluid.radiationTickInterval == 0) {
+            double rad = NuclearCraftCompat.getFluidRadiation(buffer);
+            if (rad > 0) {
+                // Scale by how full this pipe is so an empty pipe doesn't irradiate
+                double scaled = rad * ((double) buffer.amount / BUFFER_CAPACITY);
+                NuclearCraftCompat.irradiateNearbyPlayers(world, pos, scaled,
+                        rusticpipes.handlers.ForgeConfigHandler.fluid.radiationRange);
+            }
+        }
+
         // Clear visual color if no fluid has passed through recently.
         // Do NOT clear the actual buffer — that holds real fluid that should not be voided.
         ticksSinceFlow++;
@@ -228,11 +242,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         }
 
         // Only master pipe drives transfer
-        BlockPos master = null;
-        for (BlockPos p : network.getMembers()) {
-            if (master == null || p.toLong() < master.toLong()) master = p;
-        }
-        if (!pos.equals(master)) return;
+        if (!pos.equals(network.getMasterPos())) return;
 
         int tickRate = rusticpipes.handlers.ForgeConfigHandler.fluid.flowTickRate;
         if (world.getTotalWorldTime() % tickRate == 0) {

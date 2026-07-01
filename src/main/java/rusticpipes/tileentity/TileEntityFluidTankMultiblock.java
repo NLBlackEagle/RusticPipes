@@ -133,6 +133,22 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
             fillFraction = smoothed;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
+
+        // NuclearCraft radiation — only the controller emits radiation (once per check interval)
+        // to avoid N-times-over-application for each member block ticking independently.
+        if (isController()
+                && rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation
+                && ctrl.fluid != null) {
+            int interval = rusticpipes.handlers.ForgeConfigHandler.fluid.radiationTickInterval;
+            if (world.getTotalWorldTime() % interval == 0) {
+                double rad = rusticpipes.compat.NuclearCraftCompat.getFluidRadiation(ctrl.fluid);
+                if (rad > 0) {
+                    double scaled = rad * ((double) ctrl.fluid.amount / Math.max(1, ctrl.totalCapacity));
+                    rusticpipes.compat.NuclearCraftCompat.irradiateNearbyPlayers(world, pos, scaled,
+                            rusticpipes.handlers.ForgeConfigHandler.fluid.radiationRange);
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
