@@ -30,7 +30,7 @@ import java.util.*;
 public class FluidNetwork {
 
     /** How full a pipe must be (0–1) before it pushes to the next pipe. */
-    private static final float PUSH_THRESHOLD = 0.2f;
+    private static final float PUSH_THRESHOLD = 0.05f;
     /** How many propagation passes to run per tick — more = faster wave. */
     private static final int PROPAGATION_PASSES = 3;
 
@@ -168,7 +168,9 @@ public class FluidNetwork {
                 if (space <= 0) continue;
 
                 FluidStack current = pipe.getBuffer();
-                FluidStack candidate = source.drain(Math.min(space, maxRate), false);
+                // Direct source fill is NOT capped by maxRate — a pipe sitting against
+                // its own dedicated source should be able to fill at full buffer speed
+                FluidStack candidate = source.drain(space, false);
                 if (candidate == null || candidate.amount <= 0) continue;
                 if (current != null && !current.isFluidEqual(candidate)) continue;
 
@@ -186,7 +188,10 @@ public class FluidNetwork {
         // ------------------------------------------------------------------
 
         // BFS from destination-adjacent pipes (OUTPUT face = dest side, dist 0).
-        // Fluid propagates from high dist (source) toward low dist (destination).
+        // Only seed when the neighbor has IFluidHandler capability — prevents
+        // non-fluid TEs (chests, furnaces) from incorrectly seeding the BFS
+        // and corrupting the dist map. Unformed multiblock tanks are handled
+        // by also checking for TileEntityFluidTankMultiblock specifically.
         Map<BlockPos, Integer> dist = new HashMap<>();
         Queue<BlockPos> bfsQ = new ArrayDeque<>();
         for (Map.Entry<BlockPos, TileEntityFluidPipe> e : pipes.entrySet()) {
@@ -198,7 +203,11 @@ public class FluidNetwork {
                 if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
                 TileEntity nte = world.getTileEntity(nbPos);
                 if (nte == null) continue;
-                if (!nte.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) continue;
+                // Accept if it has fluid capability OR is an unformed multiblock tank
+                boolean isFluidHandler = nte.hasCapability(
+                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
+                boolean isUnformedTank = nte instanceof rusticpipes.tileentity.TileEntityFluidTankMultiblock;
+                if (!isFluidHandler && !isUnformedTank) continue;
                 if (!dist.containsKey(pipePos)) {
                     dist.put(pipePos, 0);
                     bfsQ.add(pipePos);
@@ -217,8 +226,13 @@ public class FluidNetwork {
             }
         }
 
-        // Propagate: push from low dist (source) to high dist (destination)
-        // Source pipes (dist 0) are fullest — staircase steps down toward destination
+        // Propagate fluid through pipes.
+        // If a destination is known (dist map populated): push toward lower dist
+        // (toward destination) creating the staircase effect.
+        // If no destination found: push to any less-full adjacent pipe so the
+        // whole network fills regardless of whether a tank is attached.
+        boolean hasDestination = !dist.isEmpty();
+
         for (int pass = 0; pass < PROPAGATION_PASSES; pass++) {
             Map<BlockPos, Float> fillSnapshot = new HashMap<>();
             for (Map.Entry<BlockPos, TileEntityFluidPipe> entry : pipes.entrySet()) {
@@ -242,19 +256,29 @@ public class FluidNetwork {
                     TileEntityFluidPipe neighbor = pipes.get(neighborPos);
                     if (neighbor == null) continue;
 
-                    // Only push toward destination (lower dist)
-                    int neighborDist = dist.getOrDefault(neighborPos, Integer.MAX_VALUE);
-                    if (neighborDist >= myDist) continue;
+                    // Re-check buffer — may have been drained by an earlier face in this loop
+                    if (pipe.getBuffer() == null || pipe.getBuffer().amount <= 0) break;
 
-                    // Don't push into a pipe that is equally or more full — prevents
-                    // backpressure reversal when destination tank is saturated
+                    int neighborDist = dist.getOrDefault(neighborPos, Integer.MAX_VALUE);
                     float neighborFill = fillSnapshot.getOrDefault(neighborPos, 0f);
-                    if (neighborFill >= myFill) continue;
+
+                    if (hasDestination) {
+                        if (neighborDist == myDist) continue; // same dist: skip
+                        // Both toward destination (lower dist) AND into dead-end branches
+                        // (higher dist) are allowed — but require neighbor to be less full
+                        // to prevent dead-end pipes draining back into the main path
+                        if (neighborFill >= myFill) continue;
+                    } else {
+                        // No destination: pure gradient
+                        if (neighborFill >= myFill) continue;
+                    }
 
                     FluidStack neighborBuf = neighbor.getBuffer();
                     if (neighborBuf != null && !neighborBuf.isFluidEqual(pipe.getBuffer())) continue;
 
                     int space  = neighbor.getBufferSpace();
+                    // Scale push rate by fill fraction — fuller pipes push more,
+                    // creating faster transfer when more fluid is available
                     int toPush = Math.min(maxRate, Math.min(pipe.getBuffer().amount, space));
                     if (toPush <= 0) continue;
 

@@ -22,7 +22,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     private final Map<EnumFacing, FaceMode> faceModes = new EnumMap<>(EnumFacing.class);
 
     /** Small in-transit fluid buffer — used for viewport color rendering. */
-    private static final int BUFFER_CAPACITY = 1000;
+    private static final int BUFFER_CAPACITY = 4000;
     @Nullable private FluidStack buffer = null;
     /** Fluid color synced to client for viewport rendering. 0 = empty. */
     private int fluidColor = 0;
