@@ -101,16 +101,32 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (!(state instanceof IExtendedBlockState)) return state;
         IExtendedBlockState ext = (IExtendedBlockState) state;
 
+        ViewportFace viewport = state.getValue(VIEWPORT);
+
         // For SINGLE blocks: if any horizontal neighbor is also a tank, this structure is
         // invalid — show solid immediately without waiting for a server sync packet.
-        ViewportFace viewport = state.getValue(VIEWPORT);
         if (viewport == ViewportFace.SINGLE) {
             for (EnumFacing face : new EnumFacing[]{EnumFacing.NORTH, EnumFacing.SOUTH,
                                                     EnumFacing.EAST,  EnumFacing.WEST}) {
                 if (world.getBlockState(pos.offset(face)).getBlock() instanceof BlockFluidTankMultiblock) {
-                    // Adjacent horizontal tank makes this invalid — override to solid
                     return ext.withProperty(VIEWPORT_ROW, ViewportRow.NONE).withProperty(SIDE_FACE, null);
                 }
+            }
+        }
+
+        // If the block directly in front of the viewport face is opaque, use the solid
+        // texture on that face instead of the transparent viewport texture.
+        // Without this the CUTOUT quad bleeds through the adjacent block (x-ray effect).
+        if (viewport != ViewportFace.NONE) {
+            EnumFacing vpDir = viewportToFacing(viewport);
+            if (vpDir != null && world.isSideSolid(pos.offset(vpDir), vpDir.getOpposite(), false)) {
+                // Solid neighbour covers our viewport face — downgrade to solid appearance.
+                // Still need sideFace for correct corner geometry, so read the TE first.
+                EnumFacing sideFace = null;
+                TileEntity te = world.getTileEntity(pos);
+                if (te instanceof TileEntityFluidTankMultiblock)
+                    sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
+                return ext.withProperty(VIEWPORT_ROW, ViewportRow.NONE).withProperty(SIDE_FACE, sideFace);
             }
         }
 
@@ -124,6 +140,17 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
         }
         return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace);
+    }
+
+    /** Maps the listed ViewportFace property to the corresponding EnumFacing. */
+    private static EnumFacing viewportToFacing(ViewportFace vp) {
+        switch (vp) {
+            case NORTH: return EnumFacing.NORTH;
+            case SOUTH: return EnumFacing.SOUTH;
+            case EAST:  return EnumFacing.EAST;
+            case WEST:  return EnumFacing.WEST;
+            default:    return null;
+        }
     }
 
     @Override public boolean hasTileEntity(IBlockState state) { return true; }

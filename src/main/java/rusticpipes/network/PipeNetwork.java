@@ -273,6 +273,7 @@ public class PipeNetwork {
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
         Set<BlockPos> outputPositions = new LinkedHashSet<>();
+        Set<BlockPos> allInventoryPositions = new LinkedHashSet<>();
 
         for (BlockPos memberPos : members) {
             IBlockState state = world.getBlockState(memberPos);
@@ -287,6 +288,7 @@ public class PipeNetwork {
                 if (world.getBlockState(neighbourPos).getBlock() instanceof BlockItemPipe) continue;
                 if (getInventoryAtPos(world, neighbourPos) == null) continue;
 
+                allInventoryPositions.add(neighbourPos);
                 FaceMode mode = pipe.getFaceMode(face);
                 if (mode == FaceMode.INPUT) {
                     inputPositions.add(neighbourPos);
@@ -296,10 +298,17 @@ public class PipeNetwork {
             }
         }
 
-        if (inputPositions.isEmpty() || outputPositions.isEmpty()) return;
+        // If no face has been explicitly configured as INPUT, fall back to
+        // auto-mode: treat every connected inventory as both a source and a
+        // destination. This makes freshly-placed pipes work without any setup.
+        // Once a player explicitly marks even one face as INPUT the network
+        // switches to strict mode and only pulls from marked sources.
+        final boolean autoMode = inputPositions.isEmpty();
+        List<BlockPos> inputs  = new ArrayList<>(autoMode ? allInventoryPositions : inputPositions);
+        List<BlockPos> outputs = new ArrayList<>(autoMode ? allInventoryPositions : outputPositions);
 
-        List<BlockPos> inputs  = new ArrayList<>(inputPositions);
-        List<BlockPos> outputs = new ArrayList<>(outputPositions);
+        if (inputs.isEmpty() || outputs.isEmpty()) return;
+
         int maxTransfer = getEffectiveTransferSize(this);
 
         for (BlockPos inputPos : inputs) {
@@ -316,6 +325,9 @@ public class PipeNetwork {
                 for (int attempt = 0; attempt < outputs.size() && toMove > 0; attempt++) {
                     BlockPos destPos = outputs.get(rrPointer % outputs.size());
                     rrPointer++;
+
+                    // In auto-mode, never push an item back into the inventory it came from
+                    if (autoMode && destPos.equals(inputPos)) continue;
 
                     IItemHandler dest = getInventoryAtPos(world, destPos);
                     if (dest == null) continue;

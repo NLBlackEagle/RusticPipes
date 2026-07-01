@@ -97,9 +97,19 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
             if (sideFace != null) {
                 quads.add(buildFace(sideFace, spriteSolid, false));
             }
+            // NONE row means an adjacent solid block covers this face — render it
+            // in the SOLID layer so it is properly depth-tested and never bleeds through.
+            if (row == BlockFluidTankMultiblock.ViewportRow.NONE) {
+                quads.add(buildFace(vpFace, spriteSolid, false));
+            }
         }
         if (isCutout) {
-            quads.add(buildFace(vpFace, vpSprite, false));
+            // Only emit the viewport face in CUTOUT when it is actually visible
+            // (row != NONE). NONE means a solid block is adjacent; that case is
+            // already handled above in the SOLID layer to avoid the x-ray effect.
+            if (row != BlockFluidTankMultiblock.ViewportRow.NONE) {
+                quads.add(buildFace(vpFace, vpSprite, false));
+            }
         }
 
         return quads;
