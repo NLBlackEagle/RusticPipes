@@ -64,7 +64,7 @@ public class ConduitSparkHandler {
             Block block = world.getBlockState(pos).getBlock();
             if (!(block instanceof BlockConduit)) continue;
 
-            ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+            ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
             if (network == null) {
                 nextFireTick.remove(pos);
                 continue;

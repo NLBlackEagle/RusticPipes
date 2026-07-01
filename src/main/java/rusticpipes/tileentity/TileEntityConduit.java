@@ -5,6 +5,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
@@ -17,13 +18,10 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     @Override
     public void update() {
         if (world.isRemote) return;
-        ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+        ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
         if (network == null) return;
-        // Master TE (smallest BlockPos) drives the network tick
-        BlockPos master = null;
-        for (BlockPos p : network.getMembers())
-            if (master == null || p.toLong() < master.toLong()) master = p;
-        if (master != null && master.equals(pos)) network.tick(world);
+        // Only the cached master TE drives the network — O(1) check, no member scan.
+        if (pos.equals(network.getMasterPos())) network.tick(world);
     }
 
     public void onRemoved() { ConduitNetwork.onConduitRemoved(world, pos); }
@@ -45,7 +43,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     @Override @Nullable
     public <T> T getCapability(Capability<T> capability, @Nullable EnumFacing facing) {
         if (capability == CapabilityEnergy.ENERGY) {
-            ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+            ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
             IEnergyStorage storage = network != null ? network.getSharedStorage() : null;
             if (storage == null) storage = new net.minecraftforge.energy.EnergyStorage(0);
             return CapabilityEnergy.ENERGY.cast(storage);

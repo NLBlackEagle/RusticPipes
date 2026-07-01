@@ -18,6 +18,7 @@ import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
+import rusticpipes.util.DimPos;
 
 import java.util.*;
 
@@ -25,22 +26,36 @@ public class PipeNetwork {
 
     public enum SpeedTier { SLOW, NORMAL, FAST, TURBO, HYPER, ULTRA }
 
-
-    private static final Map<BlockPos, PipeNetwork> NETWORKS = new HashMap<>();
+    // Keyed by DimPos to prevent cross-dimension network collisions.
+    private static final Map<DimPos, PipeNetwork> NETWORKS = new HashMap<>();
     private static int globalTick = 0;
 
     private final Set<BlockPos> members = new HashSet<>();
     private int bucket;
-    private SpeedTier currentTier = SpeedTier.SLOW;
-    private int rrPointer = 0;
-    private int lastTransferTick = -1;
+    private SpeedTier currentTier     = SpeedTier.SLOW;
     private SpeedTier lastEffectiveTier = SpeedTier.SLOW;
+    // Cached master pos — the member with the smallest toLong() value.
+    // Recomputed only on topology changes, not every tick.
+    private BlockPos cachedMasterPos = null;
 
-    public static PipeNetwork getNetwork(World world, BlockPos pos) { return NETWORKS.get(pos); }
-    public static PipeNetwork getNetwork(BlockPos pos)              { return NETWORKS.get(pos); }
+    // -----------------------------------------------------------------------
+    // Static accessors
+    // -----------------------------------------------------------------------
+
+    public static PipeNetwork getNetwork(World world, BlockPos pos) {
+        return NETWORKS.get(DimPos.of(world, pos));
+    }
 
     public static void serverTick() {
         globalTick++;
+    }
+
+    /**
+     * Removes all networks belonging to the given dimension.
+     * Called on WorldEvent.Unload to prevent memory leaks across world reloads.
+     */
+    public static void clearDimension(int dimId) {
+        NETWORKS.entrySet().removeIf(e -> e.getKey().dimId == dimId);
     }
 
     // -----------------------------------------------------------------------
@@ -51,6 +66,7 @@ public class PipeNetwork {
         Block addedBlock = world.getBlockState(pos).getBlock();
         PipeColor addedColor = (addedBlock instanceof BlockItemPipe)
                 ? ((BlockItemPipe) addedBlock).pipeColor : null;
+        int dimId = world.provider.getDimension();
 
         Set<PipeNetwork> neighbours = new HashSet<>();
         for (EnumFacing face : EnumFacing.VALUES) {
@@ -60,42 +76,65 @@ public class PipeNetwork {
                 if (!(neighbourBlock instanceof BlockItemPipe)) continue;
                 if (((BlockItemPipe) neighbourBlock).pipeColor != addedColor) continue;
             }
-            PipeNetwork n = NETWORKS.get(neighbourPos);
+            PipeNetwork n = NETWORKS.get(new DimPos(dimId, neighbourPos));
             if (n != null) neighbours.add(n);
         }
 
         if (neighbours.isEmpty()) {
             PipeNetwork network = new PipeNetwork();
-            network.bucket = NETWORKS.size() % Math.max(1, getEffectiveTickRate(network));
+            // Spread tick buckets using a stable hash of the seed position
+            // so unrelated networks don't all fire on the same tick.
+            network.bucket = spreadBucket(pos);
             network.members.add(pos);
-            NETWORKS.put(pos, network);
+            network.cachedMasterPos = pos;
+            NETWORKS.put(new DimPos(dimId, pos), network);
         } else if (neighbours.size() == 1) {
             PipeNetwork network = neighbours.iterator().next();
             network.members.add(pos);
-            NETWORKS.put(pos, network);
+            NETWORKS.put(new DimPos(dimId, pos), network);
+            network.recomputeMaster();
         } else {
+            // Merge all neighbouring networks into the first one.
             PipeNetwork kept = neighbours.iterator().next();
             for (PipeNetwork other : neighbours) {
                 if (other == kept) continue;
                 for (BlockPos memberPos : other.members) {
                     kept.members.add(memberPos);
-                    NETWORKS.put(memberPos, kept);
+                    NETWORKS.put(new DimPos(dimId, memberPos), kept);
                 }
             }
             kept.members.add(pos);
-            NETWORKS.put(pos, kept);
+            NETWORKS.put(new DimPos(dimId, pos), kept);
+            kept.recomputeMaster();
         }
     }
 
     public static void onPipeRemoved(World world, BlockPos pos) {
-        PipeNetwork network = NETWORKS.get(pos);
+        int dimId = world.provider.getDimension();
+        DimPos key = new DimPos(dimId, pos);
+        PipeNetwork network = NETWORKS.get(key);
         if (network == null) return;
 
-        NETWORKS.remove(pos);
+        NETWORKS.remove(key);
         network.members.remove(pos);
 
         if (network.members.isEmpty()) return;
 
+        // Early-exit: if the removed pipe had fewer than 2 in-network neighbours,
+        // a split is topologically impossible — skip the BFS entirely.
+        int networkNeighbours = 0;
+        for (EnumFacing face : EnumFacing.VALUES) {
+            if (network.members.contains(pos.offset(face))) {
+                networkNeighbours++;
+                if (networkNeighbours >= 2) break;
+            }
+        }
+        if (networkNeighbours < 2) {
+            network.recomputeMaster();
+            return;
+        }
+
+        // BFS from an arbitrary seed to find the connected component.
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new ArrayDeque<>();
         BlockPos seed = network.members.iterator().next();
@@ -106,52 +145,76 @@ public class PipeNetwork {
             BlockPos current = queue.poll();
             for (EnumFacing face : EnumFacing.VALUES) {
                 BlockPos neighbourPos = current.offset(face);
-                if (network.members.contains(neighbourPos) && !visited.contains(neighbourPos)) {
-                    visited.add(neighbourPos);
+                if (network.members.contains(neighbourPos) && visited.add(neighbourPos)) {
                     queue.add(neighbourPos);
                 }
             }
         }
 
-        if (visited.size() == network.members.size()) return;
+        if (visited.size() == network.members.size()) {
+            // Still fully connected — no split occurred.
+            network.recomputeMaster();
+            return;
+        }
 
+        // Split: keep the visited component in the existing network object,
+        // and create a new network for the disconnected remainder.
         Set<BlockPos> remaining = new HashSet<>(network.members);
         remaining.removeAll(visited);
 
         network.members.clear();
         network.members.addAll(visited);
-        for (BlockPos memberPos : visited) NETWORKS.put(memberPos, network);
+        network.recomputeMaster();
+        for (BlockPos memberPos : visited) NETWORKS.put(new DimPos(dimId, memberPos), network);
 
         PipeNetwork newNetwork = new PipeNetwork();
+        newNetwork.bucket = spreadBucket(remaining.iterator().next());
         for (BlockPos memberPos : remaining) {
             newNetwork.members.add(memberPos);
-            NETWORKS.put(memberPos, newNetwork);
+            NETWORKS.put(new DimPos(dimId, memberPos), newNetwork);
         }
+        newNetwork.recomputeMaster();
+    }
+
+    // -----------------------------------------------------------------------
+    // Master management
+    // -----------------------------------------------------------------------
+
+    /** Recomputes and caches the member with the smallest toLong() value. */
+    private void recomputeMaster() {
+        cachedMasterPos = null;
+        for (BlockPos p : members) {
+            if (cachedMasterPos == null || p.toLong() < cachedMasterPos.toLong()) {
+                cachedMasterPos = p;
+            }
+        }
+    }
+
+    /** Returns the cached master position — O(1), safe to call every tick. */
+    public BlockPos getMasterPos() {
+        return cachedMasterPos;
     }
 
     // -----------------------------------------------------------------------
     // Tick
     // -----------------------------------------------------------------------
 
+    /**
+     * Returns true if this network should transfer items this game tick.
+     * Only the master TE calls this, so there is no per-call state mutation
+     * needed to guard against double-firing.
+     */
     public boolean isMyTick() {
-        if (globalTick == lastTransferTick) return false;
         if (currentTier != lastEffectiveTier) {
+            // Tier changed: fire immediately and re-anchor the bucket to now
+            // so the new rate starts from a clean phase boundary.
             lastEffectiveTier = currentTier;
             bucket = globalTick;
-            lastTransferTick = globalTick;
-            return true;
         }
-        lastTransferTick = globalTick;
         int rate = getEffectiveTickRate(this);
         return (globalTick % rate) == (bucket % rate);
     }
 
-    /**
-     * Called each tick by the master pipe TE.
-     * Scans all member faces for a directly adjacent conduit and draws up to
-     * 1000 FE from it. The amount actually extracted determines the tier for
-     * this tick. Stops at the first conduit face that yields any FE.
-     */
     /**
      * Scans all adjacent motor blocks (TileEntityConduitBuffer), sorted highest tier first.
      * Tries each in order — if a motor has enough FE for its tier cost, drains it and sets
@@ -159,8 +222,7 @@ public class PipeNetwork {
      * If no motor can supply, runs SLOW (free).
      */
     public void drainFromConduit(World world) {
-        // Collect all adjacent motors with their tiers
-        java.util.List<MotorEntry> motors = new java.util.ArrayList<>();
+        List<MotorEntry> motors = new ArrayList<>();
         for (BlockPos memberPos : members) {
             for (EnumFacing face : EnumFacing.VALUES) {
                 TileEntity nte = world.getTileEntity(memberPos.offset(face));
@@ -177,14 +239,12 @@ public class PipeNetwork {
             return;
         }
 
-        // Sort highest tier first
+        // Sort highest tier first — fall back down the list if a motor lacks FE.
         motors.sort((a, b) -> b.tier.ordinal() - a.tier.ordinal());
 
-        // Try each motor in order, fall back down the list
         for (MotorEntry entry : motors) {
             int cost = ForgeConfigHandler.getFeCost(entry.tier);
             if (cost == 0) {
-                // SLOW motor — always succeeds, no drain
                 currentTier = SpeedTier.SLOW;
                 return;
             }
@@ -195,7 +255,6 @@ public class PipeNetwork {
             }
         }
 
-        // All motors insufficient
         currentTier = SpeedTier.SLOW;
     }
 
@@ -247,11 +306,11 @@ public class PipeNetwork {
             IItemHandler source = getInventoryAtPos(world, inputPos);
             if (source == null) continue;
 
-            for (int slot = 0; slot < source.getSlots(); slot++) {
+            boolean movedAnything = false;
+            for (int slot = 0; slot < source.getSlots() && !movedAnything; slot++) {
                 ItemStack stack = source.extractItem(slot, maxTransfer, true);
                 if (stack.isEmpty()) continue;
 
-                // How many items we still want to move from this slot this tick.
                 int toMove = stack.getCount();
 
                 for (int attempt = 0; attempt < outputs.size() && toMove > 0; attempt++) {
@@ -262,21 +321,19 @@ public class PipeNetwork {
                     if (dest == null) continue;
 
                     for (int outSlot = 0; outSlot < dest.getSlots() && toMove > 0; outSlot++) {
-                        // Simulate inserting however many we still need to move.
                         ItemStack toInsert = stack.copy();
                         toInsert.setCount(toMove);
                         ItemStack remaining = dest.insertItem(outSlot, toInsert, true);
                         int accepted = toMove - remaining.getCount();
                         if (accepted <= 0) continue;
 
-                        // Commit: extract exactly what the slot accepted, then insert.
                         ItemStack actuallyExtracted = source.extractItem(slot, accepted, false);
                         if (actuallyExtracted.isEmpty()) continue;
                         dest.insertItem(outSlot, actuallyExtracted, false);
                         toMove -= actuallyExtracted.getCount();
+                        movedAnything = true;
                     }
                 }
-                break;
             }
         }
     }
@@ -286,13 +343,22 @@ public class PipeNetwork {
     // -----------------------------------------------------------------------
 
     private static int getEffectiveTickRate(PipeNetwork network) {
-        int base = ForgeConfigHandler.getTickRate(network.currentTier);
+        int base    = ForgeConfigHandler.getTickRate(network.currentTier);
         int penalty = network.members.size() * ForgeConfigHandler.pipes.distancePenalty;
         return Math.max(1, base + penalty);
     }
 
     private static int getEffectiveTransferSize(PipeNetwork network) {
         return ForgeConfigHandler.getTransferSize(network.currentTier);
+    }
+
+    /**
+     * Produces a stable, deterministic bucket offset from a seed position.
+     * Spreads networks across tick phases without depending on insertion order.
+     */
+    private static int spreadBucket(BlockPos pos) {
+        long l = pos.toLong();
+        return (int)(l ^ (l >>> 32));
     }
 
     @javax.annotation.Nullable
@@ -308,6 +374,8 @@ public class PipeNetwork {
         return null;
     }
 
-    public SpeedTier getCurrentTier()              { return currentTier; }
-    public Set<BlockPos> getMembers()              { return Collections.unmodifiableSet(members); }
+    public SpeedTier getCurrentTier()    { return currentTier; }
+    public Set<BlockPos> getMembers()    { return Collections.unmodifiableSet(members); }
+
+    private int rrPointer = 0;
 }

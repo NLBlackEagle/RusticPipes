@@ -143,12 +143,8 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (world.isRemote) return;
         PipeNetwork network = PipeNetwork.getNetwork(world, pos);
         if (network == null) return;
-        // Master TE (smallest pos) draws FE from adjacent conduit and sets tier
-        BlockPos master = null;
-        for (BlockPos p : network.getMembers()) {
-            if (master == null || p.toLong() < master.toLong()) master = p;
-        }
-        if (pos.equals(master)) {
+        // Only the cached master TE drives the network — O(1) check, no member scan.
+        if (pos.equals(network.getMasterPos())) {
             if (network.isMyTick()) {
                 network.drainFromConduit(world);
                 network.transferItems(world);

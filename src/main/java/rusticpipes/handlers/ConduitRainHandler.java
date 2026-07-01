@@ -38,7 +38,7 @@ public class ConduitRainHandler {
             BlockPos pos = te.getPos();
             if (!world.canSeeSky(pos.up())) continue;
 
-            ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+            ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
             if (network == null) continue;
             // Only strike powered conduits — use smoothed fill to avoid false positives
             if (network.getSmoothedFill() < 0.01f) continue;

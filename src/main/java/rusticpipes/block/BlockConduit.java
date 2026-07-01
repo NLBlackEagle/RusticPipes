@@ -97,7 +97,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         // behind reality by ~30 ticks, causing the powered texture to linger
         // after the buffer empties.
         boolean powered;
-        ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+        ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
         if (network != null) {
             powered = network.getBufferStored() > 0 || network.getSmoothedThroughput() > 0;
         } else {
@@ -148,7 +148,7 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                 Long last = lastMessageTick.get(player.getUniqueID());
                 if (last == null || last != tick) {
                     lastMessageTick.put(player.getUniqueID(), tick);
-                    ConduitNetwork network = ConduitNetwork.getNetwork(pos);
+                    ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
                     if (network != null) {
                         int capacity = network.getBufferCapacity();
                         int displayFe = Math.max(network.getBufferStored(), network.getSmoothedThroughput());

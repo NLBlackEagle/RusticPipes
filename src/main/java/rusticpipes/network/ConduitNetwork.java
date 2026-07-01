@@ -5,6 +5,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.EnergyStorage;
@@ -15,30 +16,22 @@ import rusticpipes.block.BlockItemPipe;
 import rusticpipes.compat.IC2Compat;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.TileEntityConduit;
+import rusticpipes.util.DimPos;
 
 import java.util.*;
 
 public class ConduitNetwork {
 
-    private static final Map<BlockPos, ConduitNetwork> NETWORKS = new HashMap<>();
+    // Keyed by DimPos to prevent cross-dimension network collisions.
+    private static final Map<DimPos, ConduitNetwork> NETWORKS = new HashMap<>();
 
     private final Set<BlockPos> members = new HashSet<>();
     private EnergyStorage sharedBuffer;
     private int lastTier = -1; // -1 forces first-tick notify
+    // Cached master pos — recomputed only on topology changes, not every tick.
+    private BlockPos cachedMasterPos = null;
 
-    /**
-     * Exponential moving average of buffer fill fraction (0.0-1.0).
-     * Updated every tick server-side. Exposed to client via getSmoothedFill()
-     * which the spark handler uses instead of the raw instantaneous fill.
-     * Alpha=0.05 gives ~20 tick smoothing window.
-     */
-    /**
-     * Exponential moving average of FE throughput per tick (0.0-1.0 relative to buffer capacity).
-     * Tracks how much FE actually moved through the network each tick — works correctly
-     * even when the buffer fills and drains in the same tick (raw fill would always be 0).
-     */
     private float smoothedFill = 0f;
-    /** Smoothed FE throughput per tick — EMA of FE actually pushed to machines each tick. */
     private float smoothedThroughput = 0f;
     private static final float THROUGHPUT_ALPHA = 0.2f;
     private static final float SMOOTH_ALPHA = 0.15f;
@@ -62,44 +55,84 @@ public class ConduitNetwork {
     // Static network management
     // -----------------------------------------------------------------------
 
-    public static ConduitNetwork getNetwork(BlockPos pos) { return NETWORKS.get(pos); }
+    /** Look up by full World (server-side, always preferred). */
+    public static ConduitNetwork getNetwork(World world, BlockPos pos) {
+        return NETWORKS.get(DimPos.of(world, pos));
+    }
+
+    /**
+     * Look up by IBlockAccess — used in block render callbacks where the
+     * world is typed as IBlockAccess. Casts to World when possible.
+     */
+    public static ConduitNetwork getNetwork(IBlockAccess world, BlockPos pos) {
+        return NETWORKS.get(DimPos.of(world, pos));
+    }
+
+    /**
+     * Removes all networks belonging to the given dimension.
+     * Called on WorldEvent.Unload to prevent memory leaks across world reloads.
+     */
+    public static void clearDimension(int dimId) {
+        NETWORKS.entrySet().removeIf(e -> e.getKey().dimId == dimId);
+    }
 
     public static void onConduitAdded(World world, BlockPos pos) {
+        int dimId = world.provider.getDimension();
         Set<ConduitNetwork> neighbours = new HashSet<>();
         for (EnumFacing face : EnumFacing.VALUES) {
-            ConduitNetwork n = NETWORKS.get(pos.offset(face));
+            ConduitNetwork n = NETWORKS.get(new DimPos(dimId, pos.offset(face)));
             if (n != null) neighbours.add(n);
         }
 
         if (neighbours.isEmpty()) {
             ConduitNetwork net = new ConduitNetwork();
             net.members.add(pos);
-            NETWORKS.put(pos, net);
+            net.cachedMasterPos = pos;
+            NETWORKS.put(new DimPos(dimId, pos), net);
         } else if (neighbours.size() == 1) {
             ConduitNetwork net = neighbours.iterator().next();
             net.members.add(pos);
-            NETWORKS.put(pos, net);
+            NETWORKS.put(new DimPos(dimId, pos), net);
             net.rebuildBuffer(net.sharedBuffer.getEnergyStored());
+            net.recomputeMaster();
         } else {
             ConduitNetwork kept = neighbours.iterator().next();
             int mergedFe = kept.sharedBuffer.getEnergyStored();
             for (ConduitNetwork other : neighbours) {
                 if (other == kept) continue;
                 mergedFe += other.sharedBuffer.getEnergyStored();
-                for (BlockPos p : other.members) { kept.members.add(p); NETWORKS.put(p, kept); }
+                for (BlockPos p : other.members) {
+                    kept.members.add(p);
+                    NETWORKS.put(new DimPos(dimId, p), kept);
+                }
             }
             kept.members.add(pos);
-            NETWORKS.put(pos, kept);
+            NETWORKS.put(new DimPos(dimId, pos), kept);
             kept.rebuildBuffer(mergedFe);
+            kept.recomputeMaster();
         }
     }
 
     public static void onConduitRemoved(World world, BlockPos pos) {
-        ConduitNetwork net = NETWORKS.get(pos);
+        int dimId = world.provider.getDimension();
+        DimPos key = new DimPos(dimId, pos);
+        ConduitNetwork net = NETWORKS.get(key);
         if (net == null) return;
-        NETWORKS.remove(pos);
+        NETWORKS.remove(key);
         net.members.remove(pos);
         if (net.members.isEmpty()) return;
+
+        // Early-exit: fewer than 2 in-network neighbours means no split is possible.
+        int networkNeighbours = 0;
+        for (EnumFacing face : EnumFacing.VALUES) {
+            if (net.members.contains(pos.offset(face))) {
+                if (++networkNeighbours >= 2) break;
+            }
+        }
+        if (networkNeighbours < 2) {
+            net.recomputeMaster();
+            return;
+        }
 
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new ArrayDeque<>();
@@ -112,7 +145,10 @@ public class ConduitNetwork {
                 if (net.members.contains(np) && visited.add(np)) queue.add(np);
             }
         }
-        if (visited.size() == net.members.size()) return;
+        if (visited.size() == net.members.size()) {
+            net.recomputeMaster();
+            return;
+        }
 
         Set<BlockPos> remaining = new HashSet<>(net.members);
         remaining.removeAll(visited);
@@ -122,11 +158,34 @@ public class ConduitNetwork {
         net.members.clear();
         net.members.addAll(visited);
         net.rebuildBuffer(total > 0 ? totalFe * visited.size() / total : 0);
-        for (BlockPos p : visited) NETWORKS.put(p, net);
+        net.recomputeMaster();
+        for (BlockPos p : visited) NETWORKS.put(new DimPos(dimId, p), net);
 
         ConduitNetwork split = new ConduitNetwork();
         split.rebuildBuffer(total > 0 ? totalFe * remaining.size() / total : 0);
-        for (BlockPos p : remaining) { split.members.add(p); NETWORKS.put(p, split); }
+        for (BlockPos p : remaining) {
+            split.members.add(p);
+            NETWORKS.put(new DimPos(dimId, p), split);
+        }
+        split.recomputeMaster();
+    }
+
+    // -----------------------------------------------------------------------
+    // Master management
+    // -----------------------------------------------------------------------
+
+    private void recomputeMaster() {
+        cachedMasterPos = null;
+        for (BlockPos p : members) {
+            if (cachedMasterPos == null || p.toLong() < cachedMasterPos.toLong()) {
+                cachedMasterPos = p;
+            }
+        }
+    }
+
+    /** Returns the cached master position — O(1), safe to call every tick. */
+    public BlockPos getMasterPos() {
+        return cachedMasterPos;
     }
 
     // -----------------------------------------------------------------------
@@ -134,22 +193,12 @@ public class ConduitNetwork {
     // -----------------------------------------------------------------------
 
     public void tick(World world) {
-        // Snapshot how much was stored BEFORE pulling this tick.
-        // Push is capped to this amount so energy that arrives this tick
-        // can only leave on the next tick, giving the buffer one full tick
-        // to accumulate before anything drains it. The delay is one tick
-        // (~50 ms at 20 TPS) — imperceptible to players.
         int storedBefore = sharedBuffer.getEnergyStored();
         int tickPushed = 0;
         int bufferRoom = sharedBuffer.getMaxEnergyStored() - storedBefore;
 
-        // Track positions we pulled from this tick so we never push back into them.
-        // Without this, a source that is both canExtract() and canReceive() (e.g. a
-        // battery or capacitor) would have energy pulled out and immediately pushed
-        // back in the same tick, keeping the conduit buffer permanently empty.
         Set<BlockPos> pulledFrom = new HashSet<>();
 
-        // Pull from adjacent energy sources (e.g. batteries/capacitors that don't push)
         if (bufferRoom > 0) {
             for (BlockPos memberPos : members) {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
@@ -161,7 +210,6 @@ public class ConduitNetwork {
                     if (nte == null) continue;
                     IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
-                    // IC2 soft-dependency fallback: wrap EU sources as FE
                     if (st == null) st = IC2Compat.wrapSource(nte, face.getOpposite());
                     if (st == null || !st.canExtract()) continue;
                     int toTake = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace, bufferRoom);
@@ -170,35 +218,28 @@ public class ConduitNetwork {
                     if (extracted > 0) {
                         sharedBuffer.receiveEnergy(extracted, false);
                         bufferRoom -= extracted;
-                        pulledFrom.add(np); // mark so we don't push back this tick
+                        pulledFrom.add(np);
                     }
                 }
             }
         }
 
-        // Push to adjacent machines (e.g. machines that don't pull themselves).
-        // Skip any position we just pulled from — those are sources, not consumers.
-        // Also skip pure-source tiles (canExtract but not canReceive) to avoid
-        // accidentally back-feeding generators that incorrectly accept energy.
-        // Cap push to storedBefore — energy pulled in this tick stays until next tick.
         int availableToPush = Math.min(sharedBuffer.getEnergyStored(), storedBefore);
         if (availableToPush > 0) {
             for (BlockPos memberPos : members) {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
                 for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos np = memberPos.offset(face);
-                    if (pulledFrom.contains(np)) continue; // never push back into a source
+                    if (pulledFrom.contains(np)) continue;
                     Block nb = world.getBlockState(np).getBlock();
                     if (nb instanceof BlockConduit || nb instanceof BlockItemPipe) continue;
                     TileEntity nte = world.getTileEntity(np);
                     if (nte == null) continue;
                     IEnergyStorage st = nte.getCapability(CapabilityEnergy.ENERGY, face.getOpposite());
                     if (st == null) st = nte.getCapability(CapabilityEnergy.ENERGY, null);
-                    // IC2 soft-dependency fallback: wrap EU sinks as FE
                     if (st == null) st = IC2Compat.wrapSink(nte, face.getOpposite());
                     if (st == null || !st.canReceive()) continue;
-                    int toSend = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace,
-                            availableToPush);
+                    int toSend = Math.min(ForgeConfigHandler.conduit.maxFePerTickPerFace, availableToPush);
                     if (toSend <= 0) continue;
                     int accepted = st.receiveEnergy(toSend, false);
                     if (accepted > 0) {
@@ -210,32 +251,20 @@ public class ConduitNetwork {
             }
         }
 
-        // Percentage loss
         double loss = ForgeConfigHandler.conduit.powerLossPerConduitPerTick;
         if (loss > 0.0 && sharedBuffer.getEnergyStored() > 0) {
             int lossFe = (int) Math.ceil(sharedBuffer.getEnergyStored() * loss);
             if (lossFe > 0) sharedBuffer.extractEnergy(lossFe, false);
         }
 
-        // Update smoothed throughput EMA
         float throughputFraction = sharedBuffer.getMaxEnergyStored() > 0
-                ? Math.min(1f, (float) tickPushed / sharedBuffer.getMaxEnergyStored())
-                : 0f;
+                ? Math.min(1f, (float) tickPushed / sharedBuffer.getMaxEnergyStored()) : 0f;
         smoothedThroughput = THROUGHPUT_ALPHA * throughputFraction + (1f - THROUGHPUT_ALPHA) * smoothedThroughput;
 
-        // Update smoothed fill EMA — use ACTUAL stored/capacity ratio, not throughput.
-        // Previously this tracked tickThroughput (FE moved by tick() only), which meant
-        // energy pushed in externally by generators (via receiveEnergy capability calls
-        // outside of tick()) was invisible: smoothedFill stayed 0 even when the buffer
-        // was full, causing the display to always read "0/5000 FE (0%)".
         float currentFill = sharedBuffer.getMaxEnergyStored() > 0
-                ? Math.min(1f, (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored())
-                : 0f;
+                ? Math.min(1f, (float) sharedBuffer.getEnergyStored() / sharedBuffer.getMaxEnergyStored()) : 0f;
         smoothedFill = SMOOTH_ALPHA * currentFill + (1f - SMOOTH_ALPHA) * smoothedFill;
-        // Notify client re-render when powered state changes.
-        // Use throughput rather than stored FE — the buffer drains instantly
-        // when energy passes straight through, so stored is always near 0
-        // even when the conduit is actively transferring.
+
         boolean powered = smoothedThroughput > 0.001f || sharedBuffer.getEnergyStored() > 0;
         int poweredInt = powered ? 1 : 0;
         if (poweredInt != lastTier) {
@@ -257,20 +286,16 @@ public class ConduitNetwork {
     // -----------------------------------------------------------------------
 
     public static int tierFromStored(int stored) {
-        // Use motor FE costs as the tier display thresholds on conduits
         if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.TURBO)) return 3;
         if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.FAST))  return 2;
         if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.NORMAL))return 1;
         return 0;
     }
 
-    /** Smoothed fill fraction 0.0-1.0 — use this for spark effects. */
-    public float getSmoothedFill() { return smoothedFill; }
-    public int getSmoothedThroughput() {
-        return (int)(smoothedThroughput * sharedBuffer.getMaxEnergyStored());
-    }
-    public int getBufferStored()   { return sharedBuffer.getEnergyStored(); }
-    public int getBufferCapacity() { return ForgeConfigHandler.conduit.networkBufferCapacity; }
-    public Set<BlockPos> getMembers() { return Collections.unmodifiableSet(members); }
-    public int getMemberCount()    { return members.size(); }
+    public float getSmoothedFill()         { return smoothedFill; }
+    public int getSmoothedThroughput()     { return (int)(smoothedThroughput * sharedBuffer.getMaxEnergyStored()); }
+    public int getBufferStored()           { return sharedBuffer.getEnergyStored(); }
+    public int getBufferCapacity()         { return ForgeConfigHandler.conduit.networkBufferCapacity; }
+    public Set<BlockPos> getMembers()      { return Collections.unmodifiableSet(members); }
+    public int getMemberCount()            { return members.size(); }
 }
