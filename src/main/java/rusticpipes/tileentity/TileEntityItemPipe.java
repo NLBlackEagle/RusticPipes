@@ -120,17 +120,18 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
     // -----------------------------------------------------------------------
 
     public void onRemoved() {
+        if (world != null && world.isRemote) return;
         PipeNetwork.onPipeRemoved(world, pos);
     }
 
     @Override
     public void onLoad() {
-        PipeNetwork.onPipeAdded(world, pos);
+        if (!world.isRemote) PipeNetwork.onPipeAdded(world, pos);
     }
 
     @Override
     public void invalidate() {
-        onRemoved();
+        if (world != null && !world.isRemote) onRemoved();
         super.invalidate();
     }
 

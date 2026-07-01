@@ -206,13 +206,15 @@ public class PipeNetwork {
      */
     public boolean isMyTick() {
         if (currentTier != lastEffectiveTier) {
-            // Tier changed: fire immediately and re-anchor the bucket to now
-            // so the new rate starts from a clean phase boundary.
             lastEffectiveTier = currentTier;
             bucket = globalTick;
         }
         int rate = getEffectiveTickRate(this);
-        return (globalTick % rate) == (bucket % rate);
+        // Use Math.floorMod instead of % so that a negative bucket value
+        // (which happens when spreadBucket() sets bit 31) still maps to a
+        // valid phase in [0, rate-1]. Java's % operator preserves sign, so
+        // a negative bucket would make this comparison never equal globalTick % rate.
+        return Math.floorMod(globalTick, rate) == Math.floorMod(bucket, rate);
     }
 
     /**

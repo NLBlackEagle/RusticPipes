@@ -24,7 +24,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
         if (pos.equals(network.getMasterPos())) network.tick(world);
     }
 
-    public void onRemoved() { ConduitNetwork.onConduitRemoved(world, pos); }
+    public void onRemoved() { if (world == null || world.isRemote) return; ConduitNetwork.onConduitRemoved(world, pos); }
 
     @Override
     public void onLoad() {
@@ -32,7 +32,7 @@ public class TileEntityConduit extends TileEntity implements ITickable {
     }
 
     @Override
-    public void invalidate() { onRemoved(); super.invalidate(); }
+    public void invalidate() { if (world != null && !world.isRemote) onRemoved(); super.invalidate(); }
 
     @Override
     public boolean hasCapability(Capability<?> capability, @Nullable EnumFacing facing) {

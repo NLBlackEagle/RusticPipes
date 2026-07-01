@@ -206,7 +206,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
 
     @Override
     public void invalidate() {
-        onRemoved();
+        if (world != null && !world.isRemote) onRemoved();
         super.invalidate();
     }
 
