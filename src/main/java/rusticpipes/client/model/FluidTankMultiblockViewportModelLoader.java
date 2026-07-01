@@ -39,6 +39,17 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
     private static final ResourceLocation TEX_SOLID =
             new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_solid");
 
+    // Inner viewport textures — used by the TESR when rendering a 1x1x1 single-block tank.
+    // Must be stitched here because the TESR fetches them directly from the atlas at render time.
+    private static final ResourceLocation TEX_INNER_VIEWPORT =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport");
+    private static final ResourceLocation TEX_INNER_VIEWPORT_TOP =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_top");
+    private static final ResourceLocation TEX_INNER_VIEWPORT_BOTTOM =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_bottom");
+    private static final ResourceLocation TEX_INNER_VIEWPORT_CENTER =
+            new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_viewport_center");
+
     @Override
     public boolean accepts(ResourceLocation modelLocation) {
         return modelLocation.getNamespace().equals(RusticPipes.MODID)
@@ -57,7 +68,10 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
 
         @Override
         public Collection<ResourceLocation> getTextures() {
-            List<ResourceLocation> textures = new ArrayList<>(Arrays.asList(TEX_SINGLE, TEX_BOTTOM, TEX_CENTER, TEX_TOP, TEX_SOLID));
+            List<ResourceLocation> textures = new ArrayList<>(Arrays.asList(
+                    TEX_SINGLE, TEX_BOTTOM, TEX_CENTER, TEX_TOP, TEX_SOLID,
+                    TEX_INNER_VIEWPORT, TEX_INNER_VIEWPORT_TOP,
+                    TEX_INNER_VIEWPORT_BOTTOM, TEX_INNER_VIEWPORT_CENTER));
             
             System.out.println("[FluidTankMultiblockViewportModelLoader] getTextures() called!");
             
@@ -93,6 +107,11 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             getter.apply(TEX_CENTER);
             getter.apply(TEX_TOP);
             getter.apply(TEX_SOLID);
+            // Stitch inner viewport textures for TESR use (1x1x1 single-block tank)
+            getter.apply(TEX_INNER_VIEWPORT);
+            getter.apply(TEX_INNER_VIEWPORT_TOP);
+            getter.apply(TEX_INNER_VIEWPORT_BOTTOM);
+            getter.apply(TEX_INNER_VIEWPORT_CENTER);
             
             // Load inner side textures (2x1-4x10) to ensure they're stitched into atlas
             for (int base = 1; base <= 4; base++) {

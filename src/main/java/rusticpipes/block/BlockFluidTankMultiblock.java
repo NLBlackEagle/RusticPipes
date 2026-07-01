@@ -389,6 +389,12 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
     }
 
+    // Returning false here prevents Minecraft from culling the faces of blocks
+    // adjacent to the tank (grass, stone, etc.), so they render naturally on the
+    // tank interior without needing the TESR to fake inner-wall geometry.
+    @Override public boolean isOpaqueCube(IBlockState state) { return false; }
+    @Override public boolean isFullCube(IBlockState state)   { return false; }
+
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
         // Viewport blocks render solid faces in SOLID and the viewport face in CUTOUT_MIPPED

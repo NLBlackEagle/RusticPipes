@@ -49,15 +49,13 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
 
     @Override
     public List<BakedQuad> getQuads(@Nullable IBlockState state, @Nullable EnumFacing side, long rand) {
-        if (side != null) return Collections.emptyList();
-
         BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
         boolean isInventory = (layer == null);
         boolean isSolid  = isInventory || layer == BlockRenderLayer.SOLID;
         boolean isCutout = isInventory || layer == BlockRenderLayer.CUTOUT_MIPPED;
 
         // Read direction from listed property
-        EnumFacing vpFace = EnumFacing.NORTH; // fallback
+        EnumFacing vpFace = EnumFacing.NORTH;
         if (state != null) {
             BlockFluidTankMultiblock.ViewportFace vp =
                     state.getValue(BlockFluidTankMultiblock.VIEWPORT);
@@ -70,44 +68,62 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
             }
         }
 
-        // Read row from unlisted (TE-driven) extended state
+        // Read row and sideFace from unlisted (TE-driven) extended state
         BlockFluidTankMultiblock.ViewportRow row = BlockFluidTankMultiblock.ViewportRow.BOTTOM;
+        EnumFacing sideFace = null;
         if (state instanceof IExtendedBlockState) {
-            BlockFluidTankMultiblock.ViewportRow r =
-                    ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
+            IExtendedBlockState ext = (IExtendedBlockState) state;
+            BlockFluidTankMultiblock.ViewportRow r = ext.getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
             if (r != null) row = r;
+            sideFace = ext.getValue(BlockFluidTankMultiblock.SIDE_FACE);
         }
 
         TextureAtlasSprite vpSprite = rowSprites[row.ordinal()];
 
-        List<BakedQuad> quads = new ArrayList<>();
-
-        if (isSolid) {
-            // Top block gets UP face (roof)
+        // Inventory / item-in-hand: emit all faces as unculled (side == null)
+        // so the block looks correct when held or shown in a GUI.
+        if (isInventory) {
+            if (side != null) return Collections.emptyList();
+            List<BakedQuad> quads = new ArrayList<>();
+            quads.add(buildFace(vpFace, vpSprite, false));
             if (row == BlockFluidTankMultiblock.ViewportRow.TOP
              || row == BlockFluidTankMultiblock.ViewportRow.SINGLE) {
                 quads.add(buildFace(EnumFacing.UP, spriteSolid, false));
             }
-            // 2x2 corner: render the extra perpendicular exterior side face
-            EnumFacing sideFace = null;
-            if (state instanceof IExtendedBlockState) {
-                sideFace = ((IExtendedBlockState) state)
-                        .getValue(BlockFluidTankMultiblock.SIDE_FACE);
+            if (sideFace != null) quads.add(buildFace(sideFace, spriteSolid, false));
+            return quads;
+        }
+
+        // World rendering: emit CULLED face quads only (side == face direction).
+        // Previously all quads were emitted for side == null (unculled), so they
+        // rendered from both sides. From inside the tank the viewport faces showed
+        // as white rectangles — the back face with no proper lighting. By emitting
+        // each quad only when side matches its outward direction, the renderer
+        // draws it only when viewed from outside and skips it from inside, and also
+        // auto-culls it whenever an adjacent solid block covers that face.
+        if (side == null) return Collections.emptyList();
+
+        List<BakedQuad> quads = new ArrayList<>();
+
+        if (isSolid) {
+            // Top-row ceiling face
+            if (side == EnumFacing.UP
+                    && (row == BlockFluidTankMultiblock.ViewportRow.TOP
+                     || row == BlockFluidTankMultiblock.ViewportRow.SINGLE)) {
+                quads.add(buildFace(EnumFacing.UP, spriteSolid, false));
             }
-            if (sideFace != null) {
+            // 2x2 corner perpendicular side face
+            if (sideFace != null && side == sideFace) {
                 quads.add(buildFace(sideFace, spriteSolid, false));
             }
-            // NONE row means an adjacent solid block covers this face — render it
-            // in the SOLID layer so it is properly depth-tested and never bleeds through.
-            if (row == BlockFluidTankMultiblock.ViewportRow.NONE) {
+            // Viewport face downgraded to solid (adjacent solid block, row == NONE)
+            if (side == vpFace && row == BlockFluidTankMultiblock.ViewportRow.NONE) {
                 quads.add(buildFace(vpFace, spriteSolid, false));
             }
         }
         if (isCutout) {
-            // Only emit the viewport face in CUTOUT when it is actually visible
-            // (row != NONE). NONE means a solid block is adjacent; that case is
-            // already handled above in the SOLID layer to avoid the x-ray effect.
-            if (row != BlockFluidTankMultiblock.ViewportRow.NONE) {
+            // Viewport face — transparent glass-like window
+            if (side == vpFace && row != BlockFluidTankMultiblock.ViewportRow.NONE) {
                 quads.add(buildFace(vpFace, vpSprite, false));
             }
         }
