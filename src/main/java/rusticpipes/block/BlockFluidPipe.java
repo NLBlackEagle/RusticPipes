@@ -254,7 +254,7 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
             TileEntityFluidPipe pipe = (TileEntityFluidPipe) te;
             // Drop filled buckets for any fluid remaining in the in-transit buffer
             if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak) {
-                dropFluidBuckets(world, pos, pipe.getBuffer());
+                spillFluid(world, pos, pipe.getBuffer());
             }
             pipe.onRemoved();
         }
@@ -274,33 +274,95 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
     }
 
     /**
-     * Drops one filled bucket item per 1000 mB of fluid at the given position.
-     * Any remainder below 1000 mB is silently voided (it was in-transit fluid).
-     * Uses Forge FluidUtil to get the correct bucket item (vanilla or universal bucket).
-     * Safe to call with null or empty fluid stacks — does nothing.
+     * Spills fluid when a pipe or tank is broken:
+     *  - If the fluid has an associated world block (water, lava, corium, etc.),
+     *    places a source block at the break position so it flows naturally.
+     *  - Otherwise falls back to dropping filled bucket items (one per 1000 mB).
+     *
+     * Only acts when fluid.amount >= 1000 mB.
      */
-    static void dropFluidBuckets(World world, BlockPos pos,
-                                 @Nullable net.minecraftforge.fluids.FluidStack fluid) {
-        if (world.isRemote) return;
-        if (fluid == null || fluid.amount < 1000) return;
+    static void spillFluidFromSurface(World world,
+                                      net.minecraftforge.fluids.FluidStack fluid,
+                                      BlockPos min, BlockPos max) {
+        if (world.isRemote || fluid == null || fluid.amount < 1000) return;
+        net.minecraft.block.Block fluidBlock = fluid.getFluid().getBlock();
+        if (fluidBlock == null) return;
 
-        int buckets = fluid.amount / 1000;
-        net.minecraftforge.fluids.FluidStack oneBucket =
-                new net.minecraftforge.fluids.FluidStack(fluid.getFluid(), 1000);
-        net.minecraft.item.ItemStack bucketStack =
-                net.minecraftforge.fluids.FluidUtil.getFilledBucket(oneBucket);
+        int totalBuckets = Math.min(fluid.amount / 1000, 64);
+        net.minecraft.block.state.IBlockState sourceState = fluidBlock.getDefaultState();
 
-        if (bucketStack.isEmpty()) return; // fluid has no registered bucket item
+        // All positions one block outside each face of the bounding box
+        java.util.List<BlockPos> surface = new java.util.ArrayList<>();
+        for (int x = min.getX(); x <= max.getX(); x++) {
+            for (int z = min.getZ(); z <= max.getZ(); z++) {
+                surface.add(new BlockPos(x, min.getY() - 1, z));
+                surface.add(new BlockPos(x, max.getY() + 1, z));
+            }
+            for (int y = min.getY(); y <= max.getY(); y++) {
+                surface.add(new BlockPos(x, y, min.getZ() - 1));
+                surface.add(new BlockPos(x, y, max.getZ() + 1));
+            }
+        }
+        for (int z = min.getZ(); z <= max.getZ(); z++) {
+            for (int y = min.getY(); y <= max.getY(); y++) {
+                surface.add(new BlockPos(min.getX() - 1, y, z));
+                surface.add(new BlockPos(max.getX() + 1, y, z));
+            }
+        }
 
-        for (int i = 0; i < buckets; i++) {
-            net.minecraft.entity.item.EntityItem entity = new net.minecraft.entity.item.EntityItem(
-                    world,
-                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                    bucketStack.copy());
-            entity.motionX = 0;
-            entity.motionY = 0.1;
-            entity.motionZ = 0;
-            world.spawnEntity(entity);
+        java.util.Collections.shuffle(surface);
+
+        int placed = 0;
+        for (BlockPos p : surface) {
+            if (placed >= totalBuckets) break;
+            net.minecraft.block.state.IBlockState existing = world.getBlockState(p);
+            if (existing.getMaterial() == net.minecraft.block.material.Material.AIR
+                    || existing.getBlock().isReplaceable(world, p)
+                    || existing.getMaterial().isLiquid()) {
+                world.setBlockState(p, sourceState);
+                placed++;
+            }
+        }
+    }
+
+    static void spillFluid(World world, BlockPos pos,
+                           @Nullable net.minecraftforge.fluids.FluidStack fluid) {
+        if (world.isRemote || fluid == null || fluid.amount < 1000) return;
+
+        net.minecraft.block.Block fluidBlock = fluid.getFluid().getBlock();
+        if (fluidBlock == null) return; // no placeable block — void silently
+
+        // Place one source block per 1000 mB, spreading outward from the break
+        // position via BFS so larger tanks create a wider initial spill.
+        // Cap at 64 blocks to avoid excessive lag on enormous tanks.
+        int toPlace = Math.min(fluid.amount / 1000, 16);
+        net.minecraft.block.state.IBlockState sourceState = fluidBlock.getDefaultState();
+
+        java.util.Queue<net.minecraft.util.math.BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.Set<net.minecraft.util.math.BlockPos>   visited = new java.util.HashSet<>();
+        queue.add(pos);
+        visited.add(pos);
+
+        while (!queue.isEmpty() && toPlace > 0) {
+            net.minecraft.util.math.BlockPos current = queue.poll();
+            net.minecraft.block.state.IBlockState existing = world.getBlockState(current);
+
+            // Only place in air or fluid-replaceable blocks
+            if (existing.getBlock().isReplaceable(world, current)
+                    || existing.getMaterial() == net.minecraft.block.material.Material.AIR
+                    || existing.getMaterial().isLiquid()) {
+                world.setBlockState(current, sourceState);
+                toPlace--;
+            }
+
+            // Expand horizontally first (same Y), then drop down one level
+            for (net.minecraft.util.EnumFacing face : new net.minecraft.util.EnumFacing[]{
+                    net.minecraft.util.EnumFacing.NORTH, net.minecraft.util.EnumFacing.SOUTH,
+                    net.minecraft.util.EnumFacing.EAST,  net.minecraft.util.EnumFacing.WEST,
+                    net.minecraft.util.EnumFacing.DOWN}) {
+                net.minecraft.util.math.BlockPos neighbour = current.offset(face);
+                if (visited.add(neighbour)) queue.add(neighbour);
+            }
         }
     }
 }

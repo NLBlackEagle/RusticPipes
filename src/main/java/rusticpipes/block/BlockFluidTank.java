@@ -48,7 +48,7 @@ public class BlockFluidTank extends Block implements ITileEntityProvider {
         if (!world.isRemote && rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityFluidTank) {
-                BlockFluidPipe.dropFluidBuckets(world, pos, ((TileEntityFluidTank) te).getFluid());
+                BlockFluidPipe.spillFluid(world, pos, ((TileEntityFluidTank) te).getFluid());
             }
         }
         super.breakBlock(world, pos, state);

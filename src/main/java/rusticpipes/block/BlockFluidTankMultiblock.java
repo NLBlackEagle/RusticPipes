@@ -320,15 +320,21 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             if (te instanceof TileEntityFluidTankMultiblock) {
                 TileEntityFluidTankMultiblock teTank = (TileEntityFluidTankMultiblock) te;
 
-                // Save fluid from the controller BEFORE anything invalidates it
+                // Save fluid from the controller BEFORE anything invalidates it,
+                // and immediately zero it out so it can't be duplicated if the
+                // controller block survives the break and later joins a reformed tank.
                 net.minecraftforge.fluids.FluidStack savedFluid = null;
                 BlockPos ctrlPos = teTank.getControllerPos();
                 if (ctrlPos != null) {
                     TileEntity ctrlTe = world.getTileEntity(ctrlPos);
                     if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
-                        net.minecraftforge.fluids.FluidStack raw =
-                                ((TileEntityFluidTankMultiblock) ctrlTe).getRawFluid();
-                        if (raw != null && raw.amount > 0) savedFluid = raw.copy();
+                        TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
+                        net.minecraftforge.fluids.FluidStack raw = ctrl.getRawFluid();
+                        if (raw != null && raw.amount > 0) {
+                            savedFluid = raw.copy();
+                            ctrl.setRawFluid(null);
+                            ctrlTe.markDirty();
+                        }
                     }
                 }
 
@@ -369,10 +375,11 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                     }
                 }
 
-                // Drop buckets for any fluid that couldn't be preserved in a reformed tank
+                // Spill overflow fluid — scatter source blocks across random positions
+                // on the outer surface of the old multiblock for a realistic burst effect.
                 if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak
                         && overflow != null) {
-                    rusticpipes.block.BlockFluidPipe.dropFluidBuckets(world, pos, overflow);
+                    rusticpipes.block.BlockFluidPipe.spillFluid(world, pos, overflow);
                 }
                 return;
             }
@@ -389,11 +396,57 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
     }
 
-    // Returning false here prevents Minecraft from culling the faces of blocks
-    // adjacent to the tank (grass, stone, etc.), so they render naturally on the
-    // tank interior without needing the TESR to fake inner-wall geometry.
-    @Override public boolean isOpaqueCube(IBlockState state) { return false; }
-    @Override public boolean isFullCube(IBlockState state)   { return false; }
+    // Only viewport blocks are non-opaque — they need CUTOUT_MIPPED rendering for the
+    // glass face. Solid non-viewport blocks must stay opaque so adjacent tank blocks
+    // correctly cull each other's shared faces and don't render internal seams.
+    @Override public boolean isOpaqueCube(IBlockState state) {
+        return state.getValue(VIEWPORT) == ViewportFace.NONE;
+    }
+    @Override public boolean isFullCube(IBlockState state) {
+        return state.getValue(VIEWPORT) == ViewportFace.NONE;
+    }
+
+    /**
+     * Suppress any solid tank-block face that points toward a viewport block.
+     *
+     * Minecraft's chunk renderer calls shouldSideBeRendered (not isSideSolid) to
+     * decide whether to emit a face quad. The default implementation renders the
+     * face when the adjacent block has isOpaqueCube = false — which is true for
+     * our viewport blocks. For 3×3 and 4×4 tanks this makes the solid blocks
+     * flanking the narrow viewport (and the interior block directly behind it)
+     * render their faces into the viewport area, creating visible solid-texture
+     * patches. Returning false here suppresses those faces; the TESR handles all
+     * interior visuals.
+     */
+    @Override
+    public boolean shouldSideBeRendered(IBlockState state,
+                                        net.minecraft.world.IBlockAccess world,
+                                        BlockPos pos,
+                                        net.minecraft.util.EnumFacing side) {
+        net.minecraft.block.state.IBlockState adj =
+                world.getBlockState(pos.offset(side));
+        if (adj.getBlock() instanceof BlockFluidTankMultiblock
+                && adj.getValue(VIEWPORT) != ViewportFace.NONE) {
+            // Never render a solid face pointing into a viewport block —
+            // the TESR provides all interior rendering.
+            return false;
+        }
+        return super.shouldSideBeRendered(state, world, pos, side);
+    }
+
+    /**
+     * Viewport blocks report all faces as solid EXCEPT the actual glass face.
+     * This prevents the solid tank blocks that border a viewport block from
+     * rendering their face toward it on the non-glass sides.
+     */
+    @Override
+    public boolean isSideSolid(IBlockState state, net.minecraft.world.IBlockAccess world,
+                                BlockPos pos, net.minecraft.util.EnumFacing side) {
+        ViewportFace viewport = state.getValue(VIEWPORT);
+        if (viewport == ViewportFace.NONE) return true;
+        net.minecraft.util.EnumFacing vpFace = viewportToFacing(viewport);
+        return vpFace == null || side != vpFace;
+    }
 
     @Override
     public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {

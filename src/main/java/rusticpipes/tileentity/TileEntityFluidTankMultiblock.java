@@ -127,10 +127,8 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         float newFill = ctrl.totalCapacity > 0
                 ? (ctrl.fluid != null ? (float) ctrl.fluid.amount / ctrl.totalCapacity : 0f)
                 : 0f;
-        // Smooth fill fraction to prevent visual jumping from rapid pipe push/pull oscillation
-        float smoothed = fillFraction + (newFill - fillFraction) * 0.15f;
-        if (Math.abs(smoothed - fillFraction) > 0.001f) {
-            fillFraction = smoothed;
+        if (Math.abs(newFill - fillFraction) > 0.001f) {
+            fillFraction = newFill;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
 
@@ -141,13 +139,20 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
                 && ctrl.fluid != null) {
             int interval = rusticpipes.handlers.ForgeConfigHandler.fluid.radiationTickInterval;
             if (world.getTotalWorldTime() % interval == 0) {
+                rusticpipes.RusticPipes.LOGGER.info("[RadDebug] Radiation tick fired. fluid={} amount={} pos={}",
+                        ctrl.fluid.getFluid().getName(), ctrl.fluid.amount, pos);
                 double rad = rusticpipes.compat.NuclearCraftCompat.getFluidRadiation(ctrl.fluid);
+                rusticpipes.RusticPipes.LOGGER.info("[RadDebug] getFluidRadiation returned {}", rad);
                 if (rad > 0) {
-                    double scaled = rad * ((double) ctrl.fluid.amount / Math.max(1, ctrl.totalCapacity));
-                    rusticpipes.compat.NuclearCraftCompat.irradiateNearbyPlayers(world, pos, scaled,
+                    rusticpipes.compat.NuclearCraftCompat.irradiateNearbyPlayers(world, pos, rad,
                             rusticpipes.handlers.ForgeConfigHandler.fluid.radiationRange);
                 }
             }
+        } else if (world.getTotalWorldTime() % 100 == 0) {
+            rusticpipes.RusticPipes.LOGGER.info("[RadDebug] Radiation skipped — isController={} enableRadiation={} fluid={}",
+                    isController(),
+                    rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation,
+                    ctrl.fluid != null ? ctrl.fluid.getFluid().getName() : "null");
         }
     }
 

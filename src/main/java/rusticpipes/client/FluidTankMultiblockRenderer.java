@@ -205,6 +205,12 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         float z0 = 0.01f, z1 = wallWidth  - 0.01f;
         float y0 = 0.01f, y1 = wallHeight - 0.01f;
 
+        // Render interior walls — culling enabled so each wall only shows its
+        // inward-facing face.  Without this, back-faces of inner walls bleed
+        // through the solid flanking blocks on 3×3 and 4×4 tanks where only
+        // the centre block per face has a viewport.
+        GlStateManager.enableCull();
+
         // North wall (minZ, facing +Z) — mirrored U
         putQuad(buf, x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y1,z0, sideSpr, true,  sideURatio, sideVRatio);
         // South wall (maxZ, facing -Z) — mirrored U
@@ -213,10 +219,10 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
         putQuad(buf, x0,y0,z1, x0,y0,z0, x0,y1,z0, x0,y1,z1, sideSpr, false, sideURatio, sideVRatio);
         // East wall  (maxX, facing -X)
         putQuad(buf, x1,y0,z0, x1,y0,z1, x1,y1,z1, x1,y1,z0, sideSpr, false, sideURatio, sideVRatio);
-        // Ceiling and floor — enable culling so they only show from inside, not through solid top/bottom
-        GlStateManager.enableCull();
+        // Ceiling and floor
         putQuad(buf, x0,y1,z0, x1,y1,z0, x1,y1,z1, x0,y1,z1, topSpr, false, topURatio, topVRatio);
         putQuad(buf, x0,y0,z1, x1,y0,z1, x1,y0,z0, x0,y0,z0, botSpr, false, topURatio, topVRatio);
+
         GlStateManager.disableCull();
     }
 

@@ -6,134 +6,105 @@ import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fml.common.Loader;
 import rusticpipes.RusticPipes;
 import rusticpipes.handlers.ForgeConfigHandler;
 
 import javax.annotation.Nullable;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
 
 /**
- * Soft-dependency bridge for NuclearCraft (original and Overhauled variants).
+ * Soft-dependency bridge for NuclearCraft 2.x (1.12.2-2.19a).
  *
- * All NuclearCraft type references are confined to this class and only reached
- * after {@link #isLoaded()} returns true, so the mod loads cleanly without NC.
+ * APIs confirmed by inspecting the actual jar bytecode.
  *
- * Item radiation:
- *   Items whose {@link net.minecraft.item.Item} implements nc.api.radiation.IRadiationSource
- *   will emit their declared radiation level to nearby players.
+ * Fluid / item radiation level:
+ *   nc.radiation.RadiationHelper.getRadiationFromFluid(FluidStack, double tickFraction) → double
+ *   nc.radiation.RadiationHelper.getRadiationFromStack(ItemStack, double tickFraction)  → double
  *
- * Fluid radiation:
- *   Fluids whose registry name is in the NC radioactive fluid list (detected by
- *   checking whether the fluid's class extends nc.fluid.FluidRadioactive, then
- *   reading the radiation level via reflection) will irradiate nearby players.
- *   Falls back to a config-provided radiation level if the field can't be read.
+ * Player radiation application — uses NC's own transfer path so the geiger counter,
+ * totalRads accumulation, and potion effects all work correctly:
+ *   1. Construct nc.capability.radiation.source.RadiationSource(double radiationLevel)
+ *   2. nc.radiation.RadiationHelper.getEntityRadiation(EntityLivingBase)  → IEntityRads
+ *   3. nc.radiation.RadiationHelper.transferRadsFromSourceToEntity(
+ *          IRadiationSource, IEntityRads, EntityLivingBase, int sourceCount)
+ *      — this is the same call NC uses internally; it updates radiationLevel (geiger) AND totalRads.
  */
 public final class NuclearCraftCompat {
 
     private NuclearCraftCompat() {}
 
-    // -----------------------------------------------------------------------
-    // Reflection handles — populated once on first isLoaded() call
-    // -----------------------------------------------------------------------
-
     private static Boolean loaded = null;
 
-    /** nc.api.radiation.IRadiationSource */
-    @Nullable private static Class<?> iRadiationSourceClass   = null;
-    /** IRadiationSource#getRadiationLevel(ItemStack) */
-    @Nullable private static Method   getItemRadiationMethod  = null;
+    // RadiationHelper static methods
+    @Nullable private static Method getRadiationFromFluidMethod          = null;
+    @Nullable private static Method getRadiationFromStackMethod          = null;
+    @Nullable private static Method getEntityRadiationMethod             = null;
+    @Nullable private static Method transferRadsFromSourceToEntityMethod = null;
 
-    /** nc.fluid.FluidRadioactive */
-    @Nullable private static Class<?> fluidRadioactiveClass   = null;
-    /** FluidRadioactive#radiation (double field) */
-    @Nullable private static java.lang.reflect.Field fluidRadiationField = null;
+    // RadiationSource instance methods — for explicit field initialisation
+    @Nullable private static Method setRadiationLevelMethod  = null;
+    @Nullable private static Method setRadiationBufferMethod = null;
+    @Nullable private static Method getRadiationLevelMethod  = null;
+    @Nullable private static Method getRadiationBufferMethod = null;
 
-    /**
-     * Player radiation application — tried in priority order at runtime because
-     * NCCO and the original NC have different APIs.
-     *
-     * Priority 1 (NCCO): nc.radiation.player.PlayerDataHandler.getPlayerData(EntityPlayer)
-     *   then playerData.addRadiation(double, boolean)
-     * Priority 2 (original NC): nc.radiation.RadiationHelper.addPlayerRadiation(EntityPlayerMP, double)
-     */
-    @Nullable private static Method getPlayerDataMethod      = null;
-    @Nullable private static Method addRadiationOnDataMethod = null;
-    @Nullable private static Method addPlayerRadiationMethod = null; // static fallback
+    // IEntityRads instance method
+    @Nullable private static Method getTotalRadsMethod = null;
+
+    // RadiationSource constructor
+    @Nullable private static Constructor<?> radiationSourceCtor = null;
 
     // -----------------------------------------------------------------------
-    // Availability check — cached after first call
+    // Initialisation
     // -----------------------------------------------------------------------
 
     public static boolean isLoaded() {
         if (loaded != null) return loaded;
 
-        try {
-            // Core radiation item interface — present in both NC and NCCO
-            iRadiationSourceClass  = Class.forName("nc.api.radiation.IRadiationSource");
-            getItemRadiationMethod = iRadiationSourceClass.getMethod("getRadiationLevel", ItemStack.class);
-        } catch (ClassNotFoundException e) {
-            // NuclearCraft not present at all
+        if (!Loader.isModLoaded("nuclearcraft")) {
             loaded = false;
             return false;
-        } catch (NoSuchMethodException e) {
-            RusticPipes.LOGGER.warn("[RusticPipes] NuclearCraft found but IRadiationSource API changed: {}", e.getMessage());
         }
 
-        // Radioactive fluid base class (NCCO)
         try {
-            fluidRadioactiveClass = Class.forName("nc.fluid.FluidRadioactive");
-            fluidRadiationField   = fluidRadioactiveClass.getField("radiation");
-        } catch (Exception ignored) {
-            // Not fatal — fluid radiation will fall back to config default
-        }
+            Class<?> helper        = Class.forName("nc.radiation.RadiationHelper");
+            Class<?> iEntityRads   = Class.forName("nc.capability.radiation.entity.IEntityRads");
+            Class<?> iRadSrc       = Class.forName("nc.capability.radiation.source.IRadiationSource");
+            Class<?> radSource     = Class.forName("nc.capability.radiation.source.RadiationSource");
+            Class<?> entityLiving  = net.minecraft.entity.EntityLivingBase.class;
 
-        // Player radiation — try NCCO PlayerDataHandler first
-        try {
-            Class<?> pdh        = Class.forName("nc.radiation.player.PlayerDataHandler");
-            getPlayerDataMethod = pdh.getMethod("getPlayerData", EntityPlayer.class);
-            // addRadiation signature: (double amount, boolean simulate) in NCCO
-            Class<?> pdClass    = Class.forName("nc.radiation.player.PlayerData");
-            addRadiationOnDataMethod = pdClass.getMethod("addRadiation", double.class, boolean.class);
-        } catch (Exception ignored) {
-            // Try legacy static RadiationHelper
-            try {
-                Class<?> helperClass    = Class.forName("nc.radiation.RadiationHelper");
-                addPlayerRadiationMethod = helperClass.getMethod("addPlayerRadiation",
-                        net.minecraft.entity.player.EntityPlayerMP.class, double.class);
-            } catch (Exception ignored2) {
-                RusticPipes.LOGGER.warn("[RusticPipes] NuclearCraft detected but no compatible radiation API found.");
-            }
-        }
+            getRadiationFromFluidMethod = helper.getMethod(
+                    "getRadiationFromFluid", FluidStack.class, double.class);
+            getRadiationFromStackMethod = helper.getMethod(
+                    "getRadiationFromStack", ItemStack.class, double.class);
+            getEntityRadiationMethod = helper.getMethod(
+                    "getEntityRadiation", entityLiving);
+            transferRadsFromSourceToEntityMethod = helper.getMethod(
+                    "transferRadsFromSourceToEntity",
+                    iRadSrc, iEntityRads, entityLiving, int.class);
 
-        loaded = true;
-        RusticPipes.LOGGER.info("[RusticPipes] NuclearCraft detected — radiation integration enabled.");
-        return true;
-    }
+            // RadiationSource(double initialRadiationLevel)
+            radiationSourceCtor      = radSource.getDeclaredConstructor(double.class);
+            radiationSourceCtor.setAccessible(true);
+            setRadiationLevelMethod  = radSource.getMethod("setRadiationLevel",  double.class);
+            setRadiationBufferMethod = radSource.getMethod("setRadiationBuffer", double.class);
+            getRadiationLevelMethod  = radSource.getMethod("getRadiationLevel");
+            getRadiationBufferMethod = radSource.getMethod("getRadiationBuffer");
+            getTotalRadsMethod       = iEntityRads.getMethod("getTotalRads");
 
-    // -----------------------------------------------------------------------
-    // Item radiation
-    // -----------------------------------------------------------------------
-
-    /**
-     * Returns the radiation level (Sv/t) for this stack, or 0 if not radioactive
-     * or NuclearCraft is not loaded.
-     */
-    public static double getItemRadiation(ItemStack stack) {
-        if (!isLoaded() || stack.isEmpty()) return 0;
-        if (iRadiationSourceClass  == null || getItemRadiationMethod == null) return 0;
-        if (!iRadiationSourceClass.isInstance(stack.getItem())) return 0;
-        try {
-            Object result = getItemRadiationMethod.invoke(stack.getItem(), stack);
-            return result instanceof Number ? ((Number) result).doubleValue() : 0;
+            loaded = true;
+            RusticPipes.LOGGER.info(
+                    "[RusticPipes] NuclearCraft 2.x detected — radiation integration enabled.");
         } catch (Exception e) {
-            return 0;
+            RusticPipes.LOGGER.warn(
+                    "[RusticPipes] NuclearCraft detected but radiation API lookup failed: {}",
+                    e.getMessage());
+            loaded = false;
         }
-    }
 
-    /** True if this stack has any radiation. */
-    public static boolean isItemRadioactive(ItemStack stack) {
-        return getItemRadiation(stack) > 0;
+        return loaded;
     }
 
     // -----------------------------------------------------------------------
@@ -141,105 +112,103 @@ public final class NuclearCraftCompat {
     // -----------------------------------------------------------------------
 
     /**
-     * Returns the radiation level (Sv/t per 1000 mB) for this fluid,
-     * or 0 if not radioactive or NuclearCraft is not loaded.
+     * Returns the rads/t for this fluid stack, as reported by NC's own
+     * RadiationHelper.getRadiationFromFluid. The fluid amount in the stack
+     * is used directly — no separate fill-fraction scaling needed.
      */
     public static double getFluidRadiation(FluidStack stack) {
-        if (!isLoaded() || stack == null) return 0;
-        if (fluidRadioactiveClass != null && fluidRadiationField != null) {
-            if (fluidRadioactiveClass.isInstance(stack.getFluid())) {
-                try {
-                    return ((Number) fluidRadiationField.get(stack.getFluid())).doubleValue();
-                } catch (Exception ignored) {}
-            }
-            // Not a FluidRadioactive subclass — not radioactive
+        if (!isLoaded() || stack == null || getRadiationFromFluidMethod == null) {
+            RusticPipes.LOGGER.info("[RadDebug] getFluidRadiation early-exit: isLoaded={} stack={} method={}",
+                    isLoaded(), stack != null ? stack.getFluid().getName() : "null", getRadiationFromFluidMethod != null);
             return 0;
         }
-        // Reflection failed — fall back to config default if fluid name contains
-        // any known NC radioactive fluid keyword
-        if (ForgeConfigHandler.fluid.radiationFallbackLevel > 0) {
-            String name = stack.getFluid().getName().toLowerCase();
-            for (String keyword : RADIOACTIVE_FLUID_KEYWORDS) {
-                if (name.contains(keyword)) return ForgeConfigHandler.fluid.radiationFallbackLevel;
-            }
+        try {
+            Object r = getRadiationFromFluidMethod.invoke(null, stack, 1.0D);
+            double val = r instanceof Number ? ((Number) r).doubleValue() : 0;
+            RusticPipes.LOGGER.info("[RadDebug] getRadiationFromFluid({}, 1.0) = {}", stack.getFluid().getName(), val);
+            return val;
+        } catch (Exception e) {
+            RusticPipes.LOGGER.info("[RadDebug] getRadiationFromFluid threw: {}", e.getMessage());
+            return 0;
         }
-        return 0;
     }
 
     public static boolean isFluidRadioactive(FluidStack stack) {
         return getFluidRadiation(stack) > 0;
     }
 
-    /** Known substrings that appear in NuclearCraft radioactive fluid registry names. */
-    private static final String[] RADIOACTIVE_FLUID_KEYWORDS = {
-        "uranium", "plutonium", "thorium", "neptunium", "americium", "curium",
-        "berkelium", "californium", "polonium", "radium", "radon",
-        "tritium", "deuterium", // some NC variants treat these as radioactive
-        "fission", "nuclear_waste", "high_level_waste", "spent_fuel",
-        "corium", "reactor_coolant_hot"
-    };
-
     // -----------------------------------------------------------------------
-    // Irradiation — applies radiation to nearby players
+    // Item radiation
     // -----------------------------------------------------------------------
 
-    /**
-     * Irradiates all players within {@code range} blocks of {@code pos}.
-     * {@code radiationPerTick} is the base Sv/t value; it is scaled by
-     * {@link ForgeConfigHandler.FluidConfig#radiationMultiplier} and by
-     * 1/(distance²) before being applied.
-     *
-     * Called server-side only.
-     */
+    public static double getItemRadiation(ItemStack stack) {
+        if (!isLoaded() || stack.isEmpty() || getRadiationFromStackMethod == null) return 0;
+        try {
+            Object r = getRadiationFromStackMethod.invoke(null, stack, 1.0D);
+            return r instanceof Number ? ((Number) r).doubleValue() : 0;
+        } catch (Exception e) { return 0; }
+    }
+
+    public static boolean isItemRadioactive(ItemStack stack) {
+        return getItemRadiation(stack) > 0;
+    }
+
+    // -----------------------------------------------------------------------
+    // Irradiation
+    // -----------------------------------------------------------------------
+
     public static void irradiateNearbyPlayers(World world, BlockPos pos,
                                               double radiationPerTick, int range) {
-        if (!isLoaded()) return;
-        if (world.isRemote) return;
-        if (radiationPerTick <= 0) return;
+        if (!isLoaded() || world.isRemote || radiationPerTick <= 0) return;
 
         double multiplier = ForgeConfigHandler.fluid.radiationMultiplier;
         if (multiplier <= 0) return;
 
         AxisAlignedBB aabb = new AxisAlignedBB(pos).grow(range);
         List<EntityPlayer> players = world.getEntitiesWithinAABB(EntityPlayer.class, aabb);
-
+        RusticPipes.LOGGER.info("[RadDebug] irradiateNearbyPlayers: rads/t={} range={} players found={}",
+                radiationPerTick, range, players.size());
         for (EntityPlayer player : players) {
             double dx = player.posX - (pos.getX() + 0.5);
             double dy = player.posY - (pos.getY() + 0.5);
             double dz = player.posZ - (pos.getZ() + 0.5);
-            double dist2 = dx*dx + dy*dy + dz*dz;
-            if (dist2 < 0.25) dist2 = 0.25; // clamp to avoid explosion at zero distance
-
-            // Radiation falls off with 1/r² from the source
+            double dist2 = Math.max(0.25, dx*dx + dy*dy + dz*dz);
             double effective = radiationPerTick * multiplier / dist2;
+            RusticPipes.LOGGER.info("[RadDebug] Applying {} rads to {} (dist2={})", effective, player.getName(), dist2);
             applyRadiation(player, effective);
         }
     }
 
-    /**
-     * Applies {@code radiation} Sv to the given player via whichever NuclearCraft
-     * API is available (NCCO PlayerDataHandler or legacy RadiationHelper).
-     */
-    private static void applyRadiation(EntityPlayer player, double radiation) {
-        if (radiation <= 0) return;
-
-        // Try NCCO PlayerDataHandler#getPlayerData → PlayerData#addRadiation
-        if (getPlayerDataMethod != null && addRadiationOnDataMethod != null) {
-            try {
-                Object playerData = getPlayerDataMethod.invoke(null, player);
-                if (playerData != null) {
-                    addRadiationOnDataMethod.invoke(playerData, radiation, false);
-                    return;
-                }
-            } catch (Exception ignored) {}
+    private static void applyRadiation(EntityPlayer player, double rads) {
+        if (rads <= 0) return;
+        if (radiationSourceCtor == null
+                || getEntityRadiationMethod == null
+                || transferRadsFromSourceToEntityMethod == null) {
+            RusticPipes.LOGGER.info("[RadDebug] applyRadiation blocked: ctor={} getEntity={} transfer={}",
+                    radiationSourceCtor != null, getEntityRadiationMethod != null,
+                    transferRadsFromSourceToEntityMethod != null);
+            return;
         }
+        try {
+            Object tempSource  = radiationSourceCtor.newInstance(rads);
 
-        // Fall back to legacy static RadiationHelper#addPlayerRadiation (original NC)
-        if (addPlayerRadiationMethod != null
-                && player instanceof net.minecraft.entity.player.EntityPlayerMP) {
-            try {
-                addPlayerRadiationMethod.invoke(null, player, radiation);
-            } catch (Exception ignored) {}
+            // RadiationSource(double) initialises radiationLevel; transferRadsFromSourceToEntity
+            // reads radiationBuffer. Explicitly set both so one of them is definitely non-zero.
+            if (setRadiationLevelMethod != null) setRadiationLevelMethod.invoke(tempSource, rads);
+            if (setRadiationBufferMethod != null) setRadiationBufferMethod.invoke(tempSource, rads);
+            RusticPipes.LOGGER.info("[RadDebug] tempSource level={} buffer={}",
+                    getRadiationLevelMethod != null ? getRadiationLevelMethod.invoke(tempSource) : "?",
+                    getRadiationBufferMethod != null ? getRadiationBufferMethod.invoke(tempSource) : "?");
+
+            Object entityRads = getEntityRadiationMethod.invoke(null, player);
+            if (entityRads == null) { RusticPipes.LOGGER.info("[RadDebug] entityRads is null!"); return; }
+
+            double before = ((Number) getTotalRadsMethod.invoke(entityRads)).doubleValue();
+            transferRadsFromSourceToEntityMethod.invoke(null, tempSource, entityRads, player, 1);
+            double after  = ((Number) getTotalRadsMethod.invoke(entityRads)).doubleValue();
+            RusticPipes.LOGGER.info("[RadDebug] totalRads before={} after={} delta={}", before, after, after - before);
+        } catch (Exception e) {
+            RusticPipes.LOGGER.info("[RadDebug] applyRadiation exception: {} — {}", e.getClass().getSimpleName(), e.getMessage());
         }
     }
 }

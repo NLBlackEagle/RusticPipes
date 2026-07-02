@@ -56,3 +56,8 @@ public class RusticPipes {
         completedLoading = true;
     }
 }
+
+//todo: Top fluid tank/pipe does not push liquid in tank?
+//todo: Faces show in multiblock
+//todo: TESR does not show in multiblock top? Maybe more.
+//todo: Fluid TESR is non-existent at some view angles?
