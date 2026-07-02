@@ -58,6 +58,7 @@ public class RusticPipes {
 }
 
 //todo: Top fluid tank/pipe does not push liquid in tank?
-//todo: Faces show in multiblock
-//todo: TESR does not show in multiblock top? Maybe more.
-//todo: Fluid TESR is non-existent at some view angles?
+//todo: Fluid TESR & multiblock TESR is non-existent at some view angles?
+//todo: Colored fluid pipes do not seem colored in item-form
+//todo: Fluid/Item pipes should shrink as item models
+//todo: Recipe needs some checking and working
