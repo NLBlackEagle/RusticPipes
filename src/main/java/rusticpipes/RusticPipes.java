@@ -57,8 +57,8 @@ public class RusticPipes {
     }
 }
 
-//todo: Top fluid tank/pipe does not push liquid in tank?
-//todo: Fluid TESR & multiblock TESR is non-existent at some view angles?
+//todo: Vertical fluid pipes have faulty input/output direction faces?
 //todo: Colored fluid pipes do not seem colored in item-form
 //todo: Fluid/Item pipes should shrink as item models
 //todo: Recipe needs some checking and working
+//todo: naming of pipe motors need to be displayed in right-click
