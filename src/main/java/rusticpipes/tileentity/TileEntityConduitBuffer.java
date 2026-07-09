@@ -1,8 +1,7 @@
 package rusticpipes.tileentity;
 
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.block.state.IBlockState;
-import rusticpipes.block.BlockConduitBuffer;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
@@ -10,6 +9,7 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.energy.IEnergyStorage;
+import rusticpipes.block.BlockConduitBuffer;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.network.PipeNetwork;
 

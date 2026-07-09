@@ -6,7 +6,6 @@ import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -17,22 +16,20 @@ import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
-import rusticpipes.client.model.PipeModel;
-import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.RusticPipes;
+import rusticpipes.client.model.PipeModel;
+import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.tileentity.FaceMode;
-import rusticpipes.tileentity.TileEntityConduit;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import rusticpipes.handlers.TooltipHandler;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.List;
 
 public class BlockItemPipe extends Block implements ITileEntityProvider {

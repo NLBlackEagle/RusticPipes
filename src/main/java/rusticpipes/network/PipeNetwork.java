@@ -11,7 +11,6 @@ import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
 import rusticpipes.handlers.ForgeConfigHandler;

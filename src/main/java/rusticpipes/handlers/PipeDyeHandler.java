@@ -2,30 +2,26 @@ package rusticpipes.handlers;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.EnumDyeColor;
 import net.minecraft.item.ItemDye;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.play.server.SPacketAnimation;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldServer;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.play.server.SPacketAnimation;
-import net.minecraft.world.WorldServer;
 import net.minecraftforge.fml.relauncher.Side;
 import rusticpipes.RusticPipes;
-import rusticpipes.block.BlockFluidTankMultiblock;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
-import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
-import rusticpipes.tileentity.TileEntityFluidPipe;
-import rusticpipes.tileentity.TileEntityItemPipe;
 
 /**
  * Handles shift+right-click pipe dyeing via {@link PlayerInteractEvent.RightClickBlock}.

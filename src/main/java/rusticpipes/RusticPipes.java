@@ -1,16 +1,16 @@
 package rusticpipes;
 
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.network.NetworkRegistry;
-import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
-import net.minecraftforge.fml.relauncher.Side;
-import rusticpipes.handlers.ForgeConfigHandler;
 import net.minecraftforge.fml.common.Mod.Instance;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.network.NetworkRegistry;
+import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
+import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.handlers.ModRegistry;
 import rusticpipes.network.PacketConduitPower;
 import rusticpipes.proxy.CommonProxy;

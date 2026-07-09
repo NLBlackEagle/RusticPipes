@@ -9,18 +9,21 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.energy.CapabilityEnergy;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.client.model.ConduitModel;
+import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.network.ConduitClientState;
 import rusticpipes.network.ConduitNetwork;
 import rusticpipes.tileentity.TileEntityConduit;
@@ -28,9 +31,6 @@ import rusticpipes.tileentity.TileEntityConduit;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import rusticpipes.handlers.TooltipHandler;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.fml.relauncher.Side;
 
 public class BlockConduit extends Block implements ITileEntityProvider {
 

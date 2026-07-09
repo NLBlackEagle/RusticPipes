@@ -9,17 +9,15 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockAccess;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
-import rusticpipes.handlers.TooltipHandler;
-import java.util.List;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.fml.relauncher.Side;
 
 public class BlockConduitBuffer extends Block implements ITileEntityProvider {
 

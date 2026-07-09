@@ -5,28 +5,26 @@ import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.renderer.block.statemap.StateMapperBase;
 import net.minecraft.item.Item;
 import net.minecraftforge.client.event.ColorHandlerEvent;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.event.ModelRegistryEvent;
+import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.client.model.ModelLoaderRegistry;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import rusticpipes.RusticPipes;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.block.BlockConduitBuffer;
+import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
+import rusticpipes.client.FluidTankMultiblockRenderer;
 import rusticpipes.client.color.PipeBlockColor;
 import rusticpipes.client.color.PipeItemColor;
 import rusticpipes.client.model.ConduitModelLoader;
-import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
-import rusticpipes.block.BlockFluidPipe;
-import rusticpipes.client.FluidTankMultiblockRenderer;
 import rusticpipes.client.model.FluidPipeModelLoader;
 import rusticpipes.client.model.FluidTankModelLoader;
-import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 import rusticpipes.client.model.PipeModelLoader;
+import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
 public class ClientModRegistry {

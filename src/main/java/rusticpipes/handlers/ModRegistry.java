@@ -11,22 +11,11 @@ import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.GameRegistry;
-import net.minecraftforge.oredict.OreDictionary;
-import net.minecraftforge.oredict.ShapedOreRecipe;
 import net.minecraftforge.oredict.ShapelessOreRecipe;
 import rusticpipes.RusticPipes;
-import rusticpipes.block.BlockItemPipe;
-import rusticpipes.block.PipeColor;
-import rusticpipes.block.BlockConduit;
-import rusticpipes.block.BlockConduitBuffer;
+import rusticpipes.block.*;
 import rusticpipes.network.PipeNetwork;
-import rusticpipes.tileentity.TileEntityConduit;
-import rusticpipes.tileentity.TileEntityConduitBuffer;
-import rusticpipes.block.BlockFluidPipe;
-import rusticpipes.block.BlockFluidTankMultiblock;
-import rusticpipes.tileentity.TileEntityFluidPipe;
-import rusticpipes.tileentity.TileEntityFluidTankMultiblock;
-import rusticpipes.tileentity.TileEntityItemPipe;
+import rusticpipes.tileentity.*;
 
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID)

@@ -1,8 +1,8 @@
 package rusticpipes.client.color;
 
+import net.minecraft.client.renderer.color.IItemColor;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.client.renderer.color.IItemColor;
 import rusticpipes.block.BlockItemPipe;
 
 public class PipeItemColor implements IItemColor {
