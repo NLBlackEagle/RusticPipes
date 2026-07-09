@@ -75,9 +75,11 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             
             System.out.println("[FluidTankMultiblockViewportModelLoader] getTextures() called!");
             
-            // Register inner side textures (2x1-4x10)
+            // Register inner side textures (all widths/heights except 1x1, which
+            // uses TEX_INNER_VIEWPORT instead — see FluidTankMultiblockRenderer)
             for (int base = 1; base <= 4; base++) {
                 for (int height = 1; height <= 10; height++) {
+                    if (base == 1 && height == 1) continue;
                     ResourceLocation loc = new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + base + "x" + height);
                     textures.add(loc);
                 }
@@ -113,9 +115,10 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
             getter.apply(TEX_INNER_VIEWPORT_BOTTOM);
             getter.apply(TEX_INNER_VIEWPORT_CENTER);
             
-            // Load inner side textures (2x1-4x10) to ensure they're stitched into atlas
+            // Load inner side textures (all widths/heights except 1x1) to ensure they're stitched into atlas
             for (int base = 1; base <= 4; base++) {
                 for (int height = 1; height <= 10; height++) {
+                    if (base == 1 && height == 1) continue;
                     getter.apply(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_side_" + base + "x" + height));
                 }
             }
