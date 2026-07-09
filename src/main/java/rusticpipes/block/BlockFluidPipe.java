@@ -197,18 +197,42 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
     @Override
     public RayTraceResult collisionRayTrace(IBlockState state, World world, BlockPos pos,
                                             Vec3d start, Vec3d end) {
-        List<AxisAlignedBB> boxes = buildBoxes();
-        RayTraceResult closest = null;
-        double closestDist = Double.MAX_VALUE;
+        RayTraceResult best = rayTrace(pos, start, end,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
+        double bestDist = best != null ? best.hitVec.squareDistanceTo(start) : Double.MAX_VALUE;
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.NORTH,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,       CORE_MAX, CORE_MAX, CORE_MIN));
+        if (best != null && best.sideHit == EnumFacing.NORTH) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.SOUTH,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1));
+        if (best != null && best.sideHit == EnumFacing.SOUTH) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.WEST,
+                new AxisAlignedBB(0,       CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
+        if (best != null && best.sideHit == EnumFacing.WEST) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.EAST,
+                new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,       CORE_MAX, CORE_MAX));
+        if (best != null && best.sideHit == EnumFacing.EAST) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.DOWN,
+                new AxisAlignedBB(CORE_MIN, 0,       CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));
+        if (best != null && best.sideHit == EnumFacing.DOWN) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.UP,
+                new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,       CORE_MAX));
+        return best;
+    }
+
+    private RayTraceResult armHit(BlockPos pos, Vec3d start, Vec3d end,
+                                  RayTraceResult current, double currentDist,
+                                  net.minecraft.util.EnumFacing armDir, AxisAlignedBB... boxes) {
         for (AxisAlignedBB box : boxes) {
             RayTraceResult hit = rayTrace(pos, start, end, box);
-            if (hit != null) {
-                double dist = hit.hitVec.squareDistanceTo(start);
-                if (dist < closestDist) { closestDist = dist; closest = hit; }
+            if (hit != null && hit.hitVec.squareDistanceTo(start) < currentDist) {
+                currentDist = hit.hitVec.squareDistanceTo(start);
+                current = new RayTraceResult(hit.hitVec, armDir, pos);
             }
         }
-        return closest;
+        return current;
     }
+
 
     @Override
     public void addCollisionBoxToList(IBlockState state, World world, BlockPos pos,

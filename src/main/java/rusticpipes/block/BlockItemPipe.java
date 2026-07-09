@@ -209,35 +209,55 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
     @Override
     public RayTraceResult collisionRayTrace(IBlockState state, World world, BlockPos pos,
                                             Vec3d start, Vec3d end) {
-        List<AxisAlignedBB> boxes = new ArrayList<>();
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,        CORE_MAX, CORE_MAX, CORE_MIN));
-        boxes.add(new AxisAlignedBB(CAP_MIN,  CAP_MIN,  0,        CAP_MAX,  CAP_MAX,  CAP_W));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1));
-        boxes.add(new AxisAlignedBB(CAP_MIN,  CAP_MIN,  1-CAP_W,  CAP_MAX,  CAP_MAX,  1));
-        boxes.add(new AxisAlignedBB(0,        CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(0,        CAP_MIN,  CAP_MIN,  CAP_W,    CAP_MAX,  CAP_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,        CORE_MAX, CORE_MAX));
-        boxes.add(new AxisAlignedBB(1-CAP_W,  CAP_MIN,  CAP_MIN,  1,        CAP_MAX,  CAP_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, 0,        CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX));
-        boxes.add(new AxisAlignedBB(CAP_MIN,  0,        CAP_MIN,  CAP_MAX,  CAP_W,    CAP_MAX));
-        boxes.add(new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,        CORE_MAX));
-        boxes.add(new AxisAlignedBB(CAP_MIN,  1-CAP_W,  CAP_MIN,  CAP_MAX,  1,        CAP_MAX));
+        // Core — keep the actual face that the ray intersects.
+        RayTraceResult best = rayTrace(pos, start, end,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX));
+        double bestDist = best != null ? best.hitVec.squareDistanceTo(start) : Double.MAX_VALUE;
 
-        RayTraceResult closest = null;
-        double closestDist = Double.MAX_VALUE;
+        // Arms + caps — always report the arm's OWN direction regardless of which sub-face
+        // the ray actually intersected.  Without this override, angled hits on arm sides
+        // return EAST/WEST/UP/DOWN instead of the arm direction, placing the new block in
+        // the wrong adjacent position.
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.NORTH,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, 0,       CORE_MAX, CORE_MAX, CORE_MIN),
+                new AxisAlignedBB(CAP_MIN,  CAP_MIN,  0,       CAP_MAX,  CAP_MAX,  CAP_W));
+        if (best != null && best.sideHit == EnumFacing.NORTH) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.SOUTH,
+                new AxisAlignedBB(CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX, CORE_MAX, 1),
+                new AxisAlignedBB(CAP_MIN,  CAP_MIN,  1-CAP_W, CAP_MAX,  CAP_MAX,  1));
+        if (best != null && best.sideHit == EnumFacing.SOUTH) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.WEST,
+                new AxisAlignedBB(0,       CORE_MIN, CORE_MIN, CORE_MIN, CORE_MAX, CORE_MAX),
+                new AxisAlignedBB(0,       CAP_MIN,  CAP_MIN,  CAP_W,    CAP_MAX,  CAP_MAX));
+        if (best != null && best.sideHit == EnumFacing.WEST) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.EAST,
+                new AxisAlignedBB(CORE_MAX, CORE_MIN, CORE_MIN, 1,       CORE_MAX, CORE_MAX),
+                new AxisAlignedBB(1-CAP_W,  CAP_MIN,  CAP_MIN,  1,       CAP_MAX,  CAP_MAX));
+        if (best != null && best.sideHit == EnumFacing.EAST) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.DOWN,
+                new AxisAlignedBB(CORE_MIN, 0,       CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX),
+                new AxisAlignedBB(CAP_MIN,  0,       CAP_MIN,  CAP_MAX,  CAP_W,    CAP_MAX));
+        if (best != null && best.sideHit == EnumFacing.DOWN) bestDist = best.hitVec.squareDistanceTo(start);
+        best = armHit(pos, start, end, best, bestDist, EnumFacing.UP,
+                new AxisAlignedBB(CORE_MIN, CORE_MAX, CORE_MIN, CORE_MAX, 1,       CORE_MAX),
+                new AxisAlignedBB(CAP_MIN,  1-CAP_W,  CAP_MIN,  CAP_MAX,  1,       CAP_MAX));
+        return best;
+    }
+
+    /** Checks ray against arm boxes; if any hit, returns a corrected result forcing armDir. */
+    private RayTraceResult armHit(BlockPos pos, Vec3d start, Vec3d end,
+                                  RayTraceResult current, double currentDist,
+                                  net.minecraft.util.EnumFacing armDir, AxisAlignedBB... boxes) {
         for (AxisAlignedBB box : boxes) {
             RayTraceResult hit = rayTrace(pos, start, end, box);
-            if (hit != null) {
-                double dist = hit.hitVec.squareDistanceTo(start);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closest = hit;
-                }
+            if (hit != null && hit.hitVec.squareDistanceTo(start) < currentDist) {
+                currentDist = hit.hitVec.squareDistanceTo(start);
+                current = new RayTraceResult(hit.hitVec, armDir, pos);
             }
         }
-        return closest;
+        return current;
     }
+
 
     @Override
     public void addCollisionBoxToList(IBlockState state, World world, BlockPos pos,
