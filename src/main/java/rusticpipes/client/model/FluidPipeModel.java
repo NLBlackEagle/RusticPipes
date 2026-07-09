@@ -199,7 +199,8 @@ public class FluidPipeModel implements IModel {
                 final float sCAP_MAX  = C + (CAP_MAX - C)  * S;
                 final float sCAP_W    = CAP_W * S;
                 final float EPS = 0.001f;
-                addCube(quads, sCORE_MIN, sCORE_MIN, sCORE_MIN, sCORE_MAX, sCORE_MAX, sCORE_MAX, body, BODY_TINT);
+                addCube(quads, sCORE_MIN, sCORE_MIN, sCORE_MIN, sCORE_MAX, sCORE_MAX, sCORE_MAX,
+                        body, body, waterSprite, waterSprite, waterSprite, waterSprite, BODY_TINT);
                 addCube(quads, sCORE_MAX, sCORE_MIN, sCORE_MIN, 1f-D-EPS,  sCORE_MAX, sCORE_MAX, body, BODY_TINT);
                 addCube(quads, D+EPS,     sCORE_MIN, sCORE_MIN, sCORE_MIN, sCORE_MAX, sCORE_MAX, body, BODY_TINT);
                 float ex1=1f-D-sCAP_W, ey1=sCAP_MIN, ez1=sCAP_MIN, ex2=1f-D+0.001f, ey2=sCAP_MAX, ez2=sCAP_MAX;
@@ -241,8 +242,10 @@ public class FluidPipeModel implements IModel {
                     ? Math.abs((pos.getX() * 73856093) ^ (pos.getY() * 19349663) ^ (pos.getZ() * 83492791))
                     : 0;
 
-            // Per-face viewport: 30% of N/S/E/W faces show pipe_water_01.
-            // Top/bottom are never viewports. Each face is independent.
+            // Per-face viewport: 50% of N/S/E/W faces show pipe_water_01, but only
+            // when that face isn't connected to a neighbor — connected faces get an
+            // arm instead and must never be eligible for a viewport.
+            // Top/bottom are never viewports.
             int idxN = (texBase + 3)  % 20;
             int idxS = (texBase + 7)  % 20;
             int idxE = (texBase + 11) % 20;
@@ -250,10 +253,10 @@ public class FluidPipeModel implements IModel {
             int idxU = (texBase + 17) % 20;
             int idxD = (texBase + 19) % 20;
 
-            boolean vpN = idxN % 10 < 3;
-            boolean vpS = idxS % 10 < 3;
-            boolean vpE = idxE % 10 < 3;
-            boolean vpW = idxW % 10 < 3;
+            boolean vpN = north == 0 && idxN % 10 < 5;
+            boolean vpS = south == 0 && idxS % 10 < 5;
+            boolean vpE = east  == 0 && idxE % 10 < 5;
+            boolean vpW = west  == 0 && idxW % 10 < 5;
 
             // Core face sprites — viewport faces use waterSprite, arms always solid
             TextureAtlasSprite bodyN = vpN ? waterSprite : bodySprites[idxN];

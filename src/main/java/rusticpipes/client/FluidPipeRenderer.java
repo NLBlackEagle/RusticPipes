@@ -30,12 +30,21 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
                        float partialTicks, int destroyStage, float alpha) {
         BlockPos pos = te.getPos();
 
-        // Check if any face is a viewport — same logic as FluidPipeModel
+        // Connections — a face attached to a neighbor gets an arm, not a viewport
+        boolean connN = te.isConnected(net.minecraft.util.EnumFacing.NORTH);
+        boolean connS = te.isConnected(net.minecraft.util.EnumFacing.SOUTH);
+        boolean connE = te.isConnected(net.minecraft.util.EnumFacing.EAST);
+        boolean connW = te.isConnected(net.minecraft.util.EnumFacing.WEST);
+        boolean connU = te.isConnected(net.minecraft.util.EnumFacing.UP);
+        boolean connD = te.isConnected(net.minecraft.util.EnumFacing.DOWN);
+
+        // Check if any face is a viewport — same logic as FluidPipeModel.
+        // A connected face is never eligible, regardless of its hash roll.
         int texBase = Math.abs((pos.getX() * 73856093) ^ (pos.getY() * 19349663) ^ (pos.getZ() * 83492791));
-        boolean vpN = ((texBase + 3)  % 20) % 10 < 3;
-        boolean vpS = ((texBase + 7)  % 20) % 10 < 3;
-        boolean vpE = ((texBase + 11) % 20) % 10 < 3;
-        boolean vpW = ((texBase + 13) % 20) % 10 < 3;
+        boolean vpN = !connN && ((texBase + 3)  % 20) % 10 < 5;
+        boolean vpS = !connS && ((texBase + 7)  % 20) % 10 < 5;
+        boolean vpE = !connE && ((texBase + 11) % 20) % 10 < 5;
+        boolean vpW = !connW && ((texBase + 13) % 20) % 10 < 5;
         if (!vpN && !vpS && !vpE && !vpW) return; // no viewport faces
 
         // Fluid state
@@ -87,14 +96,6 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         TextureAtlasSprite sprS = vpS ? vpInner : bodyInner;
         TextureAtlasSprite sprE = vpE ? vpInner : bodyInner;
         TextureAtlasSprite sprW = vpW ? vpInner : bodyInner;
-
-        // Track connections for fluid face culling below
-        boolean connN = te.isConnected(net.minecraft.util.EnumFacing.NORTH);
-        boolean connS = te.isConnected(net.minecraft.util.EnumFacing.SOUTH);
-        boolean connE = te.isConnected(net.minecraft.util.EnumFacing.EAST);
-        boolean connW = te.isConnected(net.minecraft.util.EnumFacing.WEST);
-        boolean connU = te.isConnected(net.minecraft.util.EnumFacing.UP);
-        boolean connD = te.isConnected(net.minecraft.util.EnumFacing.DOWN);
 
         // Always render all inner walls — they close off the interior view and
         // are hidden from outside by the arm geometry anyway
