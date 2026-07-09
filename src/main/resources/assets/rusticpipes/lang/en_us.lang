@@ -27,6 +27,9 @@ tile.conduit_buffer_turbo.name=Advanced Pipe Motor
 tile.conduit_buffer_hyper.name=Reinforced Pipe Motor
 tile.conduit_buffer_ultra.name=Overclocked Pipe Motor
 
+# Fluid Tank
+tile.fluid_tank_multiblock.name=Fluid Tank
+
 # Creative Tab
 itemGroup.rusticpipes=Rustic Pipes
 
@@ -71,22 +74,22 @@ rusticpipes.tooltip.conduit.description=Power cord to transfer power from a powe
 # Tooltips — Pipe Motors
 # %1$s = transfer size, %2$s = tick rate, %3$s = FE cost per transfer
 rusticpipes.tooltip.pipemotor.slow.data=[Basic] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.slow.description=Place this Basic pipe motor block next to one or multiple item pipe networks to enable powered item transfer. Consumes a small amount of energy per transfer cycle.
+rusticpipes.tooltip.pipemotor.slow.description=Place this Basic pipe motor block next to one or multiple item pipe networks to enable powered item transfer. Consumes a small amount of energy per transfer cycle. Right-click to check FE charge.
 
 rusticpipes.tooltip.pipemotor.normal.data=[Refined] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.normal.description=Place this Refined pipe motor block next to one or multiple item pipe networks to make item transfer faster. Consumes more energy than the Basic motor.
+rusticpipes.tooltip.pipemotor.normal.description=Place this Refined pipe motor block next to one or multiple item pipe networks to make item transfer faster. Consumes more energy than the Basic motor. Right-click to check FE charge.
 
 rusticpipes.tooltip.pipemotor.fast.data=[Efficient] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.fast.description=Place this Efficient pipe motor block next to one or multiple item pipe networks to make item transfer significantly faster. Balances speed and energy consumption.
+rusticpipes.tooltip.pipemotor.fast.description=Place this Efficient pipe motor block next to one or multiple item pipe networks to make item transfer significantly faster. Balances speed and energy consumption. Right-click to check FE charge.
 
 rusticpipes.tooltip.pipemotor.turbo.data=[Advanced] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.turbo.description=Place this Advanced pipe motor block next to one or multiple item pipe networks to make item transfer much faster but also consume considerably more energy.
+rusticpipes.tooltip.pipemotor.turbo.description=Place this Advanced pipe motor block next to one or multiple item pipe networks to make item transfer much faster but also consume considerably more energy. Right-click to check FE charge.
 
 rusticpipes.tooltip.pipemotor.hyper.data=[Reinforced] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.hyper.description=Place this Reinforced pipe motor block next to one or multiple item pipe networks for high-speed item transfer. Requires a substantial power supply to operate.
+rusticpipes.tooltip.pipemotor.hyper.description=Place this Reinforced pipe motor block next to one or multiple item pipe networks for high-speed item transfer. Requires a substantial power supply to operate. Right-click to check FE charge.
 
 rusticpipes.tooltip.pipemotor.ultra.data=[Overclocked] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.ultra.description=Place this Overclocked pipe motor block next to one or multiple item pipe networks to make item transfer between containers faster but also consume more energy.
+rusticpipes.tooltip.pipemotor.ultra.description=Place this Overclocked pipe motor block next to one or multiple item pipe networks to make item transfer between containers faster but also consume more energy. Right-click to check FE charge.
 
 # Fluid Pipes
 tile.fluid_white_pipe.name=White Fluid Pipe
@@ -105,9 +108,6 @@ tile.fluid_brown_pipe.name=Brown Fluid Pipe
 tile.fluid_green_pipe.name=Green Fluid Pipe
 tile.fluid_red_pipe.name=Red Fluid Pipe
 tile.fluid_black_pipe.name=Black Fluid Pipe
-
-# Fluid Tank
-tile.fluid_tank.name=Fluid Tank
 
 # Messages
 # %1$s = fluid name, %2$s = stored mB, %3$s = capacity mB
@@ -136,5 +136,6 @@ rusticpipes.tooltip.fluidpipe.description.fluid_black_pipe=Place these fluid pip
 
 # Tooltips — Fluid Tank
 # %1$s = capacity per block mB
-rusticpipes.tooltip.fluidtank.data=Capacity: %1$s mB per block. Total scales with structure size.
-rusticpipes.tooltip.fluidtank.description=Build a hollow rectangular tank structure (1x1 to 4x4 base, up to 7 blocks tall) to store fluids. Connect fluid pipes to the top for input and the sides of the bottom layer for output. Right-click to check contents. A single block acts as a small fluid buffer.
+tile.fluid_tank.name=Fluid Tank
+rusticpipes.tooltip.fluidtank.data=Capacity: %1$s mB per block.
+rusticpipes.tooltip.fluidtank.description=Build a rectangular tank structure (1x1 to 4x4 base, up to 10 blocks tall) to store fluids. Connect fluid pipes to transfer fluid in or out of the tank. Press Shift + Right-click to check contents.
