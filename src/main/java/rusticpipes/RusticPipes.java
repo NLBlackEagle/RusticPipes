@@ -58,4 +58,3 @@ public class RusticPipes {
 }
 
 //todo: Recipe needs some checking and working
-//todo: naming of pipe motors need to be displayed in right-click

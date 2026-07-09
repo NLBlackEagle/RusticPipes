@@ -25,6 +25,7 @@ import java.util.*;
 public class PipeNetwork {
 
     public enum SpeedTier {
+        NONE("Unpowered"),
         SLOW("Basic"),
         NORMAL("Refined"),
         FAST("Efficient"),
@@ -46,8 +47,8 @@ public class PipeNetwork {
 
     private final Set<BlockPos> members = new HashSet<>();
     private int bucket;
-    private SpeedTier currentTier     = SpeedTier.SLOW;
-    private SpeedTier lastEffectiveTier = SpeedTier.SLOW;
+    private SpeedTier currentTier     = SpeedTier.NONE;
+    private SpeedTier lastEffectiveTier = SpeedTier.NONE;
     // Cached master pos — the member with the smallest toLong() value.
     // Recomputed only on topology changes, not every tick.
     private BlockPos cachedMasterPos = null;
@@ -235,7 +236,7 @@ public class PipeNetwork {
      * Scans all adjacent motor blocks (TileEntityConduitBuffer), sorted highest tier first.
      * Tries each in order — if a motor has enough FE for its tier cost, drains it and sets
      * the pipe tier. Falls back to the next motor down if the current one is insufficient.
-     * If no motor can supply, runs SLOW (free).
+     * If no motor is present, or none can supply, runs the unpowered NONE tier (free).
      */
     public void drainFromConduit(World world) {
         List<MotorEntry> motors = new ArrayList<>();
@@ -251,7 +252,7 @@ public class PipeNetwork {
         }
 
         if (motors.isEmpty()) {
-            currentTier = SpeedTier.SLOW;
+            currentTier = SpeedTier.NONE;
             return;
         }
 
@@ -261,7 +262,7 @@ public class PipeNetwork {
         for (MotorEntry entry : motors) {
             int cost = ForgeConfigHandler.getFeCost(entry.tier);
             if (cost == 0) {
-                currentTier = SpeedTier.SLOW;
+                currentTier = entry.tier;
                 return;
             }
             if (entry.storage.getEnergyStored() >= cost) {
@@ -271,7 +272,7 @@ public class PipeNetwork {
             }
         }
 
-        currentTier = SpeedTier.SLOW;
+        currentTier = SpeedTier.NONE;
     }
 
     private static class MotorEntry {

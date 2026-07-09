@@ -28,12 +28,12 @@ public class ForgeConfigHandler {
         parsedFeCost   = new int[tiers.length];
 
         String[] raw = {
-                pipes.tierSlow, pipes.tierNormal, pipes.tierFast,
+                pipes.tierNone, pipes.tierSlow, pipes.tierNormal, pipes.tierFast,
                 pipes.tierTurbo, pipes.tierHyper, pipes.tierUltra
         };
         int[][] defaults = {
-                {70, 1, 10}, {60, 1, 100}, {40, 2, 500},
-                {40, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
+                {150, 1, 0}, {100, 1, 10}, {50, 1, 100}, {50, 2, 500},
+                {25, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
         };
 
         for (int i = 0; i < tiers.length; i++) {
@@ -101,24 +101,28 @@ public class ForgeConfigHandler {
 
         @Config.Comment("Pipe tier definitions.\n"
                 + "Format: \"<tier>\" = <ticks between transfers>, <items per transfer>, <FE cost per transfer>\n"
-                + "SLOW/Basic requires no motor of a higher tier. All other tiers require a motor of that tier or higher.")
+                + "NONE is the rate pipes use with no motor adjacent at all — always free.\n"
+                + "SLOW/Basic and above require a motor of that tier or higher, and cost FE per transfer.")
+        @Config.Name("None/Unpowered")
+        public String tierNone = "150, 1, 0";
+
         @Config.Name("Slow/Basic")
-        public String tierSlow  = "70, 1, 10";
+        public String tierSlow  = "100, 1, 10";
 
         @Config.Name("Normal/Refined")
-        public String tierNormal = "20, 1, 100";
+        public String tierNormal = "50, 1, 100";
 
         @Config.Name("Fast/Efficient")
-        public String tierFast   = "20, 2, 500";
+        public String tierFast   = "50, 2, 500";
 
         @Config.Name("Turbo/Advanced")
-        public String tierTurbo  = "20, 4, 1000";
+        public String tierTurbo  = "25, 4, 1000";
 
         @Config.Name("Hyper/Reinforced")
-        public String tierHyper  = "20, 16, 2500";
+        public String tierHyper  = "20, 8, 2500";
 
         @Config.Name("Ultra/Overclocked")
-        public String tierUltra  = "20, 64, 5000";
+        public String tierUltra  = "20, 16, 5000";
 
         @Config.Comment("Extra ticks added per pipe in the network. Longer networks are slightly slower.")
         @Config.RangeInt(min = 0, max = 20)

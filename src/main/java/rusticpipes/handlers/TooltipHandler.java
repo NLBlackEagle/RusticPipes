@@ -43,9 +43,9 @@ public final class TooltipHandler {
      */
     public static void addPipeTooltip(ItemStack stack, List<String> tooltip,
                                       rusticpipes.block.PipeColor color) {
-        // Data — always visible, uses SLOW tier (unpowered baseline)
-        int transferSize = ForgeConfigHandler.getTransferSize(PipeNetwork.SpeedTier.SLOW);
-        int tickRate     = ForgeConfigHandler.getTickRate(PipeNetwork.SpeedTier.SLOW);
+        // Data — always visible, uses NONE tier (true unpowered baseline, no motor)
+        int transferSize = ForgeConfigHandler.getTransferSize(PipeNetwork.SpeedTier.NONE);
+        int tickRate     = ForgeConfigHandler.getTickRate(PipeNetwork.SpeedTier.NONE);
         tooltip.add(TextFormatting.GRAY
                 + I18n.format("rusticpipes.tooltip.pipe.data", transferSize, tickRate));
 
