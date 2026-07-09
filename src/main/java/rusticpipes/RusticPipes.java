@@ -57,6 +57,5 @@ public class RusticPipes {
     }
 }
 
-//todo: make pipe and power cord placement not detect block sides but model sides to allow for better placement
 //todo: Recipe needs some checking and working
 //todo: naming of pipe motors need to be displayed in right-click

@@ -75,7 +75,7 @@ public class BlockConduitBuffer extends Block implements ITileEntityProvider {
                 TileEntityConduitBuffer buf = (TileEntityConduitBuffer) te;
                 player.sendMessage(new TextComponentTranslation(
                         "rusticpipes.message.motor.info",
-                        tier.name(), buf.getStored(), buf.getCapacity()));
+                        tier.displayName, buf.getStored(), buf.getCapacity()));
             }
         }
         return true;

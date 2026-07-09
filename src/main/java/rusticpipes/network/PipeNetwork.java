@@ -24,7 +24,21 @@ import java.util.*;
 
 public class PipeNetwork {
 
-    public enum SpeedTier { SLOW, NORMAL, FAST, TURBO, HYPER, ULTRA }
+    public enum SpeedTier {
+        SLOW("Basic"),
+        NORMAL("Refined"),
+        FAST("Efficient"),
+        TURBO("Advanced"),
+        HYPER("Reinforced"),
+        ULTRA("Overclocked");
+
+        /** Player-facing tier adjective, e.g. "Overclocked" for ULTRA. */
+        public final String displayName;
+
+        SpeedTier(String displayName) {
+            this.displayName = displayName;
+        }
+    }
 
     // Keyed by DimPos to prevent cross-dimension network collisions.
     private static final Map<DimPos, PipeNetwork> NETWORKS = new HashMap<>();

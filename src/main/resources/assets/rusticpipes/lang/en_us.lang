@@ -34,8 +34,8 @@ itemGroup.rusticpipes=Rustic Pipes
 # %1$s = max(buffer, throughput) FE, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
 rusticpipes.message.conduit.info=[Power Cord] %1$s FE · %3$s FE loss/cable (%4$s total)
 
-# %1$s = tier name, %2$s = stored FE, %3$s = capacity FE
-rusticpipes.message.motor.info=Pipe Motor [%1$s] %2$s/%3$s FE
+# %1$s = tier display name, %2$s = stored FE, %3$s = capacity FE
+rusticpipes.message.motor.info=%1$s Pipe Motor %2$s/%3$s FE
 
 # %1$s = color name
 rusticpipes.message.pipe.dyed=Pipe dyed: %1$s
@@ -85,8 +85,8 @@ rusticpipes.tooltip.pipemotor.turbo.description=Place this Advanced pipe motor b
 rusticpipes.tooltip.pipemotor.hyper.data=[Reinforced] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
 rusticpipes.tooltip.pipemotor.hyper.description=Place this Reinforced pipe motor block next to one or multiple item pipe networks for high-speed item transfer. Requires a substantial power supply to operate.
 
-rusticpipes.tooltip.pipemotor.ultra.data=[Ultra] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
-rusticpipes.tooltip.pipemotor.ultra.description=Place this Ultra/Overclocked pipe motor block next to one or multiple item pipe networks to make item transfer between containers faster but also consume more energy.
+rusticpipes.tooltip.pipemotor.ultra.data=[Overclocked] Transfers %1$s item(s) every %2$s tick(s) costing %3$s FE per transfer.
+rusticpipes.tooltip.pipemotor.ultra.description=Place this Overclocked pipe motor block next to one or multiple item pipe networks to make item transfer between containers faster but also consume more energy.
 
 # Fluid Pipes
 tile.fluid_white_pipe.name=White Fluid Pipe

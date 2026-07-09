@@ -32,7 +32,7 @@ public class ForgeConfigHandler {
                 pipes.tierTurbo, pipes.tierHyper, pipes.tierUltra
         };
         int[][] defaults = {
-                {100, 1, 0}, {60, 1, 100}, {40, 2, 500},
+                {70, 1, 10}, {60, 1, 100}, {40, 2, 500},
                 {40, 4, 1000}, {20, 8, 2500}, {20, 16, 5000}
         };
 
@@ -101,11 +101,11 @@ public class ForgeConfigHandler {
 
         @Config.Comment("Pipe tier definitions.\n"
                 + "Format: \"<tier>\" = <ticks between transfers>, <items per transfer>, <FE cost per transfer>\n"
-                + "SLOW costs 0 FE (no motor needed). All other tiers require a motor of that tier or higher.")
-        @Config.Name("Slow/Default")
-        public String tierSlow  = "100, 1, 0";
+                + "SLOW/Basic requires no motor of a higher tier. All other tiers require a motor of that tier or higher.")
+        @Config.Name("Slow/Basic")
+        public String tierSlow  = "70, 1, 10";
 
-        @Config.Name("Normal/Basic")
+        @Config.Name("Normal/Refined")
         public String tierNormal = "20, 1, 100";
 
         @Config.Name("Fast/Efficient")
