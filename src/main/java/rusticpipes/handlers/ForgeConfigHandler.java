@@ -339,6 +339,36 @@ public class ForgeConfigHandler {
         @Config.Name("Capacity Per Tank Block (mB)")
         public int capacityPerTankBlock = 8000;
 
+        // ---- Crafting recipes -----------------------------------------------
+
+        @Config.Comment("Enable crafting recipe for the base (white) fluid pipe.")
+        @Config.Name("Enable Fluid Pipe Recipe")
+        public boolean enableFluidPipeRecipe = true;
+
+        @Config.Comment("Shaped recipe for the base (white) fluid pipe.\n"
+                + "Format: {[slot1],...,[slot9]} * count\n"
+                + "Slots: use [modid:itemname], [ore:oreName], or [minecraft:air] for empty.\n"
+                + "Slots are read left-to-right, top-to-bottom (3x3 grid).")
+        @Config.Name("Fluid Pipe Recipe")
+        public String fluidPipeRecipe =
+                "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
+                + "[minecraft:glass],[minecraft:air],[minecraft:glass],"
+                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
+
+        @Config.Comment("Enable crafting recipe for the fluid tank.")
+        @Config.Name("Enable Fluid Tank Recipe")
+        public boolean enableFluidTankRecipe = true;
+
+        @Config.Comment("Shaped recipe for the fluid tank: iron ingots surrounding a glass block.\n"
+                + "Format: {[slot1],...,[slot9]} * count\n"
+                + "Slots: use [modid:itemname], [ore:oreName], or [minecraft:air] for empty.\n"
+                + "Slots are read left-to-right, top-to-bottom (3x3 grid).")
+        @Config.Name("Fluid Tank Recipe")
+        public String fluidTankRecipe =
+                "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
+                + "[minecraft:iron_ingot],[minecraft:glass],[minecraft:iron_ingot],"
+                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 1";
+
         // ---- NuclearCraft radiation ----------------------------------------
 
         @Config.Comment("Enable NuclearCraft radiation from fluid pipes and tanks.\n"

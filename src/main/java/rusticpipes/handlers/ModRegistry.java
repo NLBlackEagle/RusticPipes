@@ -162,6 +162,26 @@ public class ModRegistry {
             if (basePipeRecipe != null) event.getRegistry().register(basePipeRecipe);
         }
 
+        // ── Fluid pipe recipe ─────────────────────────────────────────────────
+        if (ForgeConfigHandler.fluid.enableFluidPipeRecipe) {
+            net.minecraft.item.crafting.IRecipe fluidPipeRecipe =
+                    rusticpipes.util.RecipeParser.parse(
+                            ForgeConfigHandler.fluid.fluidPipeRecipe,
+                            new net.minecraft.util.ResourceLocation(RusticPipes.MODID, "fluid_white_pipe"),
+                            new ItemStack(getFluidPipe(PipeColor.WHITE), 1));
+            if (fluidPipeRecipe != null) event.getRegistry().register(fluidPipeRecipe);
+        }
+
+        // ── Fluid tank recipe ─────────────────────────────────────────────────
+        if (ForgeConfigHandler.fluid.enableFluidTankRecipe) {
+            net.minecraft.item.crafting.IRecipe fluidTankRecipe =
+                    rusticpipes.util.RecipeParser.parse(
+                            ForgeConfigHandler.fluid.fluidTankRecipe,
+                            new net.minecraft.util.ResourceLocation(RusticPipes.MODID, "fluid_tank_multiblock"),
+                            new ItemStack(FLUID_TANK_MULTIBLOCK, 1));
+            if (fluidTankRecipe != null) event.getRegistry().register(fluidTankRecipe);
+        }
+
         // ── Dye conversion recipes ────────────────────────────────────────────
         if (ForgeConfigHandler.recipes.enableDyeRecipes) {
             String[] oreNames = {

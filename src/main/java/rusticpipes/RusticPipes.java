@@ -56,5 +56,3 @@ public class RusticPipes {
         completedLoading = true;
     }
 }
-
-//todo: Recipe needs some checking and working
