@@ -35,8 +35,6 @@ public class FluidPipeRenderer extends TileEntitySpecialRenderer<TileEntityFluid
         boolean connS = te.isConnected(net.minecraft.util.EnumFacing.SOUTH);
         boolean connE = te.isConnected(net.minecraft.util.EnumFacing.EAST);
         boolean connW = te.isConnected(net.minecraft.util.EnumFacing.WEST);
-        boolean connU = te.isConnected(net.minecraft.util.EnumFacing.UP);
-        boolean connD = te.isConnected(net.minecraft.util.EnumFacing.DOWN);
 
         // Check if any face is a viewport — same logic as FluidPipeModel.
         // A connected face is never eligible, regardless of its hash roll.
