@@ -462,8 +462,24 @@ public class FluidPipeModel implements IModel {
                 case WEST:  tex = (side == EnumFacing.NORTH) ? EnumFacing.EAST  : EnumFacing.WEST;  break;
                 case NORTH: switch (side) { case EAST: tex=EnumFacing.EAST; break; case WEST: tex=EnumFacing.WEST; break; case UP: tex=EnumFacing.NORTH; break; default: tex=EnumFacing.SOUTH; } break;
                 case SOUTH: switch (side) { case EAST: tex=EnumFacing.WEST; break; case WEST: tex=EnumFacing.EAST; break; case UP: tex=EnumFacing.SOUTH; break; default: tex=EnumFacing.NORTH; } break;
-                case UP:    tex = (side == EnumFacing.NORTH) ? EnumFacing.SOUTH : EnumFacing.NORTH; break;
-                case DOWN:  tex = (side == EnumFacing.NORTH) ? EnumFacing.SOUTH : EnumFacing.NORTH; break;
+                case UP:
+                    switch (side) {
+                        case NORTH: tex = EnumFacing.SOUTH; break;
+                        case SOUTH: tex = EnumFacing.NORTH; break;
+                        case EAST:  tex = EnumFacing.EAST;  break;
+                        case WEST:  tex = EnumFacing.WEST;  break;
+                        default:    tex = EnumFacing.NORTH;
+                    }
+                    break;
+                case DOWN:
+                    switch (side) {
+                        case NORTH: tex = EnumFacing.SOUTH; break;
+                        case SOUTH: tex = EnumFacing.NORTH; break;
+                        case EAST:  tex = EnumFacing.EAST;  break;
+                        case WEST:  tex = EnumFacing.WEST;  break;
+                        default:    tex = EnumFacing.NORTH;
+                    }
+                    break;
                 default:    tex = EnumFacing.EAST;
             }
             if (input) { switch (tex) { case EAST: return inE; case WEST: return inW; case NORTH: return inN; default: return inS; } }

@@ -57,7 +57,6 @@ public class RusticPipes {
     }
 }
 
-//todo: Vertical fluid pipes have faulty input/output direction faces?
 //todo: Colored fluid pipes do not seem colored in item-form
 //todo: Fluid/Item pipes should shrink as item models
 //todo: Recipe needs some checking and working
