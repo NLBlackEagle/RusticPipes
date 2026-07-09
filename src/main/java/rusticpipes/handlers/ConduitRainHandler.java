@@ -52,7 +52,7 @@ public class ConduitRainHandler {
             world.addWeatherEffect(bolt);
 
             if (RusticPipes.DEBUG) {
-                RusticPipes.LOGGER.info("[RusticPipes] Lightning struck and destroyed conduit at " + pos);
+                RusticPipes.LOGGER.debug("[RusticPipes] Lightning struck and destroyed conduit at " + pos);
             }
         }
     }

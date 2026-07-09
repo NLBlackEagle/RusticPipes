@@ -1,12 +1,14 @@
 package rusticpipes.block;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockStaticLiquid;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
@@ -276,9 +278,11 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
         TileEntity te = world.getTileEntity(pos);
         if (te instanceof TileEntityFluidPipe) {
             TileEntityFluidPipe pipe = (TileEntityFluidPipe) te;
-            // Drop filled buckets for any fluid remaining in the in-transit buffer
+            // Drop filled buckets for any fluid remaining in the in-transit buffer.
+            // Pipes are small in-transit buffers, not storage — cap the spill at
+            // a single fluid block even if the pipe happened to be full.
             if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak) {
-                spillFluid(world, pos, pipe.getBuffer());
+                spillFluid(world, pos, pipe.getBuffer(), 1);
             }
             pipe.onRemoved();
         }
@@ -351,6 +355,20 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
 
     static void spillFluid(World world, BlockPos pos,
                            @Nullable net.minecraftforge.fluids.FluidStack fluid) {
+        spillFluid(world, pos, fluid, 16);
+    }
+
+    /**
+     * Spills fluid when a pipe or tank is broken:
+     *  - If the fluid has an associated world block (water, lava, corium, etc.),
+     *    places up to {@code maxBlocks} source blocks at the break position so
+     *    it flows naturally.
+     *  - Otherwise falls back to dropping filled bucket items (one per 1000 mB).
+     *
+     * Only acts when fluid.amount >= 1000 mB.
+     */
+    static void spillFluid(World world, BlockPos pos,
+                           @Nullable net.minecraftforge.fluids.FluidStack fluid, int maxBlocks) {
         if (world.isRemote || fluid == null || fluid.amount < 1000) return;
 
         net.minecraft.block.Block fluidBlock = fluid.getFluid().getBlock();
@@ -358,14 +376,23 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
 
         // Place one source block per 1000 mB, spreading outward from the break
         // position via BFS so larger tanks create a wider initial spill.
-        // Cap at 64 blocks to avoid excessive lag on enormous tanks.
-        int toPlace = Math.min(fluid.amount / 1000, 16);
+        // Capped at maxBlocks to avoid excessive lag / excessive spill.
+        int toPlace = Math.min(fluid.amount / 1000, maxBlocks);
         net.minecraft.block.state.IBlockState sourceState = fluidBlock.getDefaultState();
 
         java.util.Queue<net.minecraft.util.math.BlockPos> queue = new java.util.ArrayDeque<>();
         java.util.Set<net.minecraft.util.math.BlockPos>   visited = new java.util.HashSet<>();
         queue.add(pos);
         visited.add(pos);
+
+        Block placeBlock = fluidBlock;
+
+        if (placeBlock == Blocks.WATER)
+            placeBlock = Blocks.FLOWING_WATER;
+        else if (placeBlock == Blocks.LAVA)
+            placeBlock = Blocks.FLOWING_LAVA;
+
+        IBlockState placeState = placeBlock.getDefaultState();
 
         while (!queue.isEmpty() && toPlace > 0) {
             net.minecraft.util.math.BlockPos current = queue.poll();
@@ -375,7 +402,14 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
             if (existing.getBlock().isReplaceable(world, current)
                     || existing.getMaterial() == net.minecraft.block.material.Material.AIR
                     || existing.getMaterial().isLiquid()) {
-                world.setBlockState(current, sourceState);
+                // Flag 11 (not the default 3) — matches exactly what ItemBucket uses
+                // to place water/lava. onBlockAdded() fires from this and schedules
+                // the fluid's own first flow tick, same as a real bucket placement.
+
+                world.setBlockState(current, placeState, 11);
+                world.notifyNeighborsOfStateChange(current, placeBlock, true);
+                world.scheduleUpdate(current, placeBlock, 1);
+
                 toPlace--;
             }
 

@@ -118,17 +118,23 @@ public final class NuclearCraftCompat {
      */
     public static double getFluidRadiation(FluidStack stack) {
         if (!isLoaded() || stack == null || getRadiationFromFluidMethod == null) {
-            RusticPipes.LOGGER.info("[RadDebug] getFluidRadiation early-exit: isLoaded={} stack={} method={}",
-                    isLoaded(), stack != null ? stack.getFluid().getName() : "null", getRadiationFromFluidMethod != null);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] getFluidRadiation early-exit: isLoaded={} stack={} method={}",
+                        isLoaded(), stack != null ? stack.getFluid().getName() : "null", getRadiationFromFluidMethod != null);
+            }
             return 0;
         }
         try {
             Object r = getRadiationFromFluidMethod.invoke(null, stack, 1.0D);
             double val = r instanceof Number ? ((Number) r).doubleValue() : 0;
-            RusticPipes.LOGGER.info("[RadDebug] getRadiationFromFluid({}, 1.0) = {}", stack.getFluid().getName(), val);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] getRadiationFromFluid({}, 1.0) = {}", stack.getFluid().getName(), val);
+            }
             return val;
         } catch (Exception e) {
-            RusticPipes.LOGGER.info("[RadDebug] getRadiationFromFluid threw: {}", e.getMessage());
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] getRadiationFromFluid threw: {}", e.getMessage());
+            }
             return 0;
         }
     }
@@ -166,15 +172,19 @@ public final class NuclearCraftCompat {
 
         AxisAlignedBB aabb = new AxisAlignedBB(pos).grow(range);
         List<EntityPlayer> players = world.getEntitiesWithinAABB(EntityPlayer.class, aabb);
-        RusticPipes.LOGGER.info("[RadDebug] irradiateNearbyPlayers: rads/t={} range={} players found={}",
-                radiationPerTick, range, players.size());
+        if (RusticPipes.DEBUG) {
+            RusticPipes.LOGGER.debug("[RadDebug] irradiateNearbyPlayers: rads/t={} range={} players found={}",
+                    radiationPerTick, range, players.size());
+        }
         for (EntityPlayer player : players) {
             double dx = player.posX - (pos.getX() + 0.5);
             double dy = player.posY - (pos.getY() + 0.5);
             double dz = player.posZ - (pos.getZ() + 0.5);
             double dist2 = Math.max(0.25, dx*dx + dy*dy + dz*dz);
             double effective = radiationPerTick * multiplier / dist2;
-            RusticPipes.LOGGER.info("[RadDebug] Applying {} rads to {} (dist2={})", effective, player.getName(), dist2);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] Applying {} rads to {} (dist2={})", effective, player.getName(), dist2);
+            }
             applyRadiation(player, effective);
         }
     }
@@ -184,9 +194,11 @@ public final class NuclearCraftCompat {
         if (radiationSourceCtor == null
                 || getEntityRadiationMethod == null
                 || transferRadsFromSourceToEntityMethod == null) {
-            RusticPipes.LOGGER.info("[RadDebug] applyRadiation blocked: ctor={} getEntity={} transfer={}",
-                    radiationSourceCtor != null, getEntityRadiationMethod != null,
-                    transferRadsFromSourceToEntityMethod != null);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] applyRadiation blocked: ctor={} getEntity={} transfer={}",
+                        radiationSourceCtor != null, getEntityRadiationMethod != null,
+                        transferRadsFromSourceToEntityMethod != null);
+            }
             return;
         }
         try {
@@ -196,19 +208,25 @@ public final class NuclearCraftCompat {
             // reads radiationBuffer. Explicitly set both so one of them is definitely non-zero.
             if (setRadiationLevelMethod != null) setRadiationLevelMethod.invoke(tempSource, rads);
             if (setRadiationBufferMethod != null) setRadiationBufferMethod.invoke(tempSource, rads);
-            RusticPipes.LOGGER.info("[RadDebug] tempSource level={} buffer={}",
-                    getRadiationLevelMethod != null ? getRadiationLevelMethod.invoke(tempSource) : "?",
-                    getRadiationBufferMethod != null ? getRadiationBufferMethod.invoke(tempSource) : "?");
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] tempSource level={} buffer={}",
+                        getRadiationLevelMethod != null ? getRadiationLevelMethod.invoke(tempSource) : "?",
+                        getRadiationBufferMethod != null ? getRadiationBufferMethod.invoke(tempSource) : "?");
+            }
 
             Object entityRads = getEntityRadiationMethod.invoke(null, player);
-            if (entityRads == null) { RusticPipes.LOGGER.info("[RadDebug] entityRads is null!"); return; }
+            if (entityRads == null) { if (RusticPipes.DEBUG) { RusticPipes.LOGGER.debug("[RadDebug] entityRads is null!"); } return; }
 
             double before = ((Number) getTotalRadsMethod.invoke(entityRads)).doubleValue();
             transferRadsFromSourceToEntityMethod.invoke(null, tempSource, entityRads, player, 1);
             double after  = ((Number) getTotalRadsMethod.invoke(entityRads)).doubleValue();
-            RusticPipes.LOGGER.info("[RadDebug] totalRads before={} after={} delta={}", before, after, after - before);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] totalRads before={} after={} delta={}", before, after, after - before);
+            }
         } catch (Exception e) {
-            RusticPipes.LOGGER.info("[RadDebug] applyRadiation exception: {} — {}", e.getClass().getSimpleName(), e.getMessage());
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RadDebug] applyRadiation exception: {} — {}", e.getClass().getSimpleName(), e.getMessage());
+            }
         }
     }
 }

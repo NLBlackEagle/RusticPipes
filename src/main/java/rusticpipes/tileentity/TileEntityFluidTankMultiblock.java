@@ -13,6 +13,7 @@ import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.FluidTankProperties;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
+import rusticpipes.RusticPipes;
 import rusticpipes.block.BlockFluidTankMultiblock;
 import rusticpipes.multiblock.TankMultiblock;
 
@@ -139,20 +140,26 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
                 && ctrl.fluid != null) {
             int interval = rusticpipes.handlers.ForgeConfigHandler.fluid.radiationTickInterval;
             if (world.getTotalWorldTime() % interval == 0) {
-                rusticpipes.RusticPipes.LOGGER.info("[RadDebug] Radiation tick fired. fluid={} amount={} pos={}",
-                        ctrl.fluid.getFluid().getName(), ctrl.fluid.amount, pos);
+                if (RusticPipes.DEBUG) {
+                    rusticpipes.RusticPipes.LOGGER.debug("[RadDebug] Radiation tick fired. fluid={} amount={} pos={}",
+                            ctrl.fluid.getFluid().getName(), ctrl.fluid.amount, pos);
+                }
                 double rad = rusticpipes.compat.NuclearCraftCompat.getFluidRadiation(ctrl.fluid);
-                rusticpipes.RusticPipes.LOGGER.info("[RadDebug] getFluidRadiation returned {}", rad);
+                if (RusticPipes.DEBUG) {
+                    rusticpipes.RusticPipes.LOGGER.debug("[RadDebug] getFluidRadiation returned {}", rad);
+                }
                 if (rad > 0) {
                     rusticpipes.compat.NuclearCraftCompat.irradiateNearbyPlayers(world, pos, rad,
                             rusticpipes.handlers.ForgeConfigHandler.fluid.radiationRange);
                 }
             }
         } else if (world.getTotalWorldTime() % 100 == 0) {
-            rusticpipes.RusticPipes.LOGGER.info("[RadDebug] Radiation skipped — isController={} enableRadiation={} fluid={}",
-                    isController(),
-                    rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation,
-                    ctrl.fluid != null ? ctrl.fluid.getFluid().getName() : "null");
+            if (RusticPipes.DEBUG) {
+                rusticpipes.RusticPipes.LOGGER.debug("[RadDebug] Radiation skipped — isController={} enableRadiation={} fluid={}",
+                        isController(),
+                        rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation,
+                        ctrl.fluid != null ? ctrl.fluid.getFluid().getName() : "null");
+            }
         }
     }
 

@@ -46,8 +46,10 @@ public class ForgeConfigHandler {
                 parsedTickRate[i] = defaults[i][0];
                 parsedTransfer[i] = defaults[i][1];
                 parsedFeCost[i]   = defaults[i][2];
-                RusticPipes.LOGGER.warn("[RusticPipes] Failed to parse tier string for "
-                        + tiers[i].name() + ", using defaults. Value was: " + raw[i]);
+                if (RusticPipes.DEBUG) {
+                    RusticPipes.LOGGER.warn("[RusticPipes] Failed to parse tier string for "
+                            + tiers[i].name() + ", using defaults. Value was: " + raw[i]);
+                }
             }
         }
     }

@@ -49,8 +49,10 @@ public final class RecipeParser {
                 String countStr = raw.substring(starIdx + 1).trim();
                 try { count = Math.max(1, Integer.parseInt(countStr)); }
                 catch (NumberFormatException e) {
-                    RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': invalid count '{}', defaulting to 1.",
-                            registryId, countStr);
+                    if (RusticPipes.DEBUG) {
+                        RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': invalid count '{}', defaulting to 1.",
+                                registryId, countStr);
+                    }
                 }
                 gridPart = raw.substring(0, starIdx).trim();
             }
@@ -73,8 +75,10 @@ public final class RecipeParser {
             }
 
             if (slots.size() != 9) {
-                RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': expected 9 slots, got {}. Skipping.",
-                        registryId, slots.size());
+                if (RusticPipes.DEBUG) {
+                    RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': expected 9 slots, got {}. Skipping.",
+                            registryId, slots.size());
+                }
                 return null;
             }
 
@@ -95,8 +99,10 @@ public final class RecipeParser {
                     grid[s] = chars[s];
                     ingredients[s] = resolveIngredient(slot, registryId);
                     if (ingredients[s] == null) {
-                        RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': slot {} '{}' could not be resolved. Skipping recipe.",
-                                registryId, s, slot);
+                        if (RusticPipes.DEBUG) {
+                            RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': slot {} '{}' could not be resolved. Skipping recipe.",
+                                    registryId, s, slot);
+                        }
                         return null;
                     }
                 }
@@ -128,8 +134,10 @@ public final class RecipeParser {
             return recipe;
 
         } catch (Exception e) {
-            RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': parse error — {}. Skipping.",
-                    registryId, e.getMessage());
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': parse error — {}. Skipping.",
+                        registryId, e.getMessage());
+            }
             return null;
         }
     }
@@ -158,7 +166,9 @@ public final class RecipeParser {
         // Direct item: modid:itemname or modid:itemname:meta
         String[] parts = slot.split(":");
         if (parts.length < 2) {
-            RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': cannot parse slot '{}'.", recipeId, slot);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': cannot parse slot '{}'.", recipeId, slot);
+            }
             return null;
         }
 
@@ -168,14 +178,18 @@ public final class RecipeParser {
         if (parts.length >= 3) {
             try { meta = Integer.parseInt(parts[2]); }
             catch (NumberFormatException e) {
+                if (RusticPipes.DEBUG) {
                 RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': invalid meta in slot '{}'.", recipeId, slot);
+                }
             }
         }
 
         ResourceLocation rl = new ResourceLocation(modid, itemName);
         net.minecraft.item.Item item = ForgeRegistries.ITEMS.getValue(rl);
         if (item == null) {
-            RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': item '{}' not found in registry.", recipeId, rl);
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.warn("[RusticPipes] Recipe '{}': item '{}' not found in registry.", recipeId, rl);
+            }
             return null;
         }
         return new ItemStack(item, 1, meta);

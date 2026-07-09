@@ -38,9 +38,11 @@ public final class IC2Compat {
             try {
                 Class.forName("ic2.api.energy.tile.IEnergySource");
                 loaded = true;
+                if (RusticPipes.DEBUG) {
                 RusticPipes.LOGGER.info("[RusticPipes] IndustrialCraft 2 detected — "
                         + "EU interop enabled (1 EU = {} FE).",
                         ForgeConfigHandler.conduit.ic2FeRatio);
+                }
             } catch (ClassNotFoundException e) {
                 loaded = false;
             }
@@ -66,7 +68,9 @@ public final class IC2Compat {
             if (src.getOfferedEnergy() <= 0) return null;
             return new SourceWrapper(src);
         } catch (Throwable t) {
-            RusticPipes.LOGGER.debug("[RusticPipes] IC2 source wrap error: {}", t.getMessage());
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RusticPipes] IC2 source wrap error: {}", t.getMessage());
+            }
             return null;
         }
     }
@@ -85,7 +89,9 @@ public final class IC2Compat {
             if (sink.getDemandedEnergy() <= 0) return null;
             return new SinkWrapper(sink);
         } catch (Throwable t) {
-            RusticPipes.LOGGER.debug("[RusticPipes] IC2 sink wrap error: {}", t.getMessage());
+            if (RusticPipes.DEBUG) {
+                RusticPipes.LOGGER.debug("[RusticPipes] IC2 sink wrap error: {}", t.getMessage());
+            }
             return null;
         }
     }
@@ -167,7 +173,9 @@ public final class IC2Compat {
                 Object result = injectEnergyMethod.invoke(sink, null, amount, (double) sink.getSinkTier());
                 return result instanceof Number ? ((Number) result).doubleValue() : 0;
             } catch (Exception e) {
-                RusticPipes.LOGGER.debug("[RusticPipes] IC2 injectEnergy reflection failed: {}", e.getMessage());
+                if (RusticPipes.DEBUG) {
+                    RusticPipes.LOGGER.debug("[RusticPipes] IC2 injectEnergy reflection failed: {}", e.getMessage());
+                }
                 return 0;
             }
         }
