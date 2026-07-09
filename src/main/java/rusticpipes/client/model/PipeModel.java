@@ -496,5 +496,34 @@ public class PipeModel implements IModel {
         @Override public TextureAtlasSprite getParticleTexture() { return bodySprites[0]; }
         @Override public ItemOverrideList getOverrides() { return ItemOverrideList.NONE; }
         @Override public ItemCameraTransforms getItemCameraTransforms() { return ItemCameraTransforms.DEFAULT; }
+
+        @Override
+        public org.apache.commons.lang3.tuple.Pair<? extends net.minecraft.client.renderer.block.model.IBakedModel, javax.vecmath.Matrix4f>
+                handlePerspective(ItemCameraTransforms.TransformType type) {
+            return org.apache.commons.lang3.tuple.Pair.of(this, pipeTransform(type).getMatrix());
+        }
+
+        private static TRSRTransformation pipeTransform(ItemCameraTransforms.TransformType type) {
+            javax.vecmath.Vector3f t = new javax.vecmath.Vector3f(0, 0, 0);
+            javax.vecmath.Vector3f r = new javax.vecmath.Vector3f(0, 0, 0);
+            float s;
+            switch (type) {
+                case FIRST_PERSON_RIGHT_HAND: r = new javax.vecmath.Vector3f(0, 45, 0);   s = 0.40f; break;
+                case FIRST_PERSON_LEFT_HAND:  r = new javax.vecmath.Vector3f(0, 225, 0);  s = 0.40f; break;
+                case THIRD_PERSON_RIGHT_HAND:
+                case THIRD_PERSON_LEFT_HAND:
+                    r = new javax.vecmath.Vector3f(75, 45, 0);
+                    t = new javax.vecmath.Vector3f(0, 0.15625f, 0); s = 0.375f; break;
+                case GUI:                     r = new javax.vecmath.Vector3f(30, 225, 0); s = 0.625f; break;
+                case GROUND:                  t = new javax.vecmath.Vector3f(0, 0.1875f, 0); s = 0.25f; break;
+                default:                      s = 0.5f; break;
+            }
+            return new TRSRTransformation(
+                t,
+                TRSRTransformation.quatFromXYZDegrees(r),
+                new javax.vecmath.Vector3f(s, s, s),
+                null
+            );
+        }
     }
 }

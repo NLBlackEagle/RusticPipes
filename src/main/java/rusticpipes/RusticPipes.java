@@ -58,6 +58,6 @@ public class RusticPipes {
 }
 
 //todo: Colored fluid pipes do not seem colored in item-form
-//todo: Fluid/Item pipes should shrink as item models
+//todo: Fluid/Item pipes and power cords should shrink as item models
 //todo: Recipe needs some checking and working
 //todo: naming of pipe motors need to be displayed in right-click

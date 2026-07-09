@@ -1,8 +1,8 @@
 package rusticpipes.client.color;
 
-import net.minecraft.client.renderer.color.IItemColor;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.color.IItemColor;
 import rusticpipes.block.BlockItemPipe;
 
 public class PipeItemColor implements IItemColor {
@@ -14,7 +14,10 @@ public class PipeItemColor implements IItemColor {
         if (tintIndex != 0) return 0xFFFFFF;
         if (!(stack.getItem() instanceof ItemBlock)) return 0xFFFFFF;
         ItemBlock ib = (ItemBlock) stack.getItem();
-        if (!(ib.getBlock() instanceof BlockItemPipe)) return 0xFFFFFF;
-        return TintHelper.attenuate(((BlockItemPipe) ib.getBlock()).pipeColor.tintColor, 0.4f);
+        if (ib.getBlock() instanceof BlockItemPipe)
+            return TintHelper.attenuate(((BlockItemPipe) ib.getBlock()).pipeColor.tintColor, 0.4f);
+        if (ib.getBlock() instanceof rusticpipes.block.BlockFluidPipe)
+            return TintHelper.attenuate(((rusticpipes.block.BlockFluidPipe) ib.getBlock()).pipeColor.tintColor, 0.4f);
+        return 0xFFFFFF;
     }
 }
