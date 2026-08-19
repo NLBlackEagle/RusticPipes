@@ -168,8 +168,8 @@ public class ForgeConfigHandler {
         @Config.Name("Conduit Recipe")
         public String conduitRecipe =
                 "{[minecraft:wool],[minecraft:wool],[minecraft:wool],"
-                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
-                + "[minecraft:wool],[minecraft:wool],[minecraft:wool]} * 4";
+                        + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
+                        + "[minecraft:wool],[minecraft:wool],[minecraft:wool]} * 4";
 
         @Config.Comment("Powered conduits exposed to the sky are struck by lightning during rain.")
         @Config.Name("Enable Rain Lightning Damage")
@@ -229,8 +229,8 @@ public class ForgeConfigHandler {
         @Config.Name("Basic Pipe Motor Recipe")
         public String motorSlowRecipe =
                 "{[ore:ingotIron],[rusticpipes:white_pipe],[ore:ingotIron],"
-                + "[ore:ingotIron],[minecraft:air],[ore:ingotIron],"
-                + "[ore:ingotIron],[rusticpipes:conduit],[ore:ingotIron]} * 1";
+                        + "[ore:ingotIron],[minecraft:air],[ore:ingotIron],"
+                        + "[ore:ingotIron],[rusticpipes:conduit],[ore:ingotIron]} * 1";
 
         @Config.Comment("Enable crafting recipe for the Refined Pipe Motor.")
         @Config.Name("Enable Refined Motor Recipe")
@@ -239,8 +239,8 @@ public class ForgeConfigHandler {
         @Config.Name("Refined Pipe Motor Recipe")
         public String motorNormalRecipe =
                 "{[ore:ingotIron],[minecraft:redstone],[ore:ingotIron],"
-                + "[ore:ingotIron],[rusticpipes:conduit_buffer_slow],[ore:ingotIron],"
-                + "[ore:ingotIron],[minecraft:dropper],[ore:ingotIron]} * 1";
+                        + "[ore:ingotIron],[rusticpipes:conduit_buffer_slow],[ore:ingotIron],"
+                        + "[ore:ingotIron],[minecraft:dropper],[ore:ingotIron]} * 1";
 
         @Config.Comment("Enable crafting recipe for the Efficient Pipe Motor.")
         @Config.Name("Enable Efficient Motor Recipe")
@@ -249,8 +249,8 @@ public class ForgeConfigHandler {
         @Config.Name("Efficient Pipe Motor Recipe")
         public String motorFastRecipe =
                 "{[ore:ingotGold],[rusticpipes:white_pipe],[ore:ingotGold],"
-                + "[ore:ingotGold],[rusticpipes:conduit_buffer_normal],[ore:ingotGold],"
-                + "[ore:ingotGold],[minecraft:comparator],[ore:ingotGold]} * 1";
+                        + "[ore:ingotGold],[rusticpipes:conduit_buffer_normal],[ore:ingotGold],"
+                        + "[ore:ingotGold],[minecraft:comparator],[ore:ingotGold]} * 1";
 
         @Config.Comment("Enable crafting recipe for the Advanced Pipe Motor.")
         @Config.Name("Enable Advanced Motor Recipe")
@@ -259,8 +259,8 @@ public class ForgeConfigHandler {
         @Config.Name("Advanced Pipe Motor Recipe")
         public String motorTurboRecipe =
                 "{[ore:ingotIron],[minecraft:hopper],[ore:ingotIron],"
-                + "[ore:ingotIron],[rusticpipes:conduit_buffer_fast],[ore:ingotIron],"
-                + "[ore:ingotIron],[minecraft:hopper],[ore:ingotIron]} * 1";
+                        + "[ore:ingotIron],[rusticpipes:conduit_buffer_fast],[ore:ingotIron],"
+                        + "[ore:ingotIron],[minecraft:hopper],[ore:ingotIron]} * 1";
 
         @Config.Comment("Enable crafting recipe for the Reinforced Pipe Motor.")
         @Config.Name("Enable Reinforced Motor Recipe")
@@ -269,8 +269,8 @@ public class ForgeConfigHandler {
         @Config.Name("Reinforced Pipe Motor Recipe")
         public String motorHyperRecipe =
                 "{[ore:ingotIron],[minecraft:iron_block],[ore:ingotIron],"
-                + "[ore:ingotIron],[rusticpipes:conduit_buffer_turbo],[ore:ingotIron],"
-                + "[ore:ingotIron],[minecraft:iron_block],[ore:ingotIron]} * 1";
+                        + "[ore:ingotIron],[rusticpipes:conduit_buffer_turbo],[ore:ingotIron],"
+                        + "[ore:ingotIron],[minecraft:iron_block],[ore:ingotIron]} * 1";
 
         @Config.Comment("Enable crafting recipe for the Overclocked Pipe Motor.")
         @Config.Name("Enable Overclocked Motor Recipe")
@@ -279,8 +279,8 @@ public class ForgeConfigHandler {
         @Config.Name("Overclocked Pipe Motor Recipe")
         public String motorUltraRecipe =
                 "{[ore:ingotIron],[minecraft:gold_block],[ore:ingotIron],"
-                + "[ore:ingotIron],[rusticpipes:conduit_buffer_hyper],[ore:ingotIron],"
-                + "[ore:ingotIron],[minecraft:gold_block],[ore:ingotIron]} * 1";
+                        + "[ore:ingotIron],[rusticpipes:conduit_buffer_hyper],[ore:ingotIron],"
+                        + "[ore:ingotIron],[minecraft:gold_block],[ore:ingotIron]} * 1";
 
         public int getBuffer(rusticpipes.network.PipeNetwork.SpeedTier tier) {
             switch (tier) {
@@ -307,10 +307,10 @@ public class ForgeConfigHandler {
         @Config.Name("Base Pipe Recipe")
         public String basePipeRecipe =
                 "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
-                + "[minecraft:iron_ingot],[minecraft:air],[minecraft:iron_ingot],"
-                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
+                        + "[minecraft:iron_ingot],[minecraft:air],[minecraft:iron_ingot],"
+                        + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
 
-        @Config.Comment("Enable shapeless dye conversion recipes.")
+        @Config.Comment("Enable shapeless dye conversion recipes (applies to both item pipes and fluid pipes).")
         @Config.Name("Enable Dye Conversion Recipes")
         public boolean enableDyeRecipes = true;
 
@@ -354,8 +354,8 @@ public class ForgeConfigHandler {
         @Config.Name("Fluid Pipe Recipe")
         public String fluidPipeRecipe =
                 "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
-                + "[minecraft:glass],[minecraft:air],[minecraft:glass],"
-                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
+                        + "[minecraft:glass],[minecraft:air],[minecraft:glass],"
+                        + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 4";
 
         @Config.Comment("Enable crafting recipe for the fluid tank.")
         @Config.Name("Enable Fluid Tank Recipe")
@@ -368,8 +368,8 @@ public class ForgeConfigHandler {
         @Config.Name("Fluid Tank Recipe")
         public String fluidTankRecipe =
                 "{[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot],"
-                + "[minecraft:iron_ingot],[minecraft:glass],[minecraft:iron_ingot],"
-                + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 1";
+                        + "[minecraft:iron_ingot],[minecraft:glass],[minecraft:iron_ingot],"
+                        + "[minecraft:iron_ingot],[minecraft:iron_ingot],[minecraft:iron_ingot]} * 1";
 
         // ---- NuclearCraft radiation ----------------------------------------
 

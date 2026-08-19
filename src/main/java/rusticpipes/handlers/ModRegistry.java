@@ -17,6 +17,8 @@ import rusticpipes.block.*;
 import rusticpipes.network.PipeNetwork;
 import rusticpipes.tileentity.*;
 
+import java.util.function.Function;
+
 
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID)
 public class ModRegistry {
@@ -125,12 +127,12 @@ public class ModRegistry {
         // Fluid tank item
         net.minecraft.item.ItemBlock tankMultiblockItem = new net.minecraft.item.ItemBlock(FLUID_TANK_MULTIBLOCK);
         tankMultiblockItem.setRegistryName(FLUID_TANK_MULTIBLOCK.getRegistryName());
-            event.getRegistry().register(tankMultiblockItem);
+        event.getRegistry().register(tankMultiblockItem);
 
         net.minecraft.item.ItemBlock conduitItem = new net.minecraft.item.ItemBlock(CONDUIT);
         conduitItem.setRegistryName(CONDUIT.getRegistryName());
         event.getRegistry().register(conduitItem);
-   
+
         BlockConduitBuffer[] buffers = {BUFFER_SLOW, BUFFER_NORMAL, BUFFER_FAST, BUFFER_TURBO, BUFFER_HYPER, BUFFER_ULTRA};
         for (BlockConduitBuffer buf : buffers) {
             net.minecraft.item.ItemBlock ib = new net.minecraft.item.ItemBlock(buf);
@@ -171,35 +173,10 @@ public class ModRegistry {
             if (fluidTankRecipe != null) event.getRegistry().register(fluidTankRecipe);
         }
 
-        // ── Dye conversion recipes ────────────────────────────────────────────
-        if (ForgeConfigHandler.recipes.enableDyeRecipes) {
-            String[] oreNames = {
-                    "dyeWhite", "dyeOrange", "dyeMagenta", "dyeLightBlue",
-                    "dyeYellow", "dyeLime", "dyePink", "dyeGray",
-                    "dyeLightGray", "dyeCyan", "dyePurple", "dyeBlue",
-                    "dyeBrown", "dyeGreen", "dyeRed", "dyeBlack"
-            };
-
-            PipeColor[] colors = PipeColor.values();
-            for (int i = 0; i < colors.length; i++) {
-                PipeColor targetColor = colors[i];
-                String dyeOreName = oreNames[i];
-                ItemStack output = new ItemStack(getPipe(targetColor), 1);
-
-                for (PipeColor sourceColor : colors) {
-                    if (sourceColor == targetColor) continue;
-                    ShapelessOreRecipe dyeRecipe = new ShapelessOreRecipe(
-                            null,
-                            output,
-                            new ItemStack(getPipe(sourceColor)),
-                            dyeOreName
-                    );
-                    dyeRecipe.setRegistryName(RusticPipes.MODID,
-                            sourceColor.registryName + "_to_" + targetColor.registryName);
-                    event.getRegistry().register(dyeRecipe);
-                }
-            }
-        }
+        // ── Dye conversion recipes (item pipes + fluid pipes, shared toggle) ───
+        boolean dyeRecipesEnabled = ForgeConfigHandler.recipes.enableDyeRecipes;
+        registerPipeDyeRecipes(event, dyeRecipesEnabled, ModRegistry::getPipe, "");
+        registerPipeDyeRecipes(event, dyeRecipesEnabled, ModRegistry::getFluidPipe, "fluid_");
 
         // ── Conduit recipe ────────────────────────────────────────────────────
         if (ForgeConfigHandler.conduit.enableConduitRecipe) {
@@ -239,6 +216,51 @@ public class ModRegistry {
                             new net.minecraft.util.ResourceLocation(RusticPipes.MODID, recipeIds[i]),
                             new ItemStack(buffers[i], 1));
             if (motorRecipe != null) event.getRegistry().register(motorRecipe);
+        }
+    }
+
+    /** Ore-dictionary dye names, indexed to match {@link PipeColor#values()} / {@link net.minecraft.item.EnumDyeColor}. */
+    private static final String[] DYE_ORE_NAMES = {
+            "dyeWhite", "dyeOrange", "dyeMagenta", "dyeLightBlue",
+            "dyeYellow", "dyeLime", "dyePink", "dyeGray",
+            "dyeLightGray", "dyeCyan", "dyePurple", "dyeBlue",
+            "dyeBrown", "dyeGreen", "dyeRed", "dyeBlack"
+    };
+
+    /**
+     * Registers the full set of shapeless "any pipe of this family + dye -&gt; differently
+     * coloured pipe of this family" recipes. Shared between item pipes and fluid pipes so
+     * the two nearly-identical recipe sets aren't duplicated.
+     *
+     * @param event          the recipe registry event
+     * @param enabled        whether this pipe family's dye recipes should be registered
+     * @param blockForColor  accessor returning the block for a given {@link PipeColor}
+     *                       within this pipe family (e.g. {@code ModRegistry::getPipe})
+     * @param registryPrefix prefix applied to both sides of each recipe's registry name so
+     *                       IDs stay unique across pipe families (e.g. {@code "fluid_"})
+     */
+    private static void registerPipeDyeRecipes(RegistryEvent.Register<IRecipe> event, boolean enabled,
+                                               Function<PipeColor, Block> blockForColor, String registryPrefix) {
+        if (!enabled) return;
+
+        PipeColor[] colors = PipeColor.values();
+        for (int i = 0; i < colors.length; i++) {
+            PipeColor targetColor = colors[i];
+            String dyeOreName = DYE_ORE_NAMES[i];
+            ItemStack output = new ItemStack(blockForColor.apply(targetColor), 1);
+
+            for (PipeColor sourceColor : colors) {
+                if (sourceColor == targetColor) continue;
+                ShapelessOreRecipe dyeRecipe = new ShapelessOreRecipe(
+                        null,
+                        output,
+                        new ItemStack(blockForColor.apply(sourceColor)),
+                        dyeOreName
+                );
+                dyeRecipe.setRegistryName(RusticPipes.MODID,
+                        registryPrefix + sourceColor.registryName + "_to_" + registryPrefix + targetColor.registryName);
+                event.getRegistry().register(dyeRecipe);
+            }
         }
     }
 }
