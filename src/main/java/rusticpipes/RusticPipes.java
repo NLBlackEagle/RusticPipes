@@ -56,3 +56,7 @@ public class RusticPipes {
         completedLoading = true;
     }
 }
+
+
+//todo: Add Dispenser & Cauldron capabilities
+//todo: TESR still renders when multiblock is destroyed

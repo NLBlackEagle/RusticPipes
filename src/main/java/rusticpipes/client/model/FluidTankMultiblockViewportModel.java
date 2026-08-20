@@ -73,14 +73,17 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
             }
         }
 
-        // Read row and sideFace from unlisted (TE-driven) extended state
+        // Read row, sideFace and blocked from unlisted (TE-driven) extended state
         BlockFluidTankMultiblock.ViewportRow row = BlockFluidTankMultiblock.ViewportRow.BOTTOM;
         EnumFacing sideFace = null;
+        boolean blocked = false;
         if (state instanceof IExtendedBlockState) {
             IExtendedBlockState ext = (IExtendedBlockState) state;
             BlockFluidTankMultiblock.ViewportRow r = ext.getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
             if (r != null) row = r;
             sideFace = ext.getValue(BlockFluidTankMultiblock.SIDE_FACE);
+            Boolean b = ext.getValue(BlockFluidTankMultiblock.VIEWPORT_BLOCKED);
+            if (b != null) blocked = b;
         }
 
         TextureAtlasSprite vpSprite = rowSprites[row.ordinal()];
@@ -121,14 +124,14 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
             if (sideFace != null && side == sideFace) {
                 quads.add(buildFace(sideFace, spriteSolid, false));
             }
-            // Viewport face downgraded to solid (adjacent solid block, row == NONE)
-            if (side == vpFace && row == BlockFluidTankMultiblock.ViewportRow.NONE) {
+            // Viewport face downgraded to solid (adjacent solid block blocks the window)
+            if (side == vpFace && blocked) {
                 quads.add(buildFace(vpFace, spriteSolid, false));
             }
         }
         if (isCutout) {
             // Viewport face — transparent glass-like window
-            if (side == vpFace && row != BlockFluidTankMultiblock.ViewportRow.NONE) {
+            if (side == vpFace && !blocked) {
                 quads.add(buildFace(vpFace, vpSprite, false));
             }
         }

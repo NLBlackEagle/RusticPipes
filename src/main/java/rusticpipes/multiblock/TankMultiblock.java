@@ -206,6 +206,7 @@ public class TankMultiblock {
      * Validates a multiblock structure made of BlockFluidTankMultiblock blocks.
      * Footprints: 2x2, 3x3, 4x4. Height: 1-10.
      */
+
     @Nullable
     public static Structure validateMultiblock(World world, BlockPos origin) {
         BlockPos min = origin, max = origin;

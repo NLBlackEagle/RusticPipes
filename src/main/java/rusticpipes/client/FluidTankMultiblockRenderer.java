@@ -40,8 +40,14 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
     public void render(TileEntityFluidTankMultiblock te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
 
-        // Skip non-controller members immediately — only the controller renders
-        if (te.isPartOfMultiblock() && !te.isController()) return;
+        // Only render for TEs the server confirms are a currently-formed controller.
+        // Anything else — a non-controller member, or a TE invalidated by a break
+        // elsewhere in the structure — must not render, and any stale cached
+        // geometry for it must be evicted so a later frame can't fall back to it.
+        if (!(te.isPartOfMultiblock() && te.isController())) {
+            structureCache.remove(te.getPos());
+            return;
+        }
 
         BlockPos pos = te.getPos();
 

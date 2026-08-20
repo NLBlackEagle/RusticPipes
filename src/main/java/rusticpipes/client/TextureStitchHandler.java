@@ -1,1 +1,0 @@
-// Removed - texture registration is handled by FluidTankMultiblockViewportModelLoader.getTextures()

@@ -70,6 +70,20 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                 @Override public String valueToString(EnumFacing v) { return v == null ? "none" : v.getName(); }
             };
 
+    /**
+     * Unlisted property: whether a solid neighbour currently blocks the viewport face,
+     * so the model should show a solid texture there instead of the cutout window.
+     * Kept separate from VIEWPORT_ROW so blocking the window doesn't also suppress
+     * row-gated geometry (e.g. the TOP row's ceiling quad).
+     */
+    public static final IUnlistedProperty<Boolean> VIEWPORT_BLOCKED =
+            new IUnlistedProperty<Boolean>() {
+                @Override public String getName()                { return "viewport_blocked"; }
+                @Override public boolean isValid(Boolean v)       { return true; }
+                @Override public Class<Boolean> getType()         { return Boolean.class; }
+                @Override public String valueToString(Boolean v)  { return v.toString(); }
+            };
+
     public BlockFluidTankMultiblock() {
         super(Material.IRON);
         setHardness(2.5f);
@@ -81,7 +95,7 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     protected BlockStateContainer createBlockState() {
         return new ExtendedBlockState(this,
                 new net.minecraft.block.properties.IProperty[]{ VIEWPORT },
-                new IUnlistedProperty[]{ VIEWPORT_ROW, SIDE_FACE });
+                new IUnlistedProperty[]{ VIEWPORT_ROW, SIDE_FACE, VIEWPORT_BLOCKED });
     }
 
     @Override
@@ -102,13 +116,23 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
         ViewportFace viewport = state.getValue(VIEWPORT);
 
+        ViewportRow row = ViewportRow.NONE;
+        EnumFacing sideFace = null;
+        TileEntity te = world.getTileEntity(pos);
+        if (te instanceof TileEntityFluidTankMultiblock) {
+            row = ((TileEntityFluidTankMultiblock) te).getViewportRow();
+            sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
+        }
+
         // For SINGLE blocks: if any horizontal neighbor is also a tank, this structure is
         // invalid — show solid immediately without waiting for a server sync packet.
+        // Row is kept as-is (not wiped) so row-gated geometry like the ceiling still renders.
         if (viewport == ViewportFace.SINGLE) {
             for (EnumFacing face : new EnumFacing[]{EnumFacing.NORTH, EnumFacing.SOUTH,
                                                     EnumFacing.EAST,  EnumFacing.WEST}) {
                 if (world.getBlockState(pos.offset(face)).getBlock() instanceof BlockFluidTankMultiblock) {
-                    return ext.withProperty(VIEWPORT_ROW, ViewportRow.NONE).withProperty(SIDE_FACE, null);
+                    return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, null)
+                              .withProperty(VIEWPORT_BLOCKED, true);
                 }
             }
         }
@@ -116,29 +140,17 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         // If the block directly in front of the viewport face is opaque, use the solid
         // texture on that face instead of the transparent viewport texture.
         // Without this the CUTOUT quad bleeds through the adjacent block (x-ray effect).
+        // Row is kept as-is (not wiped) so row-gated geometry like the ceiling still renders.
         if (viewport != ViewportFace.NONE) {
             EnumFacing vpDir = viewportToFacing(viewport);
             if (vpDir != null && world.isSideSolid(pos.offset(vpDir), vpDir.getOpposite(), false)) {
-                // Solid neighbour covers our viewport face — downgrade to solid appearance.
-                // Still need sideFace for correct corner geometry, so read the TE first.
-                EnumFacing sideFace = null;
-                TileEntity te = world.getTileEntity(pos);
-                if (te instanceof TileEntityFluidTankMultiblock)
-                    sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
-                return ext.withProperty(VIEWPORT_ROW, ViewportRow.NONE).withProperty(SIDE_FACE, sideFace);
+                return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace)
+                          .withProperty(VIEWPORT_BLOCKED, true);
             }
         }
 
-        ViewportRow row = ViewportRow.NONE;
-        TileEntity te = world.getTileEntity(pos);
-        if (te instanceof TileEntityFluidTankMultiblock) {
-            row = ((TileEntityFluidTankMultiblock) te).getViewportRow();
-        }
-        EnumFacing sideFace = null;
-        if (te instanceof TileEntityFluidTankMultiblock) {
-            sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
-        }
-        return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace);
+        return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace)
+                  .withProperty(VIEWPORT_BLOCKED, false);
     }
 
     /** Maps the listed ViewportFace property to the corresponding EnumFacing. */
