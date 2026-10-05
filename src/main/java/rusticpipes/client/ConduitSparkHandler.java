@@ -1,7 +1,7 @@
 package rusticpipes.client;
 
-import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -11,13 +11,15 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.RusticPipes;
-import rusticpipes.block.BlockConduit;
 import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.network.ConduitNetwork;
+import rusticpipes.tileentity.TileEntityConduit;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 @SideOnly(Side.CLIENT)
 @Mod.EventBusSubscriber(modid = RusticPipes.MODID, value = Side.CLIENT)
@@ -40,6 +42,9 @@ public class ConduitSparkHandler {
     /** Next spark fire tick per conduit position. */
     private static final Map<BlockPos, Integer> nextFireTick = new HashMap<>();
 
+    /** Conduit positions found in range during the current tick, reused to avoid allocation. */
+    private static final Set<BlockPos> seenThisTick = new HashSet<>();
+
     private static int clientTick = 0;
 
     @SubscribeEvent
@@ -57,12 +62,17 @@ public class ConduitSparkHandler {
         int range = 24;
         BlockPos playerPos = mc.player.getPosition();
 
-        for (BlockPos pos : BlockPos.getAllInBox(
-                playerPos.add(-range, -range, -range),
-                playerPos.add( range,  range,  range))) {
+        // Iterate loaded conduit tile entities instead of scanning every block in range
+        seenThisTick.clear();
+        for (TileEntity te : world.loadedTileEntityList) {
+            if (!(te instanceof TileEntityConduit) || te.isInvalid()) continue;
 
-            Block block = world.getBlockState(pos).getBlock();
-            if (!(block instanceof BlockConduit)) continue;
+            BlockPos pos = te.getPos();
+            if (Math.abs(pos.getX() - playerPos.getX()) > range
+                    || Math.abs(pos.getY() - playerPos.getY()) > range
+                    || Math.abs(pos.getZ() - playerPos.getZ()) > range) continue;
+
+            seenThisTick.add(pos);
 
             ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
             if (network == null) {
@@ -98,6 +108,9 @@ public class ConduitSparkHandler {
                 }
             }
         }
+
+        // Drop timers for conduits that are out of range, broken or in another world
+        nextFireTick.keySet().retainAll(seenThisTick);
     }
 
     private static int nextInterval(float fill) {
