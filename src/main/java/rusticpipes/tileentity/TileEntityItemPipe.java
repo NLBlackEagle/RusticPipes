@@ -134,6 +134,12 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         super.invalidate();
     }
 
+    /** Unloaded pipes leave the network so transfers never touch (and reload) their chunk. */
+    @Override
+    public void onChunkUnload() {
+        if (world != null && !world.isRemote) onRemoved();
+    }
+
     // -----------------------------------------------------------------------
     // Tick
     // -----------------------------------------------------------------------
@@ -145,7 +151,7 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (network == null) return;
         // Only the cached master TE drives the network — O(1) check, no member scan.
         if (pos.equals(network.getMasterPos())) {
-            if (network.isMyTick()) {
+            if (network.isMyTick(world)) {
                 network.drainFromConduit(world);
                 network.transferItems(world);
             }

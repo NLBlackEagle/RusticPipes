@@ -63,7 +63,12 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
     }
 
-    public void invalidate() {
+    /**
+     * Detaches this block from its multiblock. Deliberately NOT named invalidate():
+     * overriding TileEntity.invalidate() without calling super left removed TEs
+     * looking valid to other mods' pipes and caches.
+     */
+    public void resetMultiblock() {
         controllerPos = null;
         role          = TankMultiblock.Role.SINGLE;
         baseSize      = 1;
@@ -81,14 +86,30 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         TankMultiblock.invalidateMultiblock(world, pos);
     }
 
+    /**
+     * Keep this TE when only the VIEWPORT property changes. Forge's default for modded
+     * TEs replaces the TE on ANY state change, which wiped controllerPos/role (and the
+     * controller's fluid on 2x2 tanks) every time applyMultiblock() set a viewport face.
+     */
+    @Override
+    public boolean shouldRefresh(net.minecraft.world.World world, BlockPos pos,
+                                 net.minecraft.block.state.IBlockState oldState,
+                                 net.minecraft.block.state.IBlockState newState) {
+        return oldState.getBlock() != newState.getBlock();
+    }
+
     public boolean isController()          { return controllerPos != null && controllerPos.equals(pos); }
     public boolean isPartOfMultiblock()    { return controllerPos != null; }
 
     @Override
     public net.minecraft.util.math.AxisAlignedBB getRenderBoundingBox() {
-        // Use infinite extent so Minecraft never frustum-culls our TESR
-        // (the TESR renders spanning quads across the whole multiblock)
-        return INFINITE_EXTENT_AABB;
+        // Only the controller renders, spanning the whole multiblock. Its box covers the
+        // footprint up to max height (10) so it is culled only when the tank is fully
+        // off-screen; members draw nothing and keep their own block box so they cull normally.
+        if (isController()) {
+            return new net.minecraft.util.math.AxisAlignedBB(pos, pos.add(baseSize, 10, baseSize));
+        }
+        return new net.minecraft.util.math.AxisAlignedBB(pos, pos.add(1, 1, 1));
     }
     public BlockPos getControllerPos()     { return controllerPos; }
     public TankMultiblock.Role getRole()   { return role; }
@@ -123,8 +144,11 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     public void update() {
         if (world == null || world.isRemote) return;
         if (world.getTotalWorldTime() % 10 != 0) return;
-        TileEntityFluidTankMultiblock ctrl = getController();
-        if (ctrl == null) return;
+        // Only the controller's fill is rendered (and only it emits radiation), so members
+        // don't sync — a 4x4x10 tank would otherwise send 160 updates per change and push
+        // the chunk past the 64-change limit into full section resends.
+        if (!isController()) return;
+        TileEntityFluidTankMultiblock ctrl = this;
         float newFill = ctrl.totalCapacity > 0
                 ? (ctrl.fluid != null ? (float) ctrl.fluid.amount / ctrl.totalCapacity : 0f)
                 : 0f;

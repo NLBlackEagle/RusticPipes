@@ -73,7 +73,6 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
                     TEX_INNER_VIEWPORT, TEX_INNER_VIEWPORT_TOP,
                     TEX_INNER_VIEWPORT_BOTTOM, TEX_INNER_VIEWPORT_CENTER));
             
-            System.out.println("[FluidTankMultiblockViewportModelLoader] getTextures() called!");
             
             // Register inner side textures (all widths/heights except 1x1, which
             // uses TEX_INNER_VIEWPORT instead — see FluidTankMultiblockRenderer)
@@ -91,7 +90,6 @@ public class FluidTankMultiblockViewportModelLoader implements ICustomModelLoade
                 textures.add(new ResourceLocation("rusticpipes:blocks/fluid_tank/fluid_tank_inner_bottom_" + base + "x" + base));
             }
             
-            System.out.println("[FluidTankMultiblockViewportModelLoader] Total textures: " + textures.size());
             return textures;
         }
 

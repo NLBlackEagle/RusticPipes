@@ -19,25 +19,30 @@ public class PacketConduitPower implements IMessage {
 
     private long packedPos;
     private boolean powered;
+    /** 0 = no power flowing, 1–10 = throughput intensity (drives sparks). */
+    private int sparkLevel;
 
     /** Required by Forge. */
     public PacketConduitPower() {}
 
-    public PacketConduitPower(BlockPos pos, boolean powered) {
-        this.packedPos = pos.toLong();
-        this.powered   = powered;
+    public PacketConduitPower(BlockPos pos, boolean powered, int sparkLevel) {
+        this.packedPos  = pos.toLong();
+        this.powered    = powered;
+        this.sparkLevel = Math.max(0, sparkLevel);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeLong(packedPos);
         buf.writeBoolean(powered);
+        buf.writeByte(sparkLevel);
     }
 
     @Override
     public void fromBytes(ByteBuf buf) {
-        packedPos = buf.readLong();
-        powered   = buf.readBoolean();
+        packedPos  = buf.readLong();
+        powered    = buf.readBoolean();
+        sparkLevel = buf.readByte();
     }
 
     // -----------------------------------------------------------------------
@@ -52,6 +57,7 @@ public class PacketConduitPower implements IMessage {
             BlockPos pos = BlockPos.fromLong(msg.packedPos);
             Minecraft.getMinecraft().addScheduledTask(() -> {
                 ConduitClientState.set(pos, msg.powered);
+                ConduitClientState.setSparkLevel(pos, msg.sparkLevel);
                 // notifyBlockUpdate flag 8 = re-render only, no neighbour updates
                 net.minecraft.world.World world = Minecraft.getMinecraft().world;
                 if (world != null) {

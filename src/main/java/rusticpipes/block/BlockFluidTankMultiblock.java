@@ -185,38 +185,61 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
     }
 
+    /**
+     * The player currently placing a tank block. getStateForPlacement runs just before
+     * the block is set, and neighborChanged (where tryPlaceLayer runs) fires inside that
+     * setBlockState — before onBlockPlacedBy — so this is the only way to know who
+     * placed the block that triggered a layer fill. Weak so a failed placement can't leak.
+     */
+    private static java.lang.ref.WeakReference<EntityPlayer> pendingPlacer = null;
+    @javax.annotation.Nullable private static BlockPos pendingPlacerPos = null;
+    private static EnumHand pendingPlacerHand = EnumHand.MAIN_HAND;
+
+    /** True while tryPlaceLayer is setting blocks — suppresses re-entrant layer fills. */
+    private static boolean placingLayer = false;
+
+    @Override
+    public IBlockState getStateForPlacement(World world, BlockPos pos, EnumFacing facing,
+                                            float hitX, float hitY, float hitZ, int meta,
+                                            net.minecraft.entity.EntityLivingBase placer, EnumHand hand) {
+        if (!world.isRemote && placer instanceof EntityPlayer) {
+            pendingPlacer = new java.lang.ref.WeakReference<>((EntityPlayer) placer);
+            pendingPlacerPos = pos;
+            pendingPlacerHand = hand;
+        }
+        return super.getStateForPlacement(world, pos, facing, hitX, hitY, hitZ, meta, placer, hand);
+    }
+
     @Override
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state,
                                 net.minecraft.entity.EntityLivingBase placer, net.minecraft.item.ItemStack stack) {
-        // Client-only: validate adjacent blocks immediately for visual update.
-        // Server uses neighborChanged instead — running this server-side would
-        // invalidate multiblocks before tryPlaceLayer gets a chance to run.
-        if (!world.isRemote) return;
-        for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
-            BlockPos neighbor = pos.offset(face);
-            if (world.getBlockState(neighbor).getBlock() instanceof BlockFluidTankMultiblock) {
-                tryValidate(world, neighbor);
-            }
+        // Multiblock forming is server-only (see neighborChanged); the server syncs the
+        // VIEWPORT state and TE data to clients.
+        if (!world.isRemote) {
+            pendingPlacer = null;
+            pendingPlacerPos = null;
         }
     }
 
     /**
-     * When a tank block is placed on top of an existing valid multiblock,
-     * automatically fill the entire layer and consume blocks from the placer's inventory.
+     * When a player places a tank block on top of an existing valid multiblock,
+     * automatically fill the rest of the layer and consume blocks from that player's inventory.
      * @return true if a layer was placed (suppresses normal single-block validation)
      */
     private boolean tryPlaceLayer(World world, BlockPos pos) {
+        // Only the player who placed this exact block pays for (and triggers) a layer fill.
+        // Non-player placement (deployers, other mods' setBlockState) never auto-fills.
+        EntityPlayer player = pendingPlacer != null ? pendingPlacer.get() : null;
+        if (player == null || player.world != world || !pos.equals(pendingPlacerPos)) return false;
+
         BlockPos below = pos.down();
         TileEntity tBelow = world.getTileEntity(below);
-        System.out.println("DEBUG tryPlaceLayer pos=" + pos + " below TE=" + tBelow);
         if (!(tBelow instanceof TileEntityFluidTankMultiblock)) return false;
 
         TileEntityFluidTankMultiblock memberBelow = (TileEntityFluidTankMultiblock) tBelow;
-        System.out.println("DEBUG isPartOfMultiblock=" + memberBelow.isPartOfMultiblock());
         if (!memberBelow.isPartOfMultiblock()) return false;
 
         BlockPos ctrlPos = memberBelow.getControllerPos();
-        System.out.println("DEBUG ctrlPos=" + ctrlPos);
         if (ctrlPos == null) return false;
 
         TileEntity ctrlTe = world.getTileEntity(ctrlPos);
@@ -224,7 +247,6 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
 
         int baseSize = ctrl.getBaseSize();
-        System.out.println("DEBUG baseSize=" + baseSize);
         if (baseSize < 2) return false;
 
         int minX = ctrlPos.getX();
@@ -239,74 +261,97 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
 
         int currentHeight = topY - ctrlPos.getY() + 1;
-        System.out.println("DEBUG topY=" + topY + " pos.getY()=" + pos.getY() + " currentHeight=" + currentHeight);
         if (currentHeight >= 10) return false;
         if (pos.getY() != topY + 1) return false;
 
-        int blocksNeeded = baseSize * baseSize;
+        // The placed block must sit inside the footprint, otherwise it's just an adjacent block
+        if (pos.getX() < minX || pos.getX() > maxX || pos.getZ() < minZ || pos.getZ() > maxZ) return false;
 
-        EntityPlayer player = findNearestPlayer(world, pos);
-        System.out.println("DEBUG player=" + player);
-        if (player == null) return false;
-
-        int inInventory = countTankBlocksInInventory(player);
-        System.out.println("DEBUG inInventory=" + inInventory + " blocksNeeded=" + blocksNeeded);
-        if (inInventory < blocksNeeded - 1) return false;
-
+        // Collect the positions that still need a block. Every one must be placeable —
+        // a partial layer can never validate, so abort rather than charge for a broken tank.
+        List<BlockPos> toPlace = new java.util.ArrayList<>();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 BlockPos layerPos = new BlockPos(x, pos.getY(), z);
                 if (layerPos.equals(pos)) continue;
-                if (world.isAirBlock(layerPos)) {
-                    world.setBlockState(layerPos, getDefaultState(), 3);
-                }
+                if (world.getBlockState(layerPos).getBlock() instanceof BlockFluidTankMultiblock) continue;
+                if (!world.mayPlace(this, layerPos, false, EnumFacing.UP, player)) return false;
+                if (!world.isBlockModifiable(player, layerPos)) return false;
+                toPlace.add(layerPos);
             }
         }
+        if (toPlace.isEmpty()) return false;
 
-        if (!player.isCreative()) {
-            removeTankBlocksFromInventory(player, blocksNeeded - 1);
+        // The block being placed is still in the held stack here (ItemBlock shrinks it after
+        // placement), so the player needs one more than the layer remainder.
+        boolean creative = player.capabilities.isCreativeMode;
+        if (!creative && countTankBlocksInInventory(player) < toPlace.size() + 1) return false;
+
+        placingLayer = true;
+        try {
+            for (BlockPos layerPos : toPlace) {
+                world.setBlockState(layerPos, getDefaultState(), 3);
+            }
+        } finally {
+            placingLayer = false;
         }
 
-        System.out.println("DEBUG layer placed successfully!");
-        return true;
-    }
+        if (!creative) {
+            removeTankBlocksFromInventory(player, toPlace.size());
+        }
 
-    private EntityPlayer findNearestPlayer(World world, BlockPos pos) {
-        return world.getClosestPlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 8.0, false);
+        // Neighbour updates were suppressed while the layer went down — validate once now.
+        tryValidate(world, pos);
+        return true;
     }
 
     private int countTankBlocksInInventory(EntityPlayer player) {
         int count = 0;
         for (int i = 0; i < player.inventory.getSizeInventory(); i++) {
             net.minecraft.item.ItemStack stack = player.inventory.getStackInSlot(i);
-            if (!stack.isEmpty()
-                    && stack.getItem() instanceof net.minecraft.item.ItemBlock
-                    && ((net.minecraft.item.ItemBlock) stack.getItem()).getBlock() instanceof BlockFluidTankMultiblock) {
-                count += stack.getCount();
-            }
+            if (isTankBlockStack(stack)) count += stack.getCount();
         }
         return count;
     }
 
+    /**
+     * Takes {@code count} tank blocks, emptying other stacks before the held one, and
+     * always leaving one in the held stack — ItemBlock shrinks that stack by one after
+     * placement, and if it were already empty the placed block would be free.
+     */
     private void removeTankBlocksFromInventory(EntityPlayer player, int count) {
+        net.minecraft.item.ItemStack held = player.getHeldItem(pendingPlacerHand);
         int remaining = count;
         for (int i = 0; i < player.inventory.getSizeInventory() && remaining > 0; i++) {
             net.minecraft.item.ItemStack stack = player.inventory.getStackInSlot(i);
-            if (!stack.isEmpty()
-                    && stack.getItem() instanceof net.minecraft.item.ItemBlock
-                    && ((net.minecraft.item.ItemBlock) stack.getItem()).getBlock() instanceof BlockFluidTankMultiblock) {
-                int take = Math.min(remaining, stack.getCount());
-                stack.shrink(take);
-                remaining -= take;
-                if (stack.isEmpty()) player.inventory.setInventorySlotContents(i, net.minecraft.item.ItemStack.EMPTY);
-            }
+            if (stack == held || !isTankBlockStack(stack)) continue;
+            int take = Math.min(remaining, stack.getCount());
+            stack.shrink(take);
+            remaining -= take;
+            if (stack.isEmpty()) player.inventory.setInventorySlotContents(i, net.minecraft.item.ItemStack.EMPTY);
         }
+        if (remaining > 0 && isTankBlockStack(held)) {
+            held.shrink(Math.min(remaining, held.getCount() - 1));
+        }
+        player.inventoryContainer.detectAndSendChanges();
+    }
+
+    private static boolean isTankBlockStack(net.minecraft.item.ItemStack stack) {
+        return !stack.isEmpty()
+                && stack.getItem() instanceof net.minecraft.item.ItemBlock
+                && ((net.minecraft.item.ItemBlock) stack.getItem()).getBlock() instanceof BlockFluidTankMultiblock;
     }
 
     @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
                                 Block blockIn, BlockPos fromPos) {
-        // Run on both sides for immediate client-side visual update (no server sync delay)
+        // Server-only. Clients used to validate here too for an instant visual update, but
+        // block changes reach the client one chunk section / packet at a time, so the client
+        // could validate a half-updated tank and wipe TE data the server had already synced —
+        // leaving stale textures (or a tank that looked unformed) until another neighbour update.
+        if (world.isRemote) return;
+        // tryPlaceLayer validates the whole structure once its layer is down
+        if (placingLayer) return;
         // Note: blockIn is the OLD block before the change, so we check the current block at fromPos
         boolean tankPlaced = world.getBlockState(fromPos).getBlock() instanceof BlockFluidTankMultiblock;
         if (tankPlaced) {
@@ -314,8 +359,8 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
                     rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, pos);
             if (st != null) {
                 rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
-            } else if (!world.isRemote && tryPlaceLayer(world, fromPos)) {
-                // Layer placement — server only (places blocks and consumes inventory)
+            } else if (tryPlaceLayer(world, fromPos)) {
+                // Layer placement (places blocks and consumes inventory)
             } else {
                 tryValidate(world, pos);
             }
@@ -475,19 +520,18 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (hand != EnumHand.MAIN_HAND) return true;
         if (world.isRemote) return true;
 
-        // Bucket interaction — fill or empty the tank with a bucket
+        // Bucket interaction — fill or empty the tank with a bucket.
+        // Routed through the controller so clicking ANY member block works,
+        // not just the ones whose own TE happens to hold valid multiblock data.
         net.minecraft.item.ItemStack held = player.getHeldItem(hand);
         if (!held.isEmpty()) {
-            TileEntity te = world.getTileEntity(pos);
-            if (te instanceof TileEntityFluidTankMultiblock) {
-                TileEntityFluidTankMultiblock tank = (TileEntityFluidTankMultiblock) te;
-                if (tank.isPartOfMultiblock()) {
-                    net.minecraftforge.fluids.capability.IFluidHandler handler =
-                            te.getCapability(net.minecraftforge.fluids.capability.CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, facing);
-                    if (handler != null) {
-                        boolean success = net.minecraftforge.fluids.FluidUtil.interactWithFluidHandler(player, hand, handler);
-                        if (success) return true;
-                    }
+            TileEntityFluidTankMultiblock ctrl = resolveController(world, pos);
+            if (ctrl != null) {
+                net.minecraftforge.fluids.capability.IFluidHandler handler =
+                        ctrl.getCapability(net.minecraftforge.fluids.capability.CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, facing);
+                if (handler != null) {
+                    boolean success = net.minecraftforge.fluids.FluidUtil.interactWithFluidHandler(player, hand, handler);
+                    if (success) return true;
                 }
             }
         }
@@ -496,6 +540,28 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         if (!player.isSneaking()) return false;
         sendTankInfo(world, pos, player);
         return true;
+    }
+
+    /**
+     * Finds the controller TE for the multiblock containing {@code pos}.
+     * If the clicked member has lost its controller link, the structure is
+     * revalidated (which also repairs every member) before giving up.
+     */
+    @javax.annotation.Nullable
+    private TileEntityFluidTankMultiblock resolveController(World world, BlockPos pos) {
+        TileEntity te = world.getTileEntity(pos);
+        if (!(te instanceof TileEntityFluidTankMultiblock)) return null;
+        BlockPos ctrlPos = ((TileEntityFluidTankMultiblock) te).getControllerPos();
+        if (ctrlPos == null) {
+            TankMultiblock.Structure st = TankMultiblock.validateMultiblock(world, pos);
+            if (st == null) return null;
+            TankMultiblock.applyMultiblock(world, st);
+            ctrlPos = st.controller;
+        }
+        TileEntity ctrlTe = world.getTileEntity(ctrlPos);
+        if (!(ctrlTe instanceof TileEntityFluidTankMultiblock)) return null;
+        TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
+        return ctrl.isPartOfMultiblock() ? ctrl : null;
     }
 
     private void sendTankInfo(World world, BlockPos pos, EntityPlayer player) {

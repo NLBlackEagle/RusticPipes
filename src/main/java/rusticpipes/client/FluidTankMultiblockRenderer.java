@@ -36,6 +36,9 @@ public class FluidTankMultiblockRenderer extends TileEntitySpecialRenderer<TileE
 
     private static final Map<BlockPos, TankMultiblock.Structure> structureCache = new HashMap<>();
 
+    /** Keyed by position only — cleared when the client world changes. */
+    public static void clearCache() { structureCache.clear(); }
+
     @Override
     public void render(TileEntityFluidTankMultiblock te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {

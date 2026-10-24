@@ -26,8 +26,9 @@ public class ConduitNetwork {
     private static final Map<DimPos, ConduitNetwork> NETWORKS = new HashMap<>();
 
     private final Set<BlockPos> members = new HashSet<>();
-    private EnergyStorage sharedBuffer;
+    private NetworkBuffer sharedBuffer;
     private int lastTier = -1; // -1 forces first-tick notify
+    private int lastSparkLevel = -1; // -1 forces first-tick sync
     // Cached master pos — recomputed only on topology changes, not every tick.
     private BlockPos cachedMasterPos = null;
 
@@ -42,14 +43,44 @@ public class ConduitNetwork {
 
     public ConduitNetwork() { rebuildBuffer(0); }
 
+    /**
+     * Reconfigures the buffer in place. Setting the energy directly (rather than via
+     * receiveEnergy) means the preserved amount isn't capped by maxFePerTickPerFace,
+     * and keeping the same object means capability references held by other mods stay live.
+     */
     private void rebuildBuffer(int preserveFe) {
         int cap   = ForgeConfigHandler.conduit.networkBufferCapacity;
         int maxIo = ForgeConfigHandler.conduit.maxFePerTickPerFace;
-        sharedBuffer = new EnergyStorage(cap, maxIo, maxIo);
-        if (preserveFe > 0) sharedBuffer.receiveEnergy(Math.min(preserveFe, cap), false);
+        if (sharedBuffer == null) sharedBuffer = new NetworkBuffer();
+        sharedBuffer.configure(cap, maxIo, Math.max(0, Math.min(preserveFe, cap)));
+    }
+
+    private static final class NetworkBuffer extends EnergyStorage {
+        NetworkBuffer() { super(0); }
+        void configure(int cap, int io, int fe) {
+            capacity = cap; maxReceive = io; maxExtract = io; energy = fe;
+        }
     }
 
     public IEnergyStorage getSharedStorage() { return sharedBuffer; }
+
+    /**
+     * One member's even share of the buffer. Each conduit saves this to NBT so the
+     * network's energy survives chunk unloads and restarts (the network itself is not saved).
+     */
+    public int getShareFor() {
+        return members.isEmpty() ? 0 : sharedBuffer.getEnergyStored() / members.size();
+    }
+
+    /** Returns FE a conduit saved to NBT back to the network when it loads. */
+    public void addStoredEnergy(int fe) {
+        if (fe > 0) rebuildBuffer(sharedBuffer.getEnergyStored() + fe);
+    }
+
+    /** Takes FE out of the network when a conduit leaves with its saved share. */
+    public void removeStoredEnergy(int fe) {
+        if (fe > 0) rebuildBuffer(sharedBuffer.getEnergyStored() - fe);
+    }
 
     // -----------------------------------------------------------------------
     // Static network management
@@ -204,6 +235,7 @@ public class ConduitNetwork {
                 if (!(world.getTileEntity(memberPos) instanceof TileEntityConduit)) continue;
                 for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos np = memberPos.offset(face);
+                    if (!world.isBlockLoaded(np)) continue; // never load chunks from a tick
                     Block nb = world.getBlockState(np).getBlock();
                     if (nb instanceof BlockConduit || nb instanceof BlockItemPipe) continue;
                     TileEntity nte = world.getTileEntity(np);
@@ -231,6 +263,7 @@ public class ConduitNetwork {
                 for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos np = memberPos.offset(face);
                     if (pulledFrom.contains(np)) continue;
+                    if (!world.isBlockLoaded(np)) continue;
                     Block nb = world.getBlockState(np).getBlock();
                     if (nb instanceof BlockConduit || nb instanceof BlockItemPipe) continue;
                     TileEntity nte = world.getTileEntity(np);
@@ -267,13 +300,24 @@ public class ConduitNetwork {
 
         boolean powered = smoothedThroughput > 0.001f || sharedBuffer.getEnergyStored() > 0;
         int poweredInt = powered ? 1 : 0;
-        if (poweredInt != lastTier) {
+        boolean tierChanged = poweredInt != lastTier;
+
+        // Sparks follow actual throughput, not buffer fill. Hysteresis of 2 levels
+        // (except to/from 0) keeps a fluctuating flow from spamming packets.
+        int sparkLevel = sparkLevelFor(getSmoothedThroughput());
+        boolean sparkChanged = sparkLevel != lastSparkLevel
+                && (sparkLevel == 0 || lastSparkLevel <= 0 || Math.abs(sparkLevel - lastSparkLevel) >= 2);
+
+        if (tierChanged || sparkChanged) {
             lastTier = poweredInt;
+            if (sparkChanged) lastSparkLevel = sparkLevel;
             for (BlockPos memberPos : members) {
-                IBlockState bs = world.getBlockState(memberPos);
-                world.notifyBlockUpdate(memberPos, bs, bs, 2);
+                if (tierChanged) {
+                    IBlockState bs = world.getBlockState(memberPos);
+                    world.notifyBlockUpdate(memberPos, bs, bs, 2);
+                }
                 RusticPipes.NET.sendToAllAround(
-                        new PacketConduitPower(memberPos, powered),
+                        new PacketConduitPower(memberPos, powered, lastSparkLevel),
                         new net.minecraftforge.fml.common.network.NetworkRegistry.TargetPoint(
                                 world.provider.getDimension(),
                                 memberPos.getX(), memberPos.getY(), memberPos.getZ(), 64));
@@ -285,6 +329,18 @@ public class ConduitNetwork {
     // Helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Maps FE/tick delivered to a spark level: 0 = no flow, 1–10 = flowing.
+     * Log scale so a small generator (~20 FE/t) still sparks visibly while
+     * a full-rate face (maxFePerTickPerFace) reaches 10.
+     */
+    private static int sparkLevelFor(int fePerTick) {
+        if (fePerTick <= 0) return 0;
+        int max = Math.max(1, ForgeConfigHandler.conduit.maxFePerTickPerFace);
+        double t = Math.min(1.0, Math.log1p(fePerTick) / Math.log1p(max));
+        return 1 + (int) Math.round(t * 9);
+    }
+
     public static int tierFromStored(int stored) {
         if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.TURBO)) return 3;
         if (stored >= ForgeConfigHandler.getFeCost(rusticpipes.network.PipeNetwork.SpeedTier.FAST))  return 2;
@@ -292,6 +348,11 @@ public class ConduitNetwork {
         return 0;
     }
 
+    /** Powered state as last sent to clients — used to seed clients on chunk load. */
+    public boolean isPoweredSynced()       { return lastTier == 1; }
+    /** Spark level as last sent to clients (0 = no flow). */
+    public int getSparkLevelSynced()       { return Math.max(0, lastSparkLevel); }
+    public boolean isPowered()             { return sharedBuffer.getEnergyStored() > 0 || getSmoothedThroughput() > 0; }
     public float getSmoothedFill()         { return smoothedFill; }
     public int getSmoothedThroughput()     { return (int)(smoothedThroughput * sharedBuffer.getMaxEnergyStored()); }
     public int getBufferStored()           { return sharedBuffer.getEnergyStored(); }

@@ -65,8 +65,14 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
 
     @Override
     public void onDataPacket(NetworkManager net, SPacketUpdateTileEntity pkt) {
+        int oldColor = fluidColor;
+        Map<EnumFacing, FaceMode> oldModes = new EnumMap<>(faceModes);
         readFromNBT(pkt.getNbtCompound());
-        world.markBlockRangeForRenderUpdate(pos, pos);
+        // Fill level is drawn by the TESR every frame; only colour and face modes are baked
+        // into the chunk model, so skip the (expensive) chunk rebuild for fill-only updates.
+        if (fluidColor != oldColor || !faceModes.equals(oldModes)) {
+            world.markBlockRangeForRenderUpdate(pos, pos);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -154,7 +160,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         ticksSinceFlow = 0;
     }
 
-    /** Called by FluidNetwork after all transfers — syncs to client. */
+    /** Called by FluidNetwork after all transfers — syncs to client when something visible changed. */
     public void syncToClient() {
         // Always keep color in sync with current buffer content
         if (buffer != null && buffer.getFluid() != null) {
@@ -168,10 +174,30 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
         visualFillFraction = visualFillFraction + (target - visualFillFraction) * 0.2f;
         // Reset drain timer — network is actively processing this pipe
         ticksSinceFlow = 0;
-        if (world != null && !world.isRemote) {
+
+        int amount = buffer != null ? buffer.amount : 0;
+        if (amount != lastSavedAmount) {
+            lastSavedAmount = amount;
+            markDirty(); // buffer holds real fluid — make sure the chunk saves it
+        }
+
+        // Sending every network tick flooded clients with packets and chunk re-renders,
+        // even for idle pipes. Only send when the colour changed or the rendered fill
+        // moved noticeably (or hit/left empty); the smoothing above converges, so this stops.
+        boolean colorChanged = fluidColor != lastSentColor;
+        boolean fillChanged  = Math.abs(visualFillFraction - lastSentFill) >= 0.02f
+                || (visualFillFraction <= 0.001f) != (lastSentFill <= 0.001f);
+        if ((colorChanged || fillChanged) && world != null && !world.isRemote) {
+            lastSentColor = fluidColor;
+            lastSentFill  = visualFillFraction;
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
     }
+
+    // Last state sent to clients / marked for saving (server-side only, not persisted)
+    private int lastSentColor = 0;
+    private float lastSentFill = 0f;
+    private int lastSavedAmount = 0;
 
     // -----------------------------------------------------------------------
     // Connection rendering
@@ -207,6 +233,12 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     public void invalidate() {
         if (world != null && !world.isRemote) onRemoved();
         super.invalidate();
+    }
+
+    /** Unloaded pipes leave the network so transfers never touch (and reload) their chunk. */
+    @Override
+    public void onChunkUnload() {
+        if (world != null && !world.isRemote) onRemoved();
     }
 
     // -----------------------------------------------------------------------

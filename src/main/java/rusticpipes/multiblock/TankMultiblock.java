@@ -137,6 +137,8 @@ public class TankMultiblock {
                     Math.max(max.getX(), current.getX()),
                     Math.max(max.getY(), current.getY()),
                     Math.max(max.getZ(), current.getZ()));
+            if (max.getX() - min.getX() >= 4 || max.getZ() - min.getZ() >= 4
+                    || max.getY() - min.getY() >= 7) return null;
 
             for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
                 BlockPos np = current.offset(face);
@@ -222,6 +224,10 @@ public class TankMultiblock {
             max = new BlockPos(Math.max(max.getX(), current.getX()),
                                Math.max(max.getY(), current.getY()),
                                Math.max(max.getZ(), current.getZ()));
+            // Bail as soon as the connected mass outgrows the largest legal tank (4x10x4),
+            // so a big wall of tank blocks doesn't get fully scanned on every block update.
+            if (max.getX() - min.getX() >= 4 || max.getZ() - min.getZ() >= 4
+                    || max.getY() - min.getY() >= 10) return null;
             for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
                 BlockPos np = current.offset(face);
                 if (!visited.contains(np)
@@ -400,7 +406,7 @@ public class TankMultiblock {
                     if (m instanceof TileEntityFluidTankMultiblock) {
                         TileEntityFluidTankMultiblock mt = (TileEntityFluidTankMultiblock) m;
                         if (controller.equals(mt.getControllerPos())) {
-                            mt.invalidate();
+                            mt.resetMultiblock();
                             IBlockState current = world.getBlockState(mp);
                             if (current.getBlock() instanceof rusticpipes.block.BlockFluidTankMultiblock) {
                                 world.setBlockState(mp, current.withProperty(

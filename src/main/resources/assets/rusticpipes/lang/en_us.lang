@@ -35,7 +35,7 @@ itemGroup.rusticpipes=Rustic Pipes
 
 # Messages
 # %1$s = max(buffer, throughput) FE, %2$s = capacity FE, %3$s = power loss per cable FE, %4$s = total power loss FE
-rusticpipes.message.conduit.info=[Power Cord] %1$s FE · %3$s FE loss/cable (%4$s total)
+rusticpipes.message.conduit.info=[Power Cord] %1$s FE · %4$s FE/t loss (~%3$s per cable)
 
 # %1$s = tier display name, %2$s = stored FE, %3$s = capacity FE
 rusticpipes.message.motor.info=%1$s Pipe Motor %2$s/%3$s FE

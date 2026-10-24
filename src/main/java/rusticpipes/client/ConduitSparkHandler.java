@@ -12,7 +12,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.RusticPipes;
 import rusticpipes.handlers.ForgeConfigHandler;
-import rusticpipes.network.ConduitNetwork;
+import rusticpipes.network.ConduitClientState;
 import rusticpipes.tileentity.TileEntityConduit;
 
 import java.util.HashMap;
@@ -38,6 +38,9 @@ public class ConduitSparkHandler {
     // Rarity bounds — max capped at 40%
     private static final double RARITY_MIN = 0.10;
     private static final double RARITY_MAX = 0.25; // max 25% chance at full
+
+    // Spark intensity at the lowest non-zero flow level
+    private static final float MIN_FLOW_INTENSITY = 0.5f;
 
     /** Next spark fire tick per conduit position. */
     private static final Map<BlockPos, Integer> nextFireTick = new HashMap<>();
@@ -74,17 +77,15 @@ public class ConduitSparkHandler {
 
             seenThisTick.add(pos);
 
-            ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
-            if (network == null) {
+            // Driven by synced throughput (power actually flowing), not buffer fill —
+            // a full-but-idle buffer must not spark, and a busy line always should.
+            int sparkLevel = ConduitClientState.getSparkLevel(pos);
+            if (sparkLevel <= 0) {
                 nextFireTick.remove(pos);
                 continue;
             }
-
-            float fill = network.getSmoothedFill();
-            if (fill <= 0.01f) {
-                nextFireTick.remove(pos);
-                continue;
-            }
+            // Level 1 starts at MIN_FLOW_INTENSITY so even a trickle sparks visibly
+            float fill = MIN_FLOW_INTENSITY + (1f - MIN_FLOW_INTENSITY) * (sparkLevel - 1) / 9f;
 
             int fireTick = nextFireTick.computeIfAbsent(pos, k -> clientTick + nextInterval(fill));
             if (clientTick < fireTick) continue;

@@ -42,10 +42,9 @@ public class PipeNetwork {
 
     // Keyed by DimPos to prevent cross-dimension network collisions.
     private static final Map<DimPos, PipeNetwork> NETWORKS = new HashMap<>();
-    private static int globalTick = 0;
 
     private final Set<BlockPos> members = new HashSet<>();
-    private int bucket;
+    private long bucket;
     private SpeedTier currentTier     = SpeedTier.NONE;
     private SpeedTier lastEffectiveTier = SpeedTier.NONE;
     // Cached master pos — the member with the smallest toLong() value.
@@ -58,10 +57,6 @@ public class PipeNetwork {
 
     public static PipeNetwork getNetwork(World world, BlockPos pos) {
         return NETWORKS.get(DimPos.of(world, pos));
-    }
-
-    public static void serverTick() {
-        globalTick++;
     }
 
     /**
@@ -85,6 +80,9 @@ public class PipeNetwork {
         Set<PipeNetwork> neighbours = new HashSet<>();
         for (EnumFacing face : EnumFacing.VALUES) {
             BlockPos neighbourPos = pos.offset(face);
+            // Never load a neighbouring chunk from onLoad — that cascades down the whole
+            // pipe line. The neighbour's own onLoad merges with us when its chunk loads.
+            if (!world.isBlockLoaded(neighbourPos)) continue;
             if (addedColor != null) {
                 Block neighbourBlock = world.getBlockState(neighbourPos).getBlock();
                 if (!(neighbourBlock instanceof BlockItemPipe)) continue;
@@ -217,18 +215,21 @@ public class PipeNetwork {
      * Returns true if this network should transfer items this game tick.
      * Only the master TE calls this, so there is no per-call state mutation
      * needed to guard against double-firing.
+     *
+     * Uses the world's own clock: it advances exactly once per tick in that world,
+     * whereas a static counter bumped from WorldTickEvent advanced once per LOADED
+     * DIMENSION per tick, so with N dimensions some phases were skipped forever.
      */
-    public boolean isMyTick() {
+    public boolean isMyTick(World world) {
+        long now = world.getTotalWorldTime();
         if (currentTier != lastEffectiveTier) {
             lastEffectiveTier = currentTier;
-            bucket = globalTick;
+            bucket = now;
         }
-        int rate = getEffectiveTickRate(this);
-        // Use Math.floorMod instead of % so that a negative bucket value
-        // (which happens when spreadBucket() sets bit 31) still maps to a
-        // valid phase in [0, rate-1]. Java's % operator preserves sign, so
-        // a negative bucket would make this comparison never equal globalTick % rate.
-        return Math.floorMod(globalTick, rate) == Math.floorMod(bucket, rate);
+        long rate = getEffectiveTickRate(this);
+        // floorMod, not %: a negative bucket (spreadBucket() can set the sign bit)
+        // would otherwise never match.
+        return Math.floorMod(now, rate) == Math.floorMod(bucket, rate);
     }
 
     /**
@@ -241,6 +242,7 @@ public class PipeNetwork {
         List<MotorEntry> motors = new ArrayList<>();
         for (BlockPos memberPos : members) {
             for (EnumFacing face : EnumFacing.VALUES) {
+                if (!world.isBlockLoaded(memberPos.offset(face))) continue;
                 TileEntity nte = world.getTileEntity(memberPos.offset(face));
                 if (!(nte instanceof TileEntityConduitBuffer)) continue;
                 TileEntityConduitBuffer motor = (TileEntityConduitBuffer) nte;
@@ -289,9 +291,9 @@ public class PipeNetwork {
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
         Set<BlockPos> outputPositions = new LinkedHashSet<>();
-        Set<BlockPos> allInventoryPositions = new LinkedHashSet<>();
 
         for (BlockPos memberPos : members) {
+            if (!world.isBlockLoaded(memberPos)) continue;
             IBlockState state = world.getBlockState(memberPos);
             if (!(state.getBlock() instanceof BlockItemPipe)) continue;
 
@@ -301,10 +303,10 @@ public class PipeNetwork {
 
             for (EnumFacing face : EnumFacing.VALUES) {
                 BlockPos neighbourPos = memberPos.offset(face);
+                if (!world.isBlockLoaded(neighbourPos)) continue;
                 if (world.getBlockState(neighbourPos).getBlock() instanceof BlockItemPipe) continue;
                 if (getInventoryAtPos(world, neighbourPos) == null) continue;
 
-                allInventoryPositions.add(neighbourPos);
                 FaceMode mode = pipe.getFaceMode(face);
                 if (mode == FaceMode.INPUT) {
                     inputPositions.add(neighbourPos);
@@ -314,14 +316,12 @@ public class PipeNetwork {
             }
         }
 
-        // If no face has been explicitly configured as INPUT, fall back to
-        // auto-mode: treat every connected inventory as both a source and a
-        // destination. This makes freshly-placed pipes work without any setup.
-        // Once a player explicitly marks even one face as INPUT the network
-        // switches to strict mode and only pulls from marked sources.
-        final boolean autoMode = inputPositions.isEmpty();
-        List<BlockPos> inputs  = new ArrayList<>(autoMode ? allInventoryPositions : inputPositions);
-        List<BlockPos> outputs = new ArrayList<>(autoMode ? allInventoryPositions : outputPositions);
+        // Items only move from INPUT-marked inventories to OUTPUT ones. The old auto-mode
+        // (no INPUT face = every inventory is both source and destination) shuffled items
+        // back and forth between inventories forever. A full destination simply rejects
+        // the simulated insert, so transfer stops until space frees up.
+        List<BlockPos> inputs  = new ArrayList<>(inputPositions);
+        List<BlockPos> outputs = new ArrayList<>(outputPositions);
 
         if (inputs.isEmpty() || outputs.isEmpty()) return;
 
@@ -342,8 +342,9 @@ public class PipeNetwork {
                     BlockPos destPos = outputs.get(rrPointer % outputs.size());
                     rrPointer++;
 
-                    // In auto-mode, never push an item back into the inventory it came from
-                    if (autoMode && destPos.equals(inputPos)) continue;
+                    // An inventory touched by both an INPUT and an OUTPUT face must not
+                    // feed itself
+                    if (destPos.equals(inputPos)) continue;
 
                     IItemHandler dest = getInventoryAtPos(world, destPos);
                     if (dest == null) continue;

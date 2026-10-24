@@ -69,6 +69,9 @@ public class FluidNetwork {
         Set<FluidNetwork> neighbours = new HashSet<>();
         for (EnumFacing face : EnumFacing.VALUES) {
             BlockPos neighbourPos = pos.offset(face);
+            // Never load a neighbouring chunk from onLoad — that cascades down the whole
+            // pipe line. The neighbour's own onLoad merges with us when its chunk loads.
+            if (!world.isBlockLoaded(neighbourPos)) continue;
             if (addedColor != null) {
                 Block neighbourBlock = world.getBlockState(neighbourPos).getBlock();
                 if (!(neighbourBlock instanceof BlockFluidPipe)) continue;
@@ -169,6 +172,7 @@ public class FluidNetwork {
 
         Map<BlockPos, TileEntityFluidPipe> pipes = new LinkedHashMap<>();
         for (BlockPos pos : members) {
+            if (!world.isBlockLoaded(pos)) continue;
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityFluidPipe) pipes.put(pos, (TileEntityFluidPipe) te);
         }
@@ -185,6 +189,7 @@ public class FluidNetwork {
                 BlockPos neighborPos = pipePos.offset(face);
                 if (members.contains(neighborPos)) continue;
                 if (pipe.getFaceMode(face) != FaceMode.INPUT) continue;
+                if (!world.isBlockLoaded(neighborPos)) continue; // never load chunks from a tick
 
                 TileEntity nte = world.getTileEntity(neighborPos);
                 if (nte == null) continue;
@@ -217,6 +222,7 @@ public class FluidNetwork {
                 BlockPos nbPos = pipePos.offset(face);
                 if (members.contains(nbPos)) continue;
                 if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
+                if (!world.isBlockLoaded(nbPos)) continue;
                 TileEntity nte = world.getTileEntity(nbPos);
                 if (nte == null) continue;
                 boolean isFluidHandler = nte.hasCapability(
@@ -271,18 +277,23 @@ public class FluidNetwork {
                     int neighborDist = dist.getOrDefault(neighborPos, Integer.MAX_VALUE);
                     float neighborFill = fillSnapshot.getOrDefault(neighborPos, 0f);
 
-                    if (hasDestination) {
-                        if (neighborDist == myDist) continue;
-                        if (neighborFill >= myFill) continue;
-                    } else {
-                        if (neighborFill >= myFill) continue;
-                    }
+                    // Never push away from destinations. Equal-distance neighbours are allowed:
+                    // in a line where every pipe borders a sink, all pipes are dist 0, and
+                    // skipping them stalled fluid at the first pipe.
+                    if (hasDestination && neighborDist > myDist) continue;
+                    if (neighborFill >= myFill) continue;
 
                     FluidStack neighborBuf = neighbor.getBuffer();
                     if (neighborBuf != null && !neighborBuf.isFluidEqual(pipe.getBuffer())) continue;
 
                     int space  = neighbor.getBufferSpace();
                     int toPush = Math.min(maxRate, Math.min(pipe.getBuffer().amount, space));
+                    // Sideways (equal-distance) moves only level the two pipes out — at most half
+                    // the fill difference — so neighbours don't ping-pong fluid every pass.
+                    if (!hasDestination || neighborDist == myDist) {
+                        int half = (int) ((myFill - neighborFill) * pipe.getBufferCapacity() / 2f);
+                        toPush = Math.min(toPush, half);
+                    }
                     if (toPush <= 0) continue;
 
                     FluidStack pushing = pipe.getBuffer().copy();
@@ -305,6 +316,7 @@ public class FluidNetwork {
                 BlockPos neighborPos = pipePos.offset(face);
                 if (members.contains(neighborPos)) continue;
                 if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
+                if (!world.isBlockLoaded(neighborPos)) continue;
 
                 TileEntity nte = world.getTileEntity(neighborPos);
                 if (nte == null) continue;

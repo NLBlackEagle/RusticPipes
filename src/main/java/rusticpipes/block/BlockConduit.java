@@ -91,19 +91,11 @@ public class BlockConduit extends Block implements ITileEntityProvider {
             ext = ext.withProperty(ConduitModel.getConProperty(face),
                     computeConnection(world, pos, face));
 
-        // Determine powered state: prefer live network data (integrated server / SSP),
-        // fall back to the packet-synced client map (dedicated server).
-        // Use getBufferStored() > 0 directly — smoothedFill is an EMA that lags
-        // behind reality by ~30 ticks, causing the powered texture to linger
-        // after the buffer empties.
-        boolean powered;
-        ConduitNetwork network = ConduitNetwork.getNetwork(world, pos);
-        if (network != null) {
-            powered = network.getBufferStored() > 0 || network.getSmoothedThroughput() > 0;
-        } else {
-            powered = ConduitClientState.isPowered(pos);
-        }
-        ext = ext.withProperty(ConduitModel.POWERED, powered);
+        // Powered state always comes from the packet-synced client map. Reading the server's
+        // ConduitNetwork here (single-player) was not thread-safe from the chunk render
+        // thread, and the ChunkCache world has no dimension, so it fell back to dim 0 and
+        // could show an Overworld network's state on a Nether conduit.
+        ext = ext.withProperty(ConduitModel.POWERED, ConduitClientState.isPowered(pos));
 
         return ext;
     }
@@ -152,9 +144,13 @@ public class BlockConduit extends Block implements ITileEntityProvider {
                     if (network != null) {
                         int capacity = network.getBufferCapacity();
                         int displayFe = Math.max(network.getBufferStored(), network.getSmoothedThroughput());
+                        // Mirrors ConduitNetwork.tick(): the loss is a percentage of the whole
+                        // buffer, applied once per tick — not once per conduit.
                         double lossRate = rusticpipes.handlers.ForgeConfigHandler.conduit.powerLossPerConduitPerTick;
-                        int lossPerCable = (int) Math.round(displayFe * lossRate);
-                        int totalLoss = lossPerCable * network.getMemberCount();
+                        int stored = network.getBufferStored();
+                        int totalLoss = (lossRate > 0.0 && stored > 0) ? (int) Math.ceil(stored * lossRate) : 0;
+                        String lossPerCable = String.format("%.1f",
+                                (double) totalLoss / Math.max(1, network.getMemberCount()));
                         player.sendMessage(new TextComponentTranslation(
                                 "rusticpipes.message.conduit.info",
                                 displayFe, capacity, lossPerCable, totalLoss));

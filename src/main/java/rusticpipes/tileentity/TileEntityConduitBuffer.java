@@ -24,8 +24,11 @@ import javax.annotation.Nullable;
  */
 public class TileEntityConduitBuffer extends TileEntity implements ITickable {
 
-    private final PipeNetwork.SpeedTier tier;
+    /** Not final: TEs loaded from disk use the no-arg constructor and learn their tier later. */
+    private PipeNetwork.SpeedTier tier;
     private EnergyStorage buffer;
+    /** FE read from NBT before the tier (and so the capacity) was known. */
+    private int pendingStored = 0;
 
     /**
      * Set to true any tick that FE enters the buffer (either pulled from an
@@ -42,15 +45,17 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
 
     /** No-arg constructor for NBT deserialization — tier resolved from block in onLoad. */
     public TileEntityConduitBuffer() {
-        this.tier = PipeNetwork.SpeedTier.SLOW; // placeholder, overwritten in onLoad
-        this.buffer = new EnergyStorage(100, 100, 100); // placeholder
+        this.tier = PipeNetwork.SpeedTier.SLOW; // placeholder, resolved from NBT or in onLoad
+        initBuffer();
     }
 
-    private void initBuffer() { initBuffer(tier); }
+    private void initBuffer() { initBuffer(tier, buffer != null ? buffer.getEnergyStored() : 0); }
 
-    private void initBuffer(PipeNetwork.SpeedTier t) {
+    private void initBuffer(PipeNetwork.SpeedTier t) { initBuffer(t, buffer != null ? buffer.getEnergyStored() : 0); }
+
+    private void initBuffer(PipeNetwork.SpeedTier t, int storedFe) {
         int cap = ForgeConfigHandler.motors.getBuffer(t);
-        int stored = buffer != null ? Math.min(buffer.getEnergyStored(), cap) : 0;
+        int stored = Math.max(0, Math.min(storedFe, cap));
         // Subclass tracks whether any FE entered this tick, for idle-drain detection.
         buffer = new EnergyStorage(cap, cap, cap) {
             @Override
@@ -65,11 +70,15 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
 
     @Override
     public void onLoad() {
-        // Resolve actual tier from the placed block and resize buffer accordingly
+        // Resolve actual tier from the placed block and resize buffer accordingly.
+        // The tier field is updated too — highestAffordableCost() caps on it, and leaving
+        // it at the SLOW placeholder stopped reloaded motors pulling from conduits.
         if (world != null) {
             net.minecraft.block.Block block = world.getBlockState(pos).getBlock();
             if (block instanceof BlockConduitBuffer) {
-                initBuffer(((BlockConduitBuffer) block).tier);
+                tier = ((BlockConduitBuffer) block).tier;
+                initBuffer(tier, Math.max(buffer.getEnergyStored(), pendingStored));
+                pendingStored = 0;
             }
         }
     }
@@ -210,16 +219,22 @@ public class TileEntityConduitBuffer extends TileEntity implements ITickable {
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         super.writeToNBT(compound);
         compound.setInteger("stored", buffer.getEnergyStored());
+        compound.setString("tier", tier.name());
         return compound;
     }
 
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
-        initBuffer();
-        if (compound.hasKey("stored"))
-            buffer.receiveEnergy(Math.min(compound.getInteger("stored"),
-                    buffer.getMaxEnergyStored()), false);
+        if (compound.hasKey("tier")) {
+            try { tier = PipeNetwork.SpeedTier.valueOf(compound.getString("tier")); }
+            catch (IllegalArgumentException ignored) {}
+        }
+        // Replace (not add to) the stored FE, and keep the full amount for onLoad in case
+        // the tier wasn't saved (older worlds) and the placeholder capacity is too small.
+        int stored = compound.getInteger("stored");
+        pendingStored = stored;
+        initBuffer(tier, stored);
     }
 
     public int getStored()   { return buffer.getEnergyStored(); }
