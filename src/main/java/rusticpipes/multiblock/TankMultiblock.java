@@ -265,15 +265,18 @@ public class TankMultiblock {
         int capacity = structure.blockCount
                 * rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
 
-        // Preserve fluid across revalidation — scan all positions for a TE that holds fluid
-        // (getFluid() fails after invalidate since controllerPos is null, so use getRawFluid())
+        // Gather fluid from every member — after a break the survivors each hold an equal share
+        // (getFluid() fails after invalidate since controllerPos is null, so use getRawFluid()).
+        // Matching fluids are summed; for mismatched ones the larger amount wins.
         net.minecraftforge.fluids.FluidStack preserved = null;
         for (BlockPos p : structure.allPositions()) {
             net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
             if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
             net.minecraftforge.fluids.FluidStack raw = ((TileEntityFluidTankMultiblock) te).getRawFluid();
             if (raw != null && raw.amount > 0) {
-                if (preserved == null || raw.amount > preserved.amount) preserved = raw.copy();
+                if (preserved == null) preserved = raw.copy();
+                else if (preserved.isFluidEqual(raw)) preserved.amount += raw.amount;
+                else if (raw.amount > preserved.amount) preserved = raw.copy();
                 ((TileEntityFluidTankMultiblock) te).setRawFluid(null); // clear from old member
             }
         }
@@ -297,6 +300,9 @@ public class TankMultiblock {
             IBlockState current = world.getBlockState(p);
             world.setBlockState(p, current.withProperty(
                     rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT, face), 2);
+        }
+        if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
+            ((TileEntityFluidTankMultiblock) ctrlTe).requestClientResync();
         }
     }
 
@@ -392,29 +398,70 @@ public class TankMultiblock {
     }
 
 
-    /** Invalidates all TileEntityFluidTankMultiblock members sharing the same controller. */
+    /** All positions whose TE is linked to {@code controller} (the min corner, so members lie in +x/+y/+z). */
+    public static java.util.List<BlockPos> findMembers(World world, BlockPos controller) {
+        java.util.List<BlockPos> members = new java.util.ArrayList<>();
+        for (int x = controller.getX(); x < controller.getX() + 4; x++)
+            for (int y = controller.getY(); y < controller.getY() + 10; y++)
+                for (int z = controller.getZ(); z < controller.getZ() + 4; z++) {
+                    BlockPos mp = new BlockPos(x, y, z);
+                    net.minecraft.tileentity.TileEntity m = world.getTileEntity(mp);
+                    if (m instanceof TileEntityFluidTankMultiblock
+                            && controller.equals(((TileEntityFluidTankMultiblock) m).getControllerPos())) {
+                        members.add(mp);
+                    }
+                }
+        return members;
+    }
+
+    /**
+     * Invalidates all TileEntityFluidTankMultiblock members sharing the same controller.
+     * The controller's fluid is split evenly over the members, so each unformed block holds
+     * its own share — breaking one later spills exactly that share, and reforming
+     * (applyMultiblock) sums the shares back up. Left in the controller alone, breaking any
+     * other block of the unformed group spilled nothing.
+     */
     public static void invalidateMultiblock(World world, BlockPos pos) {
         net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
         if (!(te instanceof TileEntityFluidTankMultiblock)) return;
         BlockPos controller = ((TileEntityFluidTankMultiblock) te).getControllerPos();
         if (controller == null) return;
-        for (int x = controller.getX() - 4; x <= controller.getX() + 4; x++)
-            for (int y = controller.getY(); y <= controller.getY() + 10; y++)
-                for (int z = controller.getZ() - 4; z <= controller.getZ() + 4; z++) {
-                    BlockPos mp = new BlockPos(x, y, z);
-                    net.minecraft.tileentity.TileEntity m = world.getTileEntity(mp);
-                    if (m instanceof TileEntityFluidTankMultiblock) {
-                        TileEntityFluidTankMultiblock mt = (TileEntityFluidTankMultiblock) m;
-                        if (controller.equals(mt.getControllerPos())) {
-                            mt.resetMultiblock();
-                            IBlockState current = world.getBlockState(mp);
-                            if (current.getBlock() instanceof rusticpipes.block.BlockFluidTankMultiblock) {
-                                world.setBlockState(mp, current.withProperty(
-                                        rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT,
-                                        rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE), 2);
-                            }
-                        }
-                    }
-                }
+
+        java.util.List<BlockPos> members = findMembers(world, controller);
+        net.minecraftforge.fluids.FluidStack fluid = null;
+        net.minecraft.tileentity.TileEntity ctrlTe = world.getTileEntity(controller);
+        if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
+            fluid = ((TileEntityFluidTankMultiblock) ctrlTe).getRawFluid();
+            ((TileEntityFluidTankMultiblock) ctrlTe).setRawFluid(null);
+        }
+
+        for (BlockPos mp : members) {
+            ((TileEntityFluidTankMultiblock) world.getTileEntity(mp)).resetMultiblock();
+            IBlockState current = world.getBlockState(mp);
+            if (current.getBlock() instanceof rusticpipes.block.BlockFluidTankMultiblock) {
+                world.setBlockState(mp, current.withProperty(
+                        rusticpipes.block.BlockFluidTankMultiblock.VIEWPORT,
+                        rusticpipes.block.BlockFluidTankMultiblock.ViewportFace.NONE), 2);
+            }
+        }
+        distributeFluid(world, members, fluid);
+    }
+
+    /** Splits {@code fluid} evenly over the tank blocks at {@code positions} (remainder mB to the first). */
+    public static void distributeFluid(World world, java.util.List<BlockPos> positions,
+                                       @Nullable net.minecraftforge.fluids.FluidStack fluid) {
+        if (fluid == null || fluid.amount <= 0 || positions.isEmpty()) return;
+        int share = fluid.amount / positions.size();
+        int extra = fluid.amount % positions.size();
+        for (BlockPos p : positions) {
+            net.minecraft.tileentity.TileEntity te = world.getTileEntity(p);
+            if (!(te instanceof TileEntityFluidTankMultiblock)) continue;
+            int amount = share + extra;
+            extra = 0;
+            if (amount <= 0) continue;
+            net.minecraftforge.fluids.FluidStack part = fluid.copy();
+            part.amount = amount;
+            ((TileEntityFluidTankMultiblock) te).setRawFluid(part);
+        }
     }
 }

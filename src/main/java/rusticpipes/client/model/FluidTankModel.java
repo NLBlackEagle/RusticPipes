@@ -96,7 +96,10 @@ public class FluidTankModel implements IModel {
             // Pick viewport texture based on row
             TextureAtlasSprite vpTex = viewport; // default: SINGLE
             BlockFluidTankMultiblock.ViewportRow row = null;
+            boolean blocked = false;
             if (state instanceof IExtendedBlockState) {
+                Boolean b = ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_BLOCKED);
+                blocked = b != null && b;
                 row = ((IExtendedBlockState) state).getValue(BlockFluidTankMultiblock.VIEWPORT_ROW);
                 if (row != null) {
                     switch (row) {
@@ -118,8 +121,9 @@ public class FluidTankModel implements IModel {
 
             List<BakedQuad> quads = new ArrayList<>();
 
-            // If VIEWPORT_ROW=NONE an adjacent tank invalidates this block — render fully solid
-            if (row == BlockFluidTankMultiblock.ViewportRow.NONE) {
+            // VIEWPORT_BLOCKED = a horizontally adjacent tank invalidates this 1x1 (the server
+            // just hasn't reset it yet) — render fully solid. NONE kept as a fallback.
+            if (blocked || row == BlockFluidTankMultiblock.ViewportRow.NONE) {
                 if (isSolid) {
                     float su0 = solid.getMinU(), sv0 = solid.getMinV();
                     float su1 = solid.getMaxU(), sv1 = solid.getMaxV();

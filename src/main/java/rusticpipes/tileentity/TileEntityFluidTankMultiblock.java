@@ -40,6 +40,9 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     @Nullable private FluidStack fluid = null;
     private float fillFraction = 0f;
 
+    /** Server-only countdown until the controller re-sends every member — see requestClientResync(). */
+    private int clientResyncTicks = 0;
+
     // -----------------------------------------------------------------------
     // Multiblock lifecycle
     // -----------------------------------------------------------------------
@@ -79,6 +82,26 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
         markDirty();
         if (world != null && !world.isRemote)
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+    }
+
+    /**
+     * Re-send the whole structure to clients shortly after it forms. Forming sends every
+     * member's state + TE data in the same tick, but clients sometimes end up without the
+     * TESR or viewports until a later block update re-sends it — this does that re-send
+     * automatically. Repeated forms within the window just restart the countdown.
+     */
+    public void requestClientResync() {
+        clientResyncTicks = 10;
+    }
+
+    private void resyncMembersToClients() {
+        if (!isController()) return;
+        TankMultiblock.Structure st = TankMultiblock.validateMultiblock(world, pos);
+        if (st == null || !st.controller.equals(pos)) return;
+        for (BlockPos p : st.allPositions()) {
+            net.minecraft.block.state.IBlockState s = world.getBlockState(p);
+            world.notifyBlockUpdate(p, s, s, 3);
+        }
     }
 
     public void onBreak() {
@@ -143,19 +166,14 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
     @Override
     public void update() {
         if (world == null || world.isRemote) return;
+        if (clientResyncTicks > 0 && --clientResyncTicks == 0) resyncMembersToClients();
         if (world.getTotalWorldTime() % 10 != 0) return;
         // Only the controller's fill is rendered (and only it emits radiation), so members
         // don't sync — a 4x4x10 tank would otherwise send 160 updates per change and push
         // the chunk past the 64-change limit into full section resends.
         if (!isController()) return;
         TileEntityFluidTankMultiblock ctrl = this;
-        float newFill = ctrl.totalCapacity > 0
-                ? (ctrl.fluid != null ? (float) ctrl.fluid.amount / ctrl.totalCapacity : 0f)
-                : 0f;
-        if (Math.abs(newFill - fillFraction) > 0.001f) {
-            fillFraction = newFill;
-            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-        }
+        syncFill();
 
         // NuclearCraft radiation — only the controller emits radiation (once per check interval)
         // to avoid N-times-over-application for each member block ticking independently.
@@ -184,6 +202,22 @@ public class TileEntityFluidTankMultiblock extends TileEntity implements ITickab
                         rusticpipes.handlers.ForgeConfigHandler.fluid.enableRadiation,
                         ctrl.fluid != null ? ctrl.fluid.getFluid().getName() : "null");
             }
+        }
+    }
+
+    /**
+     * Sends the fill level to clients if it changed. Called every 10 ticks, and right after
+     * a player interaction — otherwise a connected pipe (100 mB/tick by default) can drain a
+     * whole bucket between periodic syncs and the deposit never shows up client-side.
+     */
+    public void syncFill() {
+        if (world == null || world.isRemote) return;
+        float newFill = totalCapacity > 0
+                ? (fluid != null ? (float) fluid.amount / totalCapacity : 0f)
+                : 0f;
+        if (Math.abs(newFill - fillFraction) > 0.001f) {
+            fillFraction = newFill;
+            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
         }
     }
 

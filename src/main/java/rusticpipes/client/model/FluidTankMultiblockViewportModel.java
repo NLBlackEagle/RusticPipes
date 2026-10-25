@@ -113,25 +113,22 @@ public class FluidTankMultiblockViewportModel implements IBakedModel {
 
         List<BakedQuad> quads = new ArrayList<>();
 
+        // NONE = TE row not synced (or out of sync with the VIEWPORT state) — show no window.
+        boolean solidWindow = blocked || row == BlockFluidTankMultiblock.ViewportRow.NONE;
+
         if (isSolid) {
-            // Top-row ceiling face
-            if (side == EnumFacing.UP
-                    && (row == BlockFluidTankMultiblock.ViewportRow.TOP
-                     || row == BlockFluidTankMultiblock.ViewportRow.SINGLE)) {
-                quads.add(buildFace(EnumFacing.UP, spriteSolid, false));
-            }
-            // 2x2 corner perpendicular side face
-            if (sideFace != null && side == sideFace) {
-                quads.add(buildFace(sideFace, spriteSolid, false));
-            }
-            // Viewport face downgraded to solid (adjacent solid block blocks the window)
-            if (side == vpFace && blocked) {
+            // Every non-viewport face is emitted solid; shouldSideBeRendered culls the ones
+            // facing other tank members. Gating these on TE data (row / sideFace) left faces
+            // missing — exposing the TESR interior — whenever that data lagged the block state.
+            if (side != vpFace) {
+                quads.add(buildFace(side, spriteSolid, false));
+            } else if (solidWindow) {
                 quads.add(buildFace(vpFace, spriteSolid, false));
             }
         }
         if (isCutout) {
             // Viewport face — transparent glass-like window
-            if (side == vpFace && !blocked) {
+            if (side == vpFace && !solidWindow) {
                 quads.add(buildFace(vpFace, vpSprite, false));
             }
         }

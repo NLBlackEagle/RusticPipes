@@ -368,6 +368,12 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
      */
     static void spillFluid(World world, BlockPos pos,
                            @Nullable net.minecraftforge.fluids.FluidStack fluid, int maxBlocks) {
+        // Deferred to end of tick — see DeferredSpillHandler for why this can't run in breakBlock
+        rusticpipes.handlers.DeferredSpillHandler.schedule(world, pos, fluid, maxBlocks);
+    }
+
+    public static void spillFluidNow(World world, BlockPos pos,
+                                     @Nullable net.minecraftforge.fluids.FluidStack fluid, int maxBlocks) {
         if (world.isRemote || fluid == null || fluid.amount < 1000) return;
 
         net.minecraft.block.Block fluidBlock = fluid.getFluid().getBlock();

@@ -116,11 +116,13 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
         ViewportFace viewport = state.getValue(VIEWPORT);
 
-        ViewportRow row = ViewportRow.NONE;
+        // Row is derived from the column's block states rather than the TE: block states arrive
+        // with every block change packet, while TE data is a separate packet that can lag (or be
+        // missed) — leaving viewports rendered solid until some later update.
+        ViewportRow row = viewport == ViewportFace.NONE ? ViewportRow.NONE : rowFromColumn(world, pos, viewport);
         EnumFacing sideFace = null;
         TileEntity te = world.getTileEntity(pos);
         if (te instanceof TileEntityFluidTankMultiblock) {
-            row = ((TileEntityFluidTankMultiblock) te).getViewportRow();
             sideFace = ((TileEntityFluidTankMultiblock) te).getSideFace();
         }
 
@@ -151,6 +153,24 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
         return ext.withProperty(VIEWPORT_ROW, row).withProperty(SIDE_FACE, sideFace)
                   .withProperty(VIEWPORT_BLOCKED, false);
+    }
+
+    /**
+     * Within a formed tank every block in a viewport column carries the same VIEWPORT value
+     * (it depends only on x/z), and two tanks can never touch vertically (they'd merge into
+     * one invalid mass), so the row follows from whether the blocks above/below match.
+     */
+    private static ViewportRow rowFromColumn(IBlockAccess world, BlockPos pos, ViewportFace viewport) {
+        boolean above = sameViewport(world.getBlockState(pos.up()), viewport);
+        boolean below = sameViewport(world.getBlockState(pos.down()), viewport);
+        if (above && below) return ViewportRow.CENTER;
+        if (above)          return ViewportRow.BOTTOM;
+        if (below)          return ViewportRow.TOP;
+        return ViewportRow.SINGLE;
+    }
+
+    private static boolean sameViewport(IBlockState state, ViewportFace viewport) {
+        return state.getBlock() instanceof BlockFluidTankMultiblock && state.getValue(VIEWPORT) == viewport;
     }
 
     /** Maps the listed ViewportFace property to the corresponding EnumFacing. */
@@ -186,14 +206,20 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
     }
 
     /**
-     * The player currently placing a tank block. getStateForPlacement runs just before
-     * the block is set, and neighborChanged (where tryPlaceLayer runs) fires inside that
-     * setBlockState — before onBlockPlacedBy — so this is the only way to know who
-     * placed the block that triggered a layer fill. Weak so a failed placement can't leak.
+     * The player currently placing a tank block, recorded in getStateForPlacement.
+     * When a player places a block, Forge captures block snapshots and defers neighbour
+     * updates until after onItemUse returns — so neighborChanged (where tryPlaceLayer runs)
+     * fires AFTER onBlockPlacedBy and after the held stack has been shrunk. Without
+     * capturing (direct placeBlockAt calls) it fires inside setBlockState, before both.
+     * The record therefore can't be cleared in onBlockPlacedBy; it is only valid for the
+     * tick it was made in. Weak so a failed placement can't leak.
      */
     private static java.lang.ref.WeakReference<EntityPlayer> pendingPlacer = null;
     @javax.annotation.Nullable private static BlockPos pendingPlacerPos = null;
     private static EnumHand pendingPlacerHand = EnumHand.MAIN_HAND;
+    private static long pendingPlacerTime = -1;
+    /** Held stack size before placement — tells whether the placed block was already paid for. */
+    private static int pendingHeldCount = 0;
 
     /** True while tryPlaceLayer is setting blocks — suppresses re-entrant layer fills. */
     private static boolean placingLayer = false;
@@ -206,19 +232,10 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             pendingPlacer = new java.lang.ref.WeakReference<>((EntityPlayer) placer);
             pendingPlacerPos = pos;
             pendingPlacerHand = hand;
+            pendingPlacerTime = world.getTotalWorldTime();
+            pendingHeldCount = placer.getHeldItem(hand).getCount();
         }
         return super.getStateForPlacement(world, pos, facing, hitX, hitY, hitZ, meta, placer, hand);
-    }
-
-    @Override
-    public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state,
-                                net.minecraft.entity.EntityLivingBase placer, net.minecraft.item.ItemStack stack) {
-        // Multiblock forming is server-only (see neighborChanged); the server syncs the
-        // VIEWPORT state and TE data to clients.
-        if (!world.isRemote) {
-            pendingPlacer = null;
-            pendingPlacerPos = null;
-        }
     }
 
     /**
@@ -230,7 +247,8 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         // Only the player who placed this exact block pays for (and triggers) a layer fill.
         // Non-player placement (deployers, other mods' setBlockState) never auto-fills.
         EntityPlayer player = pendingPlacer != null ? pendingPlacer.get() : null;
-        if (player == null || player.world != world || !pos.equals(pendingPlacerPos)) return false;
+        if (player == null || player.world != world || !pos.equals(pendingPlacerPos)
+                || world.getTotalWorldTime() != pendingPlacerTime) return false;
 
         BlockPos below = pos.down();
         TileEntity tBelow = world.getTileEntity(below);
@@ -282,10 +300,12 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
         if (toPlace.isEmpty()) return false;
 
-        // The block being placed is still in the held stack here (ItemBlock shrinks it after
-        // placement), so the player needs one more than the layer remainder.
+        // With snapshot capturing (normal player placement) the held stack was already shrunk
+        // for the placed block; without it, the placed block is still in the stack and one
+        // must stay reserved there for ItemBlock to consume.
         boolean creative = player.capabilities.isCreativeMode;
-        if (!creative && countTankBlocksInInventory(player) < toPlace.size() + 1) return false;
+        int reserve = player.getHeldItem(pendingPlacerHand).getCount() < pendingHeldCount ? 0 : 1;
+        if (!creative && countTankBlocksInInventory(player) < toPlace.size() + reserve) return false;
 
         placingLayer = true;
         try {
@@ -297,8 +317,10 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
         }
 
         if (!creative) {
-            removeTankBlocksFromInventory(player, toPlace.size());
+            removeTankBlocksFromInventory(player, toPlace.size(), reserve);
         }
+        pendingPlacer = null;
+        pendingPlacerPos = null;
 
         // Neighbour updates were suppressed while the layer went down — validate once now.
         tryValidate(world, pos);
@@ -316,10 +338,10 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
 
     /**
      * Takes {@code count} tank blocks, emptying other stacks before the held one, and
-     * always leaving one in the held stack — ItemBlock shrinks that stack by one after
-     * placement, and if it were already empty the placed block would be free.
+     * leaving {@code reserve} in the held stack — when ItemBlock has yet to shrink that
+     * stack for the placed block, emptying it first would make the placed block free.
      */
-    private void removeTankBlocksFromInventory(EntityPlayer player, int count) {
+    private void removeTankBlocksFromInventory(EntityPlayer player, int count, int reserve) {
         net.minecraft.item.ItemStack held = player.getHeldItem(pendingPlacerHand);
         int remaining = count;
         for (int i = 0; i < player.inventory.getSizeInventory() && remaining > 0; i++) {
@@ -331,7 +353,8 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             if (stack.isEmpty()) player.inventory.setInventorySlotContents(i, net.minecraft.item.ItemStack.EMPTY);
         }
         if (remaining > 0 && isTankBlockStack(held)) {
-            held.shrink(Math.min(remaining, held.getCount() - 1));
+            held.shrink(Math.min(remaining, held.getCount() - reserve));
+            if (held.isEmpty()) player.setHeldItem(pendingPlacerHand, net.minecraft.item.ItemStack.EMPTY);
         }
         player.inventoryContainer.detectAndSendChanges();
     }
@@ -376,71 +399,82 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             if (te instanceof TileEntityFluidTankMultiblock) {
                 TileEntityFluidTankMultiblock teTank = (TileEntityFluidTankMultiblock) te;
 
-                // Save fluid from the controller BEFORE anything invalidates it,
-                // and immediately zero it out so it can't be duplicated if the
-                // controller block survives the break and later joins a reformed tank.
-                net.minecraftforge.fluids.FluidStack savedFluid = null;
-                BlockPos ctrlPos = teTank.getControllerPos();
-                if (ctrlPos != null) {
-                    TileEntity ctrlTe = world.getTileEntity(ctrlPos);
-                    if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
-                        TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
-                        net.minecraftforge.fluids.FluidStack raw = ctrl.getRawFluid();
-                        if (raw != null && raw.amount > 0) {
-                            savedFluid = raw.copy();
-                            ctrl.setRawFluid(null);
-                            ctrlTe.markDirty();
-                        }
+                // Each block owns an equal share of the tank's fluid. The broken block spills its
+                // share; the rest is split evenly over the surviving blocks, which keep it until
+                // the tank is rebuilt (applyMultiblock sums the shares back up).
+                net.minecraftforge.fluids.FluidStack spill = null;
+                net.minecraftforge.fluids.FluidStack remainder = null;
+                List<BlockPos> survivors = new java.util.ArrayList<>();
+
+                BlockPos ctrlPos = resolveControllerOfBroken(world, pos, teTank);
+                TileEntity ctrlTe = ctrlPos != null ? world.getTileEntity(ctrlPos) : null;
+                if (ctrlTe instanceof TileEntityFluidTankMultiblock) {
+                    TileEntityFluidTankMultiblock ctrl = (TileEntityFluidTankMultiblock) ctrlTe;
+                    for (BlockPos m : TankMultiblock.findMembers(world, ctrlPos)) {
+                        if (!m.equals(pos)) survivors.add(m);
                     }
+                    net.minecraftforge.fluids.FluidStack total = ctrl.getRawFluid();
+                    // Zero it before anything else runs so it can't be duplicated
+                    ctrl.setRawFluid(null);
+                    if (total != null && total.amount > 0) {
+                        spill = total.copy();
+                        spill.amount = total.amount / (survivors.size() + 1);
+                        remainder = total.copy();
+                        remainder.amount = total.amount - spill.amount;
+                    }
+                } else {
+                    // Unformed block: it only holds its own share from an earlier break
+                    spill = teTank.getRawFluid();
                 }
+                teTank.setRawFluid(null);
 
                 teTank.onBreak();
-
-                // After block removal and revalidation, push saved fluid into new controller
                 super.breakBlock(world, pos, state);
 
-                net.minecraftforge.fluids.FluidStack overflow = savedFluid; // fluid not restored
-                for (net.minecraft.util.EnumFacing face : net.minecraft.util.EnumFacing.VALUES) {
+                TankMultiblock.distributeFluid(world, survivors, remainder);
+
+                // Reform whatever valid structure(s) the survivors still make up
+                java.util.Set<BlockPos> formed = new java.util.HashSet<>();
+                for (EnumFacing face : EnumFacing.VALUES) {
                     BlockPos neighborPos = pos.offset(face);
-                    if (world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock) {
-                        rusticpipes.multiblock.TankMultiblock.Structure st =
-                                rusticpipes.multiblock.TankMultiblock.validateMultiblock(world, neighborPos);
-                        if (st != null) {
-                            rusticpipes.multiblock.TankMultiblock.applyMultiblock(world, st);
-                            // Restore fluid to the new controller, trimmed to new capacity
-                            if (savedFluid != null) {
-                                TileEntity newCtrl = world.getTileEntity(st.controller);
-                                if (newCtrl instanceof TileEntityFluidTankMultiblock) {
-                                    int newCap = st.blockCount *
-                                            rusticpipes.handlers.ForgeConfigHandler.fluid.capacityPerTankBlock;
-                                    net.minecraftforge.fluids.FluidStack toRestore = savedFluid.copy();
-                                    if (toRestore.amount > newCap) toRestore.amount = newCap;
-                                    ((TileEntityFluidTankMultiblock) newCtrl).setRawFluid(toRestore);
-                                    newCtrl.markDirty();
-                                    // Only the excess that didn't fit is truly lost
-                                    if (savedFluid.amount > newCap) {
-                                        overflow = savedFluid.copy();
-                                        overflow.amount = savedFluid.amount - newCap;
-                                    } else {
-                                        overflow = null;
-                                    }
-                                }
-                            }
-                            break;
-                        }
-                    }
+                    if (!(world.getBlockState(neighborPos).getBlock() instanceof BlockFluidTankMultiblock)) continue;
+                    TankMultiblock.Structure st = TankMultiblock.validateMultiblock(world, neighborPos);
+                    if (st != null && formed.add(st.controller)) TankMultiblock.applyMultiblock(world, st);
                 }
 
-                // Spill overflow fluid — scatter source blocks across random positions
-                // on the outer surface of the old multiblock for a realistic burst effect.
-                if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak
-                        && overflow != null) {
-                    rusticpipes.block.BlockFluidPipe.spillFluid(world, pos, overflow);
+                // spillFluid only acts on 1000 mB or more
+                if (rusticpipes.handlers.ForgeConfigHandler.fluid.dropBucketsOnBreak && spill != null) {
+                    rusticpipes.block.BlockFluidPipe.spillFluid(world, pos, spill);
                 }
                 return;
             }
         }
         super.breakBlock(world, pos, state);
+    }
+
+    /**
+     * The controller of the tank the broken block belonged to. Falls back to a neighbour's
+     * controller when the broken block's own link is missing, as long as that tank's bounds
+     * contain the broken position — otherwise a desynced link meant no spill at all.
+     */
+    @javax.annotation.Nullable
+    private static BlockPos resolveControllerOfBroken(World world, BlockPos pos, TileEntityFluidTankMultiblock teTank) {
+        if (teTank.getControllerPos() != null) return teTank.getControllerPos();
+        for (EnumFacing face : EnumFacing.VALUES) {
+            TileEntity nte = world.getTileEntity(pos.offset(face));
+            if (!(nte instanceof TileEntityFluidTankMultiblock)) continue;
+            BlockPos c = ((TileEntityFluidTankMultiblock) nte).getControllerPos();
+            if (c == null) continue;
+            TileEntity cte = world.getTileEntity(c);
+            if (!(cte instanceof TileEntityFluidTankMultiblock)) continue;
+            int base = ((TileEntityFluidTankMultiblock) cte).getBaseSize();
+            if (pos.getX() >= c.getX() && pos.getX() < c.getX() + base
+                    && pos.getZ() >= c.getZ() && pos.getZ() < c.getZ() + base
+                    && pos.getY() >= c.getY() && pos.getY() < c.getY() + 10) {
+                return c;
+            }
+        }
+        return null;
     }
 
     private void tryValidate(World world, BlockPos pos) {
@@ -529,16 +563,61 @@ public class BlockFluidTankMultiblock extends Block implements ITileEntityProvid
             if (ctrl != null) {
                 net.minecraftforge.fluids.capability.IFluidHandler handler =
                         ctrl.getCapability(net.minecraftforge.fluids.capability.CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, facing);
+                if (handler != null && fillModdedBucket(player, hand, held, handler)) {
+                    ctrl.syncFill();
+                    return true;
+                }
                 if (handler != null) {
                     boolean success = net.minecraftforge.fluids.FluidUtil.interactWithFluidHandler(player, hand, handler);
-                    if (success) return true;
+                    if (success) {
+                        ctrl.syncFill();
+                        return true;
+                    }
                 }
             }
+            // The client always reports this click as handled. Returning false here would let
+            // the server fall through to the item's own use — a bucket would then place or
+            // pick up fluid in the world (e.g. when the tank is full) that the client never sees.
+            if (net.minecraftforge.fluids.FluidUtil.getFluidHandler(held) != null) return true;
         }
 
         // Sneak right-click: show tank info
         if (!player.isSneaking()) return false;
         sendTankInfo(world, pos, player);
+        return true;
+    }
+
+    /**
+     * Fills an empty vanilla bucket using another mod's own bucket item for that fluid
+     * (Forge's wrapper either refuses those fluids or hands out its universal bucket —
+     * see ModdedBucketCompat).
+     * @return true if a bucket was filled
+     */
+    private static boolean fillModdedBucket(EntityPlayer player, EnumHand hand, net.minecraft.item.ItemStack held,
+                                            net.minecraftforge.fluids.capability.IFluidHandler handler) {
+        if (held.getItem() != net.minecraft.init.Items.BUCKET) return false;
+        net.minecraftforge.fluids.FluidStack inTank = handler.drain(net.minecraftforge.fluids.Fluid.BUCKET_VOLUME, false);
+        if (inTank == null || inTank.amount < net.minecraftforge.fluids.Fluid.BUCKET_VOLUME) return false;
+        // Vanilla buckets for water/lava. Everything else prefers the owning mod's bucket, even
+        // when Forge's universal bucket could hold it — otherwise the player gets a generic
+        // forge:bucketfilled instead of e.g. Lycanites' own ooze bucket.
+        if (inTank.getFluid() == net.minecraftforge.fluids.FluidRegistry.WATER
+                || inTank.getFluid() == net.minecraftforge.fluids.FluidRegistry.LAVA) return false;
+        net.minecraft.item.ItemStack filled = rusticpipes.compat.ModdedBucketCompat.getFilledBucket(inTank);
+        if (filled.isEmpty()) return false;
+
+        handler.drain(net.minecraftforge.fluids.Fluid.BUCKET_VOLUME, true);
+        if (!player.capabilities.isCreativeMode) {
+            held.shrink(1);
+            if (held.isEmpty()) {
+                player.setHeldItem(hand, filled);
+            } else if (!player.inventory.addItemStackToInventory(filled)) {
+                player.dropItem(filled, false);
+            }
+        }
+        net.minecraft.util.SoundEvent sound = inTank.getFluid().getFillSound(inTank);
+        player.world.playSound(null, player.posX, player.posY + 0.5, player.posZ, sound,
+                net.minecraft.util.SoundCategory.BLOCKS, 1f, 1f);
         return true;
     }
 
