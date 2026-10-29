@@ -24,7 +24,6 @@ import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import rusticpipes.client.model.PipeModel;
 import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityFluidPipe;
@@ -68,15 +67,15 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
         return new ExtendedBlockState(this,
                 new net.minecraft.block.properties.IProperty[]{},
                 new net.minecraftforge.common.property.IUnlistedProperty[]{
-                        PipeModel.BLOCK_POS,
-                        PipeModel.PIPE_COLOR,
-                        PipeModel.CON_NORTH,
-                        PipeModel.CON_SOUTH,
-                        PipeModel.CON_EAST,
-                        PipeModel.CON_WEST,
-                        PipeModel.CON_UP,
-                        PipeModel.CON_DOWN,
-                        rusticpipes.client.model.FluidPipeModel.FLUID_COLOR
+                        PipeProperties.BLOCK_POS,
+                        PipeProperties.PIPE_COLOR,
+                        PipeProperties.CON_NORTH,
+                        PipeProperties.CON_SOUTH,
+                        PipeProperties.CON_EAST,
+                        PipeProperties.CON_WEST,
+                        PipeProperties.CON_UP,
+                        PipeProperties.CON_DOWN,
+                        PipeProperties.FLUID_COLOR
                 });
     }
 
@@ -94,13 +93,13 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
         int fluidColor = 0;
         if (pipe != null) fluidColor = pipe.getFluidColor();
 
-        ext = ext.withProperty(PipeModel.BLOCK_POS, pos)
-                .withProperty(PipeModel.PIPE_COLOR, this.pipeColor)
-                .withProperty(rusticpipes.client.model.FluidPipeModel.FLUID_COLOR, fluidColor);
+        ext = ext.withProperty(PipeProperties.BLOCK_POS, pos)
+                .withProperty(PipeProperties.PIPE_COLOR, this.pipeColor)
+                .withProperty(PipeProperties.FLUID_COLOR, fluidColor);
 
         for (EnumFacing face : EnumFacing.VALUES) {
             int con = computeConnection(world, pos, face, pipe);
-            ext = ext.withProperty(PipeModel.getConProperty(face), con);
+            ext = ext.withProperty(PipeProperties.getConProperty(face), con);
         }
         return ext;
     }

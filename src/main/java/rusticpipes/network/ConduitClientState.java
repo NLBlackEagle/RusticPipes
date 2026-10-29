@@ -1,8 +1,6 @@
 package rusticpipes.network;
 
 import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,8 +10,9 @@ import java.util.Map;
  * Populated by PacketConduitPower so that getExtendedState can pick the
  * correct connector texture on a dedicated server (where ConduitNetwork
  * only exists server-side).
+ * Not @SideOnly: BlockConduit.getExtendedState references it, and that can be
+ * called on a dedicated server; there it simply stays empty.
  */
-@SideOnly(Side.CLIENT)
 public class ConduitClientState {
 
     private static final Map<BlockPos, Boolean> POWERED = new HashMap<>();

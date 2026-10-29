@@ -19,6 +19,7 @@ import net.minecraftforge.common.model.TRSRTransformation;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.common.property.IUnlistedProperty;
 import rusticpipes.block.PipeColor;
+import rusticpipes.block.PipeProperties;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -47,12 +48,7 @@ public class FluidPipeModel implements IModel {
     // FLUID_COLOR — extra unlisted property, only on fluid pipes
     // -----------------------------------------------------------------------
 
-    public static final IUnlistedProperty<Integer> FLUID_COLOR = new IUnlistedProperty<Integer>() {
-        @Override public String getName()                   { return "fluid_color"; }
-        @Override public Class<Integer> getType()           { return Integer.class; }
-        @Override public boolean isValid(Integer value)     { return true; }
-        @Override public String valueToString(Integer value){ return value.toString(); }
-    };
+    public static final IUnlistedProperty<Integer> FLUID_COLOR = PipeProperties.FLUID_COLOR;
 
     // -----------------------------------------------------------------------
     // Texture resource locations (fluid_pipes folder)

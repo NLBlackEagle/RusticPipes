@@ -23,7 +23,6 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.RusticPipes;
-import rusticpipes.client.model.PipeModel;
 import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
@@ -73,14 +72,14 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
         return new ExtendedBlockState(this,
                 new net.minecraft.block.properties.IProperty[]{},
                 new net.minecraftforge.common.property.IUnlistedProperty[]{
-                        PipeModel.BLOCK_POS,
-                        PipeModel.PIPE_COLOR,
-                        PipeModel.CON_NORTH,
-                        PipeModel.CON_SOUTH,
-                        PipeModel.CON_EAST,
-                        PipeModel.CON_WEST,
-                        PipeModel.CON_UP,
-                        PipeModel.CON_DOWN
+                        PipeProperties.BLOCK_POS,
+                        PipeProperties.PIPE_COLOR,
+                        PipeProperties.CON_NORTH,
+                        PipeProperties.CON_SOUTH,
+                        PipeProperties.CON_EAST,
+                        PipeProperties.CON_WEST,
+                        PipeProperties.CON_UP,
+                        PipeProperties.CON_DOWN
                 });
     }
 
@@ -98,12 +97,12 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
         TileEntity te = world.getTileEntity(pos);
         TileEntityItemPipe pipe = (te instanceof TileEntityItemPipe) ? (TileEntityItemPipe) te : null;
 
-        ext = ext.withProperty(PipeModel.BLOCK_POS, pos)
-                .withProperty(PipeModel.PIPE_COLOR, this.pipeColor);
+        ext = ext.withProperty(PipeProperties.BLOCK_POS, pos)
+                .withProperty(PipeProperties.PIPE_COLOR, this.pipeColor);
 
         for (EnumFacing face : EnumFacing.VALUES) {
             int con = computeConnection(world, pos, face, pipe);
-            ext = ext.withProperty(PipeModel.getConProperty(face), con);
+            ext = ext.withProperty(PipeProperties.getConProperty(face), con);
         }
 
         return ext;

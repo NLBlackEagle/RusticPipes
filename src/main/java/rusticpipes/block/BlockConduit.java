@@ -22,7 +22,6 @@ import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import rusticpipes.client.model.ConduitModel;
 import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.network.ConduitClientState;
 import rusticpipes.network.ConduitNetwork;
@@ -61,12 +60,12 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         return new ExtendedBlockState(this,
                 new net.minecraft.block.properties.IProperty[]{},
                 new net.minecraftforge.common.property.IUnlistedProperty[]{
-                        ConduitModel.BLOCK_POS,
-                        ConduitModel.CONDUIT_TIER,
-                        ConduitModel.CON_NORTH, ConduitModel.CON_SOUTH,
-                        ConduitModel.CON_EAST,  ConduitModel.CON_WEST,
-                        ConduitModel.CON_UP,    ConduitModel.CON_DOWN,
-                        ConduitModel.POWERED
+                        ConduitProperties.BLOCK_POS,
+                        ConduitProperties.CONDUIT_TIER,
+                        ConduitProperties.CON_NORTH, ConduitProperties.CON_SOUTH,
+                        ConduitProperties.CON_EAST,  ConduitProperties.CON_WEST,
+                        ConduitProperties.CON_UP,    ConduitProperties.CON_DOWN,
+                        ConduitProperties.POWERED
                 });
     }
 
@@ -84,18 +83,18 @@ public class BlockConduit extends Block implements ITileEntityProvider {
         // Tier always 0 — conduit has no tier of its own
         int tier = 0;
 
-        ext = ext.withProperty(ConduitModel.BLOCK_POS, pos)
-                .withProperty(ConduitModel.CONDUIT_TIER, tier);
+        ext = ext.withProperty(ConduitProperties.BLOCK_POS, pos)
+                .withProperty(ConduitProperties.CONDUIT_TIER, tier);
 
         for (EnumFacing face : EnumFacing.VALUES)
-            ext = ext.withProperty(ConduitModel.getConProperty(face),
+            ext = ext.withProperty(ConduitProperties.getConProperty(face),
                     computeConnection(world, pos, face));
 
         // Powered state always comes from the packet-synced client map. Reading the server's
         // ConduitNetwork here (single-player) was not thread-safe from the chunk render
         // thread, and the ChunkCache world has no dimension, so it fell back to dim 0 and
         // could show an Overworld network's state on a Nether conduit.
-        ext = ext.withProperty(ConduitModel.POWERED, ConduitClientState.isPowered(pos));
+        ext = ext.withProperty(ConduitProperties.POWERED, ConduitClientState.isPowered(pos));
 
         return ext;
     }

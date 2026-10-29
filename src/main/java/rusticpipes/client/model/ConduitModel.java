@@ -16,6 +16,7 @@ import net.minecraftforge.common.model.IModelState;
 import net.minecraftforge.common.model.TRSRTransformation;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.common.property.IUnlistedProperty;
+import rusticpipes.block.ConduitProperties;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -29,31 +30,19 @@ public class ConduitModel implements IModel {
     // Unlisted properties
     // -----------------------------------------------------------------------
 
-    public static final IUnlistedProperty<BlockPos> BLOCK_POS    = unlisted("conduit_block_pos", BlockPos.class);
-    public static final IUnlistedProperty<Integer>  CONDUIT_TIER = unlisted("conduit_tier",      Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_NORTH    = unlisted("conduit_con_north", Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_SOUTH    = unlisted("conduit_con_south", Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_EAST     = unlisted("conduit_con_east",  Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_WEST     = unlisted("conduit_con_west",  Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_UP       = unlisted("conduit_con_up",    Integer.class);
-    public static final IUnlistedProperty<Integer>  CON_DOWN     = unlisted("conduit_con_down",  Integer.class);
-    public static final IUnlistedProperty<Boolean>  POWERED      = unlisted("conduit_powered",   Boolean.class);
-
-    private static <T> IUnlistedProperty<T> unlisted(String name, Class<T> type) {
-        return new IUnlistedProperty<T>() {
-            @Override public String getName() { return name; }
-            @Override public Class<T> getType() { return type; }
-            @Override public boolean isValid(T value) { return true; }
-            @Override public String valueToString(T value) { return value == null ? "null" : value.toString(); }
-        };
-    }
+    // Defined in common code (ConduitProperties) so the server never loads this class.
+    public static final IUnlistedProperty<BlockPos> BLOCK_POS    = ConduitProperties.BLOCK_POS;
+    public static final IUnlistedProperty<Integer>  CONDUIT_TIER = ConduitProperties.CONDUIT_TIER;
+    public static final IUnlistedProperty<Integer>  CON_NORTH    = ConduitProperties.CON_NORTH;
+    public static final IUnlistedProperty<Integer>  CON_SOUTH    = ConduitProperties.CON_SOUTH;
+    public static final IUnlistedProperty<Integer>  CON_EAST     = ConduitProperties.CON_EAST;
+    public static final IUnlistedProperty<Integer>  CON_WEST     = ConduitProperties.CON_WEST;
+    public static final IUnlistedProperty<Integer>  CON_UP       = ConduitProperties.CON_UP;
+    public static final IUnlistedProperty<Integer>  CON_DOWN     = ConduitProperties.CON_DOWN;
+    public static final IUnlistedProperty<Boolean>  POWERED      = ConduitProperties.POWERED;
 
     public static IUnlistedProperty<Integer> getConProperty(EnumFacing face) {
-        switch (face) {
-            case NORTH: return CON_NORTH; case SOUTH: return CON_SOUTH;
-            case EAST:  return CON_EAST;  case WEST:  return CON_WEST;
-            case UP:    return CON_UP;    default:    return CON_DOWN;
-        }
+        return ConduitProperties.getConProperty(face);
     }
 
     // -----------------------------------------------------------------------
