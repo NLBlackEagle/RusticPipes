@@ -6,7 +6,6 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.block.PipeColor;
@@ -14,6 +13,7 @@ import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityFluidPipe;
 import rusticpipes.util.DimPos;
+import rusticpipes.util.FluidHandlerLookup;
 
 import java.util.*;
 
@@ -191,10 +191,7 @@ public class FluidNetwork {
                 if (pipe.getFaceMode(face) != FaceMode.INPUT) continue;
                 if (!world.isBlockLoaded(neighborPos)) continue; // never load chunks from a tick
 
-                TileEntity nte = world.getTileEntity(neighborPos);
-                if (nte == null) continue;
-                IFluidHandler source = nte.getCapability(
-                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
+                IFluidHandler source = FluidHandlerLookup.get(world, neighborPos, face.getOpposite());
                 if (source == null) continue;
 
                 int space = pipe.getBufferSpace();
@@ -223,11 +220,8 @@ public class FluidNetwork {
                 if (members.contains(nbPos)) continue;
                 if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
                 if (!world.isBlockLoaded(nbPos)) continue;
-                TileEntity nte = world.getTileEntity(nbPos);
-                if (nte == null) continue;
-                boolean isFluidHandler = nte.hasCapability(
-                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
-                boolean isUnformedTank = nte instanceof rusticpipes.tileentity.TileEntityFluidTankMultiblock;
+                boolean isFluidHandler = FluidHandlerLookup.hasFluidHandler(world, nbPos, face.getOpposite());
+                boolean isUnformedTank = world.getTileEntity(nbPos) instanceof rusticpipes.tileentity.TileEntityFluidTankMultiblock;
                 if (!isFluidHandler && !isUnformedTank) continue;
                 if (!dist.containsKey(pipePos)) {
                     dist.put(pipePos, 0);
@@ -318,14 +312,15 @@ public class FluidNetwork {
                 if (pipe.getFaceMode(face) != FaceMode.OUTPUT) continue;
                 if (!world.isBlockLoaded(neighborPos)) continue;
 
-                TileEntity nte = world.getTileEntity(neighborPos);
-                if (nte == null) continue;
-                IFluidHandler dest = nte.getCapability(
-                        CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
+                IFluidHandler dest = FluidHandlerLookup.get(world, neighborPos, face.getOpposite());
                 if (dest == null) continue;
+                if (pipe.getBuffer() == null || pipe.getBuffer().amount <= 0) break;
 
                 FluidStack toInsert = pipe.getBuffer().copy();
-                toInsert.amount = Math.min(toInsert.amount, maxRate);
+                // A cauldron only takes whole levels (333 mB), more than one tick's flow;
+                // capping it to the flow rate would mean it never accepts anything.
+                if (!FluidHandlerLookup.isLevelBased(world, neighborPos))
+                    toInsert.amount = Math.min(toInsert.amount, maxRate);
 
                 int accepted = dest.fill(toInsert, false);
                 if (accepted <= 0) continue;

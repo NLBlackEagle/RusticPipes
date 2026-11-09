@@ -9,7 +9,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.block.PipeColor;
@@ -18,6 +17,7 @@ import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
 import rusticpipes.util.DimPos;
+import rusticpipes.util.ItemHandlerLookup;
 
 import java.util.*;
 
@@ -392,15 +392,7 @@ public class PipeNetwork {
 
     @javax.annotation.Nullable
     private static IItemHandler getInventoryAtPos(World world, BlockPos pos) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) return null;
-        for (EnumFacing face : EnumFacing.VALUES) {
-            if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face))
-                return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-        }
-        if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null))
-            return te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
-        return null;
+        return ItemHandlerLookup.getAnySide(world, pos);
     }
 
     public SpeedTier getCurrentTier()    { return currentTier; }

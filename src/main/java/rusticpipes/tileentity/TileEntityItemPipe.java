@@ -8,7 +8,6 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.block.BlockItemPipe;
 import rusticpipes.network.PipeNetwork;
 
@@ -104,7 +103,7 @@ public class TileEntityItemPipe extends TileEntity implements ITickable {
         if (neighbourBlock instanceof rusticpipes.block.BlockConduit) return true;
         TileEntity neighbour = world.getTileEntity(pos.offset(face));
         if (neighbour == null) return false;
-        if (neighbour.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite())) return true;
+        if (rusticpipes.util.ItemHandlerLookup.hasItemHandler(world, pos.offset(face), face.getOpposite())) return true;
         if (neighbour.hasCapability(CapabilityEnergy.ENERGY, face.getOpposite())) return true;
         return false;
     }

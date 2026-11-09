@@ -8,7 +8,6 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import rusticpipes.block.BlockFluidPipe;
 import rusticpipes.compat.NuclearCraftCompat;
 import rusticpipes.network.FluidNetwork;
@@ -206,9 +205,7 @@ public class TileEntityFluidPipe extends TileEntity implements ITickable {
     public boolean isConnected(EnumFacing face) {
         Block neighbourBlock = world.getBlockState(pos.offset(face)).getBlock();
         if (neighbourBlock instanceof BlockFluidPipe) return true;
-        TileEntity neighbour = world.getTileEntity(pos.offset(face));
-        if (neighbour == null) return false;
-        return neighbour.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite());
+        return rusticpipes.util.FluidHandlerLookup.hasFluidHandler(world, pos.offset(face), face.getOpposite());
     }
 
     public void refreshConnections() {

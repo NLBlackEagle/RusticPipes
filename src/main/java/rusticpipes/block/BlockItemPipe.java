@@ -21,7 +21,6 @@ import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.items.CapabilityItemHandler;
 import rusticpipes.RusticPipes;
 import rusticpipes.handlers.TooltipHandler;
 import rusticpipes.tileentity.FaceMode;
@@ -121,8 +120,7 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
         if (neighbourTE instanceof TileEntityConduitBuffer) {
             return CON_FE_SOURCE;
         }
-        if (neighbourTE != null
-                && neighbourTE.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face.getOpposite())) {
+        if (rusticpipes.util.ItemHandlerLookup.hasItemHandler(world, pos.offset(face), face.getOpposite())) {
             boolean isInput = pipe != null && pipe.getFaceMode(face) == FaceMode.INPUT;
             return isInput ? CON_INV_INPUT : CON_INV_OUTPUT;
         }
@@ -168,9 +166,7 @@ public class BlockItemPipe extends Block implements ITileEntityProvider {
             return true;
         }
 
-        TileEntity neighbourTE = world.getTileEntity(pos.offset(clickedArm));
-        if (neighbourTE == null || !neighbourTE.hasCapability(
-                CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, clickedArm.getOpposite())) {
+        if (!rusticpipes.util.ItemHandlerLookup.hasItemHandler(world, pos.offset(clickedArm), clickedArm.getOpposite())) {
             if (RusticPipes.DEBUG) {
                 player.sendMessage(new TextComponentString(
                         capitalize(clickedArm.getName()) + " arm: no connection"));
