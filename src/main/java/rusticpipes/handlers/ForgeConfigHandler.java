@@ -130,6 +130,25 @@ public class ForgeConfigHandler {
         @Config.RangeInt(min = 0, max = 20)
         @Config.Name("Distance Penalty (ticks per pipe)")
         public int distancePenalty = 0;
+
+        @Config.Comment("Containers item pipes may not pull from and/or push into.\n"
+                + "Format: <block id>[|<nbt check>&<nbt check>...][@pull|@push|@both]\n"
+                + "  block id   : registry name, '*' is a wildcard (e.g. charm:crate_sealed, minecraft:*, *)\n"
+                + "  nbt check  : tested against the tile entity's NBT, only if the id matched.\n"
+                + "               Key        -> key exists\n"
+                + "               !Key       -> key is missing\n"
+                + "               Key=value  -> key exists and equals value\n"
+                + "               Key!=value -> key exists and differs from value (Key!= means 'not empty')\n"
+                + "               Nested keys use dots, e.g. ForgeCaps.somemod:cap.Locked=1b\n"
+                + "  direction  : what is blocked, default both.\n"
+                + "A container is blocked when the id AND every nbt check of a rule match.\n"
+                + "Default '*|Lock!=' blocks any container with a vanilla lock code set.")
+        @Config.Name("Blocked Containers")
+        public String[] blockedContainers = { "*|Lock!=", "charm:crate_sealed" };
+
+        @Config.Comment("Item pipes cannot pull from or push into containers locked with the Locks mod.")
+        @Config.Name("Respect Locks Mod")
+        public boolean respectLocksMod = true;
     }
 
     public static class ConduitConfig {
@@ -427,6 +446,7 @@ public class ForgeConfigHandler {
             if (event.getModID().equals(RusticPipes.MODID)) {
                 ConfigManager.sync(RusticPipes.MODID, Config.Type.INSTANCE);
                 parsedTickRate = null; // force re-parse on next access
+                rusticpipes.util.ContainerFilter.invalidate();
             }
         }
     }

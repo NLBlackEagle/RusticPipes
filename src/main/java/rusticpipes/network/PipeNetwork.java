@@ -16,6 +16,7 @@ import rusticpipes.handlers.ForgeConfigHandler;
 import rusticpipes.tileentity.FaceMode;
 import rusticpipes.tileentity.TileEntityConduitBuffer;
 import rusticpipes.tileentity.TileEntityItemPipe;
+import rusticpipes.util.ContainerFilter;
 import rusticpipes.util.DimPos;
 import rusticpipes.util.ItemHandlerLookup;
 
@@ -291,6 +292,7 @@ public class PipeNetwork {
     public void transferItems(World world) {
         Set<BlockPos> inputPositions  = new LinkedHashSet<>();
         Set<BlockPos> outputPositions = new LinkedHashSet<>();
+        ContainerFilter.Context filterCtx = new ContainerFilter.Context();
 
         for (BlockPos memberPos : members) {
             if (!world.isBlockLoaded(memberPos)) continue;
@@ -307,11 +309,14 @@ public class PipeNetwork {
                 if (world.getBlockState(neighbourPos).getBlock() instanceof BlockItemPipe) continue;
                 if (getInventoryAtPos(world, neighbourPos) == null) continue;
 
+                // Locked / blacklisted containers (see "Blocked Containers" config) are skipped.
                 FaceMode mode = pipe.getFaceMode(face);
                 if (mode == FaceMode.INPUT) {
-                    inputPositions.add(neighbourPos);
+                    if (!ContainerFilter.isBlocked(world, neighbourPos, ContainerFilter.Direction.PULL, filterCtx))
+                        inputPositions.add(neighbourPos);
                 } else {
-                    outputPositions.add(neighbourPos);
+                    if (!ContainerFilter.isBlocked(world, neighbourPos, ContainerFilter.Direction.PUSH, filterCtx))
+                        outputPositions.add(neighbourPos);
                 }
             }
         }
