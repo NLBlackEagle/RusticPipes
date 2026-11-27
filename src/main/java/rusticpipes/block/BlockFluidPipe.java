@@ -21,7 +21,6 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.property.ExtendedBlockState;
 import net.minecraftforge.common.property.IExtendedBlockState;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import rusticpipes.handlers.TooltipHandler;
@@ -111,9 +110,7 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
                 && ((BlockFluidPipe) neighbour).pipeColor == this.pipeColor) {
             return CON_PIPE;
         }
-        TileEntity neighbourTE = world.getTileEntity(pos.offset(face));
-        if (neighbourTE != null
-                && neighbourTE.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face.getOpposite())) {
+        if (rusticpipes.util.FluidHandlerLookup.hasFluidHandler(world, pos.offset(face), face.getOpposite())) {
             boolean isInput = pipe != null && pipe.getFaceMode(face) == FaceMode.INPUT;
             return isInput ? CON_INV_INPUT : CON_INV_OUTPUT;
         }
@@ -168,9 +165,7 @@ public class BlockFluidPipe extends Block implements ITileEntityProvider {
         Block neighbour = world.getBlockState(pos.offset(clickedArm)).getBlock();
         if (neighbour instanceof BlockFluidPipe) return true;
 
-        TileEntity neighbourTE = world.getTileEntity(pos.offset(clickedArm));
-        if (neighbourTE == null || !neighbourTE.hasCapability(
-                CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, clickedArm.getOpposite())) {
+        if (!rusticpipes.util.FluidHandlerLookup.hasFluidHandler(world, pos.offset(clickedArm), clickedArm.getOpposite())) {
             return true;
         }
 
